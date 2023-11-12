@@ -1,0 +1,7 @@
+{% extend "base.html" %}
+
+{% define "content" %}
+    {! for i, v in .Phrases !}
+        <p>{{ v }}</p>
+    {! end !}
+{% end %}
