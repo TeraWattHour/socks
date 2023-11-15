@@ -1,8 +1,9 @@
 package tokenizer
 
 import (
-	"errors"
-	"golang.org/x/exp/slices"
+	"github.com/terawatthour/socks/internal/helpers"
+	errors2 "github.com/terawatthour/socks/pkg/errors"
+	"unicode"
 )
 
 const (
@@ -23,10 +24,11 @@ const (
 )
 
 type Tokenizer struct {
-	Template      string
-	cursor        int
 	Tags          []Tag
+	Template      string
 	Runes         []rune
+	currentTag    *Tag
+	cursor        int
 	char          rune
 	nextChar      rune
 	isInsideBlock bool
@@ -56,9 +58,19 @@ var KEYWORDS = []string{
 	TOK_DEFINE,
 }
 
-func (t *Tokenizer) Tokenize() error {
-	var currentTag *Tag
+func NewTokenizer(template string) *Tokenizer {
+	t := &Tokenizer{
+		Template: template,
+		Runes:    []rune(template),
+		cursor:   -1,
+	}
 
+	t.Next()
+
+	return t
+}
+
+func (t *Tokenizer) Tokenize() error {
 	for t.char != 0 {
 		pushNext := true
 
@@ -67,7 +79,6 @@ func (t *Tokenizer) Tokenize() error {
 		if t.isInsideBlock {
 			var token Token
 
-			// inside print block
 			switch t.char {
 			case '.':
 				token = Token{
@@ -106,11 +117,11 @@ func (t *Tokenizer) Tokenize() error {
 				if t.isValidNumber() {
 					start := t.cursor
 					hasDot := t.char == '.'
-					for t.isValidNumber() {
+					for t.isValidNumber() || t.char == '.' {
 						t.Next()
 						isDot := t.char == '.'
 						if hasDot && isDot {
-							return errors.New("malformed number")
+							return errors2.NewTokenizerError("malformed number", start, t.cursor)
 						}
 						if isDot {
 							hasDot = true
@@ -132,11 +143,11 @@ func (t *Tokenizer) Tokenize() error {
 					pushNext = false
 				} else if t.isValidVariableName() {
 					start := t.cursor
-					for t.isValidVariableName() {
+					for t.isValidVariableName() || t.isValidNumber() {
 						t.Next()
 					}
 					literal := string(t.Runes[start:t.cursor])
-					if slices.Contains(KEYWORDS, literal) {
+					if helpers.Contains(KEYWORDS, literal) {
 						token = Token{
 							Kind:    literal,
 							Literal: literal,
@@ -152,71 +163,14 @@ func (t *Tokenizer) Tokenize() error {
 			}
 
 			if token.Kind != "" {
-				currentTag.Tokens = append(currentTag.Tokens, token)
+				t.currentTag.Tokens = append(t.currentTag.Tokens, token)
 			}
 
-			if t.char == '}' && t.nextChar == '}' {
-				if currentTag == nil || currentTag.Kind != "print" {
-					panic("unexpected }}")
-				}
-				currentTag.End = t.cursor + 1
-
-				t.Tags = append(t.Tags, *currentTag)
-				currentTag = nil
-
-				t.isInsideBlock = false
+			if err := t.tryCloseTag(); err != nil {
+				return err
 			}
-
-			if t.char == '%' && t.nextChar == '}' {
-				if currentTag == nil || currentTag.Kind != "preprocessor" {
-					panic("unexpected %}")
-				}
-
-				currentTag.End = t.cursor + 1
-
-				t.Tags = append(t.Tags, *currentTag)
-				currentTag = nil
-
-				t.isInsideBlock = false
-			}
-
-			if t.char == '!' && t.nextChar == '}' {
-				if currentTag == nil || currentTag.Kind != "execute" {
-					panic("unexpected %}")
-				}
-
-				currentTag.End = t.cursor + 1
-
-				t.Tags = append(t.Tags, *currentTag)
-				currentTag = nil
-
-				t.isInsideBlock = false
-			}
-
 		} else {
-			if t.char == '{' && t.nextChar == '!' {
-				currentTag = &Tag{
-					Start: t.cursor,
-					Kind:  "execute",
-				}
-				t.isInsideBlock = true
-			}
-
-			if t.char == '{' && t.nextChar == '{' {
-				currentTag = &Tag{
-					Start: t.cursor,
-					Kind:  "print",
-				}
-				t.isInsideBlock = true
-			}
-
-			if t.char == '{' && t.nextChar == '%' {
-				currentTag = &Tag{
-					Start: t.cursor,
-					Kind:  "preprocessor",
-				}
-				t.isInsideBlock = true
-			}
+			t.tryOpenTag()
 		}
 
 		if pushNext {
@@ -225,7 +179,7 @@ func (t *Tokenizer) Tokenize() error {
 	}
 
 	if t.isInsideBlock {
-		return errors.New("unexpected end of file")
+		return errors2.NewTokenizerError("unexpected end of file", t.cursor, t.cursor)
 	}
 
 	return nil
@@ -246,6 +200,56 @@ func (t *Tokenizer) Next() {
 	}
 }
 
+func (t *Tokenizer) tryOpenTag() {
+	openTag := func(kind string) {
+		t.currentTag = &Tag{
+			Start: t.cursor,
+			Kind:  kind,
+		}
+		t.isInsideBlock = true
+	}
+
+	if t.char == '{' {
+		switch t.nextChar {
+		case '%':
+			openTag("preprocessor")
+		case '!':
+			openTag("execute")
+		case '{':
+			openTag("print")
+		}
+	}
+}
+
+func (t *Tokenizer) tryCloseTag() error {
+	closeTag := func(kind string) error {
+		if t.currentTag == nil || t.currentTag.Kind != kind {
+			return errors2.NewTokenizerError("unexpected tag terminator", t.cursor, t.cursor)
+		}
+		t.currentTag.End = t.cursor + 1
+
+		t.Tags = append(t.Tags, *t.currentTag)
+		t.currentTag = nil
+
+		t.isInsideBlock = false
+
+		return nil
+	}
+
+	if t.nextChar == '}' {
+		switch t.char {
+		case '}':
+			return closeTag("print")
+		case '%':
+			return closeTag("preprocessor")
+		case '!':
+			return closeTag("execute")
+		}
+	}
+
+	return nil
+}
+
 func (t *Tokenizer) skipWhitespace() {
 	for t.char == ' ' || t.char == '\t' || t.char == '\n' || t.char == '\r' {
 		t.Next()
@@ -253,27 +257,9 @@ func (t *Tokenizer) skipWhitespace() {
 }
 
 func (t *Tokenizer) isValidVariableName() bool {
-	if t.char >= 'a' && t.char <= 'z' || t.char >= 'A' && t.char <= 'Z' || t.char == '_' {
-		return true
-	}
-	return false
+	return unicode.IsLetter(t.char) || t.char == '_'
 }
 
 func (t *Tokenizer) isValidNumber() bool {
-	if t.char >= '0' && t.char <= '9' || t.char == '.' {
-		return true
-	}
-	return false
-}
-
-func NewTokenizer(template string) *Tokenizer {
-	t := &Tokenizer{
-		Template: template,
-		Runes:    []rune(template),
-		cursor:   -1,
-	}
-
-	t.Next()
-
-	return t
+	return t.char >= '0' && t.char <= '9'
 }

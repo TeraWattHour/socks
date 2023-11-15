@@ -1,7 +1,6 @@
 package evaluator
 
 import (
-	"fmt"
 	"github.com/terawatthour/socks/pkg/parser"
 	"github.com/terawatthour/socks/pkg/tokenizer"
 	"testing"
@@ -22,12 +21,14 @@ func TestEvaluatorSimple(t *testing.T) {
 
 	tok := tokenizer.NewTokenizer(template)
 	if err := tok.Tokenize(); err != nil {
-		t.Errorf("Expected no error, got %s", err)
+		t.Errorf("unexpected error: %s", err)
+		return
 	}
 
 	par := parser.NewParser(tok)
 	if err := par.Parse(); err != nil {
-		t.Errorf("Expected no error, got %s", err)
+		t.Errorf("unexpected error: %s", err)
+		return
 	}
 
 	eval := NewEvaluator(par)
@@ -47,7 +48,15 @@ func TestEvaluatorSimple(t *testing.T) {
 			},
 		},
 	})
-	fmt.Println(evaluated, err)
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+		return
+	}
+
+	expected := "<html><head><title>1123 Hello, World! kok: kc</title></head><body><h1>xdddd: najs</h1></body></html>"
+	if expected != evaluated {
+		t.Errorf("expected `%s`, got `%s`", expected, evaluated)
+	}
 }
 
 func TestEvaluatorRemove(t *testing.T) {
@@ -55,37 +64,85 @@ func TestEvaluatorRemove(t *testing.T) {
 
 	tok := tokenizer.NewTokenizer(template)
 	if err := tok.Tokenize(); err != nil {
-		t.Errorf("Expected no error, got %s", err)
+		t.Errorf("unexpected error: %s", err)
+		return
 	}
 
 	par := parser.NewParser(tok)
 	if err := par.Parse(); err != nil {
-		t.Errorf("Expected no error, got %s", err)
+		t.Errorf("unexpected error: %s", err)
+		return
 	}
 
 	eval := NewEvaluator(par)
 
 	evaluated, err := eval.Evaluate(map[string]interface{}{})
 	if err != nil {
-		t.Errorf("Expected no error, got %s", err)
+		t.Errorf("unexpected error: %s", err)
+		return
 	}
 	expected := " xd   show me "
 	if evaluated != expected {
-		t.Errorf("Expected `%s`, got `%s`", expected, evaluated)
+		t.Errorf("expected `%s`, got `%s`", expected, evaluated)
 	}
 }
 
-func TestEvaluatorFor(t *testing.T) {
-	template := `before{! for i, v in .elements !} {{ i }} {{ v }} {! end !}after {{ .some_other }}`
+func TestEvaluatorMultiple(t *testing.T) {
+	template := `{! for i, v in .Statements !} {{ v }} {! end !}`
 
 	tok := tokenizer.NewTokenizer(template)
 	if err := tok.Tokenize(); err != nil {
-		t.Errorf("Expected no error, got %s", err)
+		t.Errorf("unexpected error: %s", err)
+		return
 	}
 
 	par := parser.NewParser(tok)
 	if err := par.Parse(); err != nil {
-		t.Errorf("Expected no error, got %s", err)
+		t.Errorf("unexpected error: %s", err)
+		return
+	}
+
+	eval := NewEvaluator(par)
+
+	evaluated, err := eval.Evaluate(map[string]interface{}{
+		"Statements": []string{"najs", "najs2"},
+	})
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+		return
+	}
+	expected := " najs  najs2 "
+	if evaluated != expected {
+		t.Errorf("expected `%s`, got `%s`", expected, evaluated)
+	}
+
+	evaluated, err = eval.Evaluate(map[string]interface{}{
+		"Statements": []string{"najs3", "najs4"},
+	})
+	if err != nil {
+		t.Errorf("unexpected error: %s", err)
+		return
+	}
+
+	expected = " najs3  najs4 "
+	if evaluated != expected {
+		t.Errorf("expected `%s`, got `%s`", expected, evaluated)
+	}
+}
+
+func TestEvaluatorForLoop(t *testing.T) {
+	template := `before{! for i, v in .elements !} {{ i }} {{ v }} {! end !}after {{ .some_other }}`
+
+	tok := tokenizer.NewTokenizer(template)
+	if err := tok.Tokenize(); err != nil {
+		t.Errorf("unexpected error: %s", err)
+		return
+	}
+
+	par := parser.NewParser(tok)
+	if err := par.Parse(); err != nil {
+		t.Errorf("unexpected error: %s", err)
+		return
 	}
 
 	eval := NewEvaluator(par)
@@ -94,7 +151,8 @@ func TestEvaluatorFor(t *testing.T) {
 		"some_other": 132,
 	})
 	if err != nil {
-		t.Errorf("Expected no error, got %s", err)
+		t.Errorf("unexpected error: %s", err)
+		return
 	}
 	expected := "before 0 najs  1 najs2 after 132"
 	if evaluated != expected {

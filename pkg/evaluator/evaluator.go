@@ -2,99 +2,112 @@ package evaluator
 
 import (
 	"fmt"
+	"github.com/terawatthour/socks/internal/helpers"
+	"github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/parser"
 	"github.com/terawatthour/socks/pkg/tokenizer"
 	"reflect"
 )
 
 type Evaluator struct {
-	Content string
-	Parser  *parser.Parser
-	context map[string]interface{}
-	state   map[string]interface{}
-	i       int
-	offset  int
+	initialContent string
+	currentContent string
+	runes          []rune
+	programs       []parser.TagProgram
+	context        map[string]interface{}
+	state          map[string]interface{}
+	i              int
+	offset         int
 }
 
 func NewEvaluator(p *parser.Parser) *Evaluator {
 	return &Evaluator{
-		Content: p.Tokenizer.Template,
-		Parser:  p,
-		i:       0,
-		offset:  0,
-		state:   make(map[string]interface{}),
-		context: make(map[string]interface{}),
+		programs:       p.Programs,
+		initialContent: p.Tokenizer.Template,
+		runes:          p.Tokenizer.Runes,
 	}
 }
 
-func (e *Evaluator) Evaluate(context map[string]interface{}) (string, error) {
+func (e *Evaluator) Evaluate(context map[string]interface{}) (result string, err error) {
+	e.currentContent = e.initialContent
+	e.i = 0
+	e.offset = 0
+
+	e.state = make(map[string]interface{})
 	e.context = context
 
-	for e.i < len(e.Parser.Programs) {
-		previousLength := len(e.Content)
+	for e.i < len(e.programs) {
+		previousLength := len(e.currentContent)
 
-		program := e.Parser.Programs[e.i]
+		program := e.programs[e.i]
 		var evaluated interface{}
 		var evaluatedString string
 		if program.Tag.Kind != "preprocessor" {
-			evaluated = e.evaluateStatement(program.Statement, e.context, e.state)
+			evaluated, err = e.evaluateStatement(program.Statement, e.context, e.state)
+			if err != nil {
+				return "", err
+			}
 			evaluatedString = fmt.Sprintf("%v", evaluated)
 		} else {
 			evaluatedString = ""
 		}
 		e.i += 1
 
-		ru := []rune(e.Content)
+		ru := []rune(e.currentContent)
 
-		// for statement is a special case, we don't want to replace the whole Content since it evaluateForStatement
+		// for statement is a special case, we don't want to replace the whole currentContent since it evaluateForStatement
 		// handles it itself
 		if program.Statement.Kind() != "for" {
-			e.Content = string(ru[:program.Tag.Start+e.offset]) + evaluatedString + string(ru[program.Tag.End+1+e.offset:])
+			e.currentContent = string(ru[:program.Tag.Start+e.offset]) + evaluatedString + string(ru[program.Tag.End+1+e.offset:])
 		} else {
-			e.Content = evaluatedString
+			e.currentContent = evaluatedString
 		}
 
-		e.offset += len(e.Content) - previousLength
-
+		e.offset += len(e.currentContent) - previousLength
 	}
 
-	return e.Content, nil
+	return e.currentContent, nil
 }
 
-func (e *Evaluator) evaluateStatement(statement parser.Statement, context map[string]interface{}, state map[string]interface{}) interface{} {
+func (e *Evaluator) evaluateStatement(statement parser.Statement, context map[string]interface{}, state map[string]interface{}) (interface{}, error) {
 	switch statement.Kind() {
 	case "variable":
 		return e.evaluateVariableStatement(statement, context, state)
 	case "string":
-		return statement.(*parser.StringStatement).Value
+		return statement.(*parser.StringStatement).Value, nil
 	case "integer":
-		return statement.(*parser.IntegerStatement).Value
+		return statement.(*parser.IntegerStatement).Value, nil
 	case "for":
 		return e.evaluateForStatement(statement, context, state)
 	case tokenizer.TOK_END:
-		return ""
+		return "", nil
 	}
 
-	panic("unreachable, unknown statement kind " + statement.Kind())
+	tag := statement.Tag()
+	if tag == nil {
+		return nil, errors.NewEvaluatorError("unexpected statement: "+statement.Kind(), -1, -1)
+	}
+
+	return nil, errors.NewEvaluatorError("unexpected statement kind: "+statement.Kind(), statement.Tag().Start, statement.Tag().End)
 }
 
-func (e *Evaluator) accessVariable(name string, obj interface{}) interface{} {
+func (e *Evaluator) accessVariable(name string, obj interface{}) (interface{}, error) {
 	t := reflect.TypeOf(obj)
 	if t == nil {
-		panic("variable is nil")
+		return nil, errors.NewEvaluatorError("variable not found", -1, -1)
 	}
 	if t.Kind() == reflect.Map {
-		return obj.(map[string]interface{})[name]
+		return obj.(map[string]interface{})[name], nil
 	} else if t.Kind() == reflect.Struct {
-		return reflect.ValueOf(obj).FieldByName(name).Interface()
+		return reflect.ValueOf(obj).FieldByName(name).Interface(), nil
 	}
-	return nil
+	return nil, errors.NewEvaluatorError("variable cannot be accessed", -1, -1)
 }
 
-func convertToInterfaceSlice(obj interface{}) []interface{} {
+func convertToInterfaceSlice(obj interface{}) ([]interface{}, error) {
 	sliceValue := reflect.ValueOf(obj)
 	if sliceValue.Kind() != reflect.Slice {
-		return nil
+		return nil, errors.NewEvaluatorError("object is not iterable", -1, -1)
 	}
 
 	resultSlice := make([]interface{}, sliceValue.Len())
@@ -104,43 +117,41 @@ func convertToInterfaceSlice(obj interface{}) []interface{} {
 		resultSlice[i] = value
 	}
 
-	return resultSlice
+	return resultSlice, nil
 }
 
-func combineMaps(maps ...map[string]interface{}) map[string]interface{} {
-	result := make(map[string]interface{})
-	for _, m := range maps {
-		for k, v := range m {
-			result[k] = v
-		}
-	}
-	return result
-}
-
-func (e *Evaluator) evaluateForStatement(statement parser.Statement, context map[string]interface{}, state map[string]interface{}) interface{} {
+func (e *Evaluator) evaluateForStatement(statement parser.Statement, context map[string]interface{}, state map[string]interface{}) (interface{}, error) {
 	forStatement := statement.(*parser.ForStatement)
-	obj := e.evaluateVariableStatement(forStatement.Iterable, context, state)
-
-	tok := e.Parser.Tokenizer
+	obj, err := e.evaluateVariableStatement(forStatement.Iterable, context, state)
+	if err != nil {
+		return nil, err
+	}
 
 	j := 0
-	for e.Parser.Programs[e.i+1+j].Tag.Start != forStatement.EndTag.Start {
+	for e.programs[e.i+1+j].Tag.Start != forStatement.EndTag.Start {
 		j += 1
 	}
-	loopPrograms := e.Parser.Programs[e.i+1 : e.i+1+j]
+	loopPrograms := e.programs[e.i+1 : e.i+1+j]
 	result := ""
-	loopBody := tok.Runes[forStatement.StartTag.End+1 : forStatement.EndTag.Start]
-	leading := tok.Runes[:forStatement.StartTag.Start]
-	trailing := tok.Runes[forStatement.EndTag.End+1:]
-	for i, v := range convertToInterfaceSlice(obj) {
+	loopBody := e.runes[forStatement.StartTag.End+1 : forStatement.EndTag.Start]
+	leading := e.runes[:forStatement.StartTag.Start]
+	trailing := e.runes[forStatement.EndTag.End+1:]
+	interSlice, err := convertToInterfaceSlice(obj)
+	if err != nil {
+		return nil, err
+	}
+	for i, v := range interSlice {
 		currentLoopBody := loopBody
 		offset := 0
 		for _, program := range loopPrograms {
 			previousLength := program.Tag.End - program.Tag.Start
-			evaluated := e.evaluateStatement(program.Statement, context, combineMaps(state, map[string]interface{}{
+			evaluated, err := e.evaluateStatement(program.Statement, context, helpers.CombineMaps(state, map[string]interface{}{
 				forStatement.IteratorName: i,
 				forStatement.ValueName:    v,
 			}))
+			if err != nil {
+				return nil, err
+			}
 			evaluatedString := fmt.Sprintf("%v", evaluated)
 			newLength := len(evaluatedString)
 			currentLoopBody = []rune(fmt.Sprintf("%s%s%s", string(currentLoopBody[:program.Tag.Start-forStatement.StartTag.End-1+offset]), evaluatedString, string(currentLoopBody[program.Tag.End-forStatement.StartTag.End+offset:])))
@@ -149,35 +160,39 @@ func (e *Evaluator) evaluateForStatement(statement parser.Statement, context map
 		result += string(currentLoopBody)
 	}
 	e.i += len(loopPrograms) + 1
-	return string(leading) + result + string(trailing)
+	return string(leading) + result + string(trailing), nil
 }
 
-func (e *Evaluator) callFunction(args []parser.Statement, obj interface{}, context map[string]interface{}, state map[string]interface{}) interface{} {
+func (e *Evaluator) callFunction(args []parser.Statement, obj interface{}, context map[string]interface{}, state map[string]interface{}) (interface{}, error) {
 	if reflect.TypeOf(obj).Kind() != reflect.Func {
-		panic("tried to call a variable that is not a function")
+		return nil, errors.NewEvaluatorError("tried to call a variable that is not a function", -1, -1)
 	}
 
 	functionArgs := []reflect.Value{}
 	for _, arg := range args {
-		evaluated := e.evaluateStatement(arg, context, state)
+		evaluated, err := e.evaluateStatement(arg, context, state)
+		if err != nil {
+			return nil, err
+		}
 		functionArgs = append(functionArgs, reflect.ValueOf(evaluated))
 	}
 
 	results := reflect.ValueOf(obj).Call(functionArgs)
 	if len(results) == 0 {
-		panic("function call returned no results")
+		return nil, errors.NewEvaluatorError("function call returned no results", -1, -1)
 	}
 
-	return results[0].Interface()
+	return results[0].Interface(), nil
 }
 
-func (e *Evaluator) evaluateVariableStatement(statement parser.Statement, context map[string]interface{}, state map[string]interface{}) interface{} {
+func (e *Evaluator) evaluateVariableStatement(statement parser.Statement, context map[string]interface{}, state map[string]interface{}) (interface{}, error) {
 	vs, ok := statement.(*parser.VariableStatement)
 	if !ok {
-		panic("nice variable statement")
+		return nil, errors.NewEvaluatorError("statement is not a variable statement", -1, -1)
 	}
 
 	var obj interface{}
+	var err error
 	if vs.IsLocal {
 		obj = context
 	} else {
@@ -186,11 +201,14 @@ func (e *Evaluator) evaluateVariableStatement(statement parser.Statement, contex
 
 	for _, part := range vs.Parts {
 		if part.Kind() == "variable_part" {
-			obj = e.accessVariable(part.(*parser.VariablePartStatement).Name, obj)
+			obj, err = e.accessVariable(part.(*parser.VariablePartStatement).Name, obj)
 		} else if part.Kind() == "function_call" {
-			obj = e.callFunction(part.(*parser.FunctionCallStatement).Args, obj, context, state)
+			obj, err = e.callFunction(part.(*parser.FunctionCallStatement).Args, obj, context, state)
+		}
+		if err != nil {
+			return nil, err
 		}
 	}
 
-	return obj
+	return obj, nil
 }
