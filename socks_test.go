@@ -15,8 +15,8 @@ func TestBasicEvaluation(t *testing.T) {
 		"Phrases": []string{"Herzlich willkommen", "Willkommen"},
 	})
 	if err != nil {
-		t.Errorf("Expected no error, got %sock", err)
+		t.Errorf("Expected no error, got %s", err)
 	}
 
-	fmt.Println(res)
+	fmt.Println("result", res)
 }

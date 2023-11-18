@@ -1,4 +1,6 @@
-<html lang="en">
+{% extend "superbase.html" %}
+{% define "content" %}
+
 <head>
     <meta charset="UTF-8">
     <meta name="viewport"
@@ -10,5 +12,8 @@
 {% slot "content" %}
     <h1>default content</h1>
 {% end %}
+{% slot "footer" %}
+    <h1>default footer</h1>
+{% end %}
 </body>
-</html>
+{% end %}

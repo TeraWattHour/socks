@@ -7,20 +7,21 @@ import (
 )
 
 const (
-	TOK_DOT     = "dot"
-	TOK_LPAREN  = "lparen"
-	TOK_RPAREN  = "rparen"
-	TOK_IDENT   = "ident"
-	TOK_STRING  = "string"
-	TOK_COMMA   = "comma"
-	TOK_INTEGER = "integer"
-	TOK_FLOAT   = "float"
-	TOK_FOR     = "for"
-	TOK_IN      = "in"
-	TOK_EXTEND  = "extend"
-	TOK_SLOT    = "slot"
-	TOK_END     = "end"
-	TOK_DEFINE  = "define"
+	TOK_DOT      = "dot"
+	TOK_LPAREN   = "lparen"
+	TOK_RPAREN   = "rparen"
+	TOK_IDENT    = "ident"
+	TOK_STRING   = "string"
+	TOK_COMMA    = "comma"
+	TOK_INTEGER  = "integer"
+	TOK_FLOAT    = "float"
+	TOK_FOR      = "for"
+	TOK_IN       = "in"
+	TOK_EXTEND   = "extend"
+	TOK_SLOT     = "slot"
+	TOK_END      = "end"
+	TOK_TEMPLATE = "template"
+	TOK_DEFINE   = "define"
 )
 
 type Tokenizer struct {
@@ -56,6 +57,7 @@ var KEYWORDS = []string{
 	TOK_SLOT,
 	TOK_END,
 	TOK_DEFINE,
+	TOK_TEMPLATE,
 }
 
 func NewTokenizer(template string) *Tokenizer {
@@ -121,7 +123,7 @@ func (t *Tokenizer) Tokenize() error {
 						t.Next()
 						isDot := t.char == '.'
 						if hasDot && isDot {
-							return errors2.NewTokenizerError("malformed number", start, t.cursor)
+							return errors2.NewTokenizerError("number containing two decimal separators", start, t.cursor)
 						}
 						if isDot {
 							hasDot = true

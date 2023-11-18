@@ -9,8 +9,9 @@ type Statement interface {
 
 // StringStatement is a string constant embedded in template
 type StringStatement struct {
-	Value string
-	tag   *tokenizer.Tag
+	Value   string
+	tag     *tokenizer.Tag
+	parents []Statement
 }
 
 func (ss *StringStatement) Kind() string {
@@ -23,8 +24,9 @@ func (ss *StringStatement) Tag() *tokenizer.Tag {
 
 // IntegerStatement is an integer constant embedded in template
 type IntegerStatement struct {
-	Value int
-	tag   *tokenizer.Tag
+	Value   int
+	tag     *tokenizer.Tag
+	parents []Statement
 }
 
 func (ns *IntegerStatement) Kind() string {
@@ -37,8 +39,9 @@ func (ns *IntegerStatement) Tag() *tokenizer.Tag {
 
 // FloatStatement is a float64 constant embedded in template
 type FloatStatement struct {
-	Value float64
-	tag   *tokenizer.Tag
+	Value   float64
+	tag     *tokenizer.Tag
+	parents []Statement
 }
 
 func (fs *FloatStatement) Kind() string {
@@ -55,6 +58,7 @@ type VariableStatement struct {
 	Parts   []Statement
 	IsLocal bool
 	tag     *tokenizer.Tag
+	parents []Statement
 }
 
 func (vs *VariableStatement) Kind() string {
@@ -98,6 +102,7 @@ func (vs *FunctionCallStatement) Tag() *tokenizer.Tag {
 type ExtendStatement struct {
 	Template string
 	tag      *tokenizer.Tag
+	parents  []Statement
 }
 
 func (es *ExtendStatement) Kind() string {
@@ -108,10 +113,26 @@ func (es *ExtendStatement) Tag() *tokenizer.Tag {
 	return es.tag
 }
 
+type TemplateStatement struct {
+	Template string
+	StartTag *tokenizer.Tag
+	EndTag   *tokenizer.Tag
+	parents  []Statement
+}
+
+func (es *TemplateStatement) Kind() string {
+	return "template"
+}
+
+func (es *TemplateStatement) Tag() *tokenizer.Tag {
+	return es.StartTag
+}
+
 type SlotStatement struct {
 	Name     string
 	StartTag *tokenizer.Tag
 	EndTag   *tokenizer.Tag
+	parents  []Statement
 }
 
 func (bs *SlotStatement) Kind() string {
@@ -123,7 +144,9 @@ func (bs *SlotStatement) Tag() *tokenizer.Tag {
 }
 
 type EndStatement struct {
-	tag *tokenizer.Tag
+	tag     *tokenizer.Tag
+	closes  Statement
+	parents []Statement
 }
 
 func (es *EndStatement) Kind() string {
@@ -138,6 +161,7 @@ type DefineStatement struct {
 	Name     string
 	StartTag *tokenizer.Tag
 	EndTag   *tokenizer.Tag
+	Parents  []Statement
 }
 
 func (es *DefineStatement) Kind() string {
@@ -155,6 +179,7 @@ type ForStatement struct {
 
 	StartTag *tokenizer.Tag
 	EndTag   *tokenizer.Tag
+	parents  []Statement
 }
 
 func (es *ForStatement) Kind() string {
