@@ -93,6 +93,8 @@ func (tp *TagParser) Parse() (st Statement, err error) {
 			return tp.parseDefineStatement()
 		case tokenizer.TOK_END:
 			return tp.parseEndStatement()
+		case tokenizer.TOK_TEMPLATE:
+			return tp.parseTemplateStatement()
 		default:
 			return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 		}
@@ -137,18 +139,41 @@ func (tp *TagParser) parseEndStatement() (Statement, error) {
 		return nil, errors.NewParserError("unexpected end tag", tp.tag.Start, tp.tag.End)
 	}
 
-	switch tp.parser.unclosed[depth-1].Kind() {
+	last := tp.parser.unclosed[depth-1]
+
+	switch last.Kind() {
 	case "define":
-		tp.parser.unclosed[depth-1].(*DefineStatement).EndTag = tp.tag
+		last.(*DefineStatement).EndTag = tp.tag
 	case "slot":
-		tp.parser.unclosed[depth-1].(*SlotStatement).EndTag = tp.tag
+		last.(*SlotStatement).EndTag = tp.tag
 	case "for":
-		tp.parser.unclosed[depth-1].(*ForStatement).EndTag = tp.tag
+		last.(*ForStatement).EndTag = tp.tag
+	case "template":
+		last.(*TemplateStatement).EndTag = tp.tag
 	}
 
 	tp.parser.unclosed = tp.parser.unclosed[:depth-1]
 
-	return &EndStatement{}, nil
+	return &EndStatement{
+		closes: last,
+		tag:    tp.tag,
+	}, nil
+}
+
+func (tp *TagParser) parseTemplateStatement() (Statement, error) {
+	tp.Next()
+	if tp.token.Kind != tokenizer.TOK_STRING {
+		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
+	}
+
+	statement := &TemplateStatement{
+		Template: tp.token.Literal,
+		StartTag: tp.tag,
+	}
+
+	tp.parser.unclosed = append(tp.parser.unclosed, statement)
+
+	return statement, nil
 }
 
 func (tp *TagParser) parseExtendStatement() (Statement, error) {
@@ -160,6 +185,7 @@ func (tp *TagParser) parseExtendStatement() (Statement, error) {
 	return &ExtendStatement{
 		Template: tp.token.Literal,
 		tag:      tp.tag,
+		parents:  tp.parser.unclosed,
 	}, nil
 }
 
@@ -172,6 +198,7 @@ func (tp *TagParser) parseDefineStatement() (Statement, error) {
 	statement := &DefineStatement{
 		Name:     tp.token.Literal,
 		StartTag: tp.tag,
+		Parents:  tp.parser.unclosed,
 	}
 
 	tp.parser.unclosed = append(tp.parser.unclosed, statement)
@@ -217,6 +244,7 @@ func (tp *TagParser) parseForStatement() (Statement, error) {
 		Iterable:     iterable,
 		StartTag:     tp.tag,
 		EndTag:       nil,
+		parents:      tp.parser.unclosed,
 	}
 
 	tp.parser.unclosed = append(tp.parser.unclosed, statement)
@@ -233,6 +261,7 @@ func (tp *TagParser) parseSlotStatement() (Statement, error) {
 	statement := &SlotStatement{
 		Name:     tp.token.Literal,
 		StartTag: tp.tag,
+		parents:  tp.parser.unclosed,
 	}
 
 	tp.parser.unclosed = append(tp.parser.unclosed, statement)
@@ -247,20 +276,22 @@ func (tp *TagParser) parseNumericStatement() (Statement, error) {
 	}
 
 	return &IntegerStatement{
-		Value: val,
-		tag:   tp.tag,
+		Value:   val,
+		tag:     tp.tag,
+		parents: tp.parser.unclosed,
 	}, nil
 }
 
 func (tp *TagParser) parseStringStatement() (Statement, error) {
 	return &StringStatement{
-		tag:   tp.tag,
-		Value: tp.token.Literal,
+		tag:     tp.tag,
+		Value:   tp.token.Literal,
+		parents: tp.parser.unclosed,
 	}, nil
 }
 
 func (tp *TagParser) parseVariableStatement() (*VariableStatement, error) {
-	st := &VariableStatement{Parts: []Statement{}, tag: tp.tag}
+	st := &VariableStatement{Parts: []Statement{}, tag: tp.tag, parents: tp.parser.unclosed}
 	st.IsLocal = tp.token.Kind == tokenizer.TOK_DOT
 
 	for tp.token != nil {

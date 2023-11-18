@@ -5,7 +5,6 @@ import (
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/parser"
-	"github.com/terawatthour/socks/pkg/tokenizer"
 	"reflect"
 )
 
@@ -79,7 +78,7 @@ func (e *Evaluator) evaluateStatement(statement parser.Statement, context map[st
 		return statement.(*parser.IntegerStatement).Value, nil
 	case "for":
 		return e.evaluateForStatement(statement, context, state)
-	case tokenizer.TOK_END:
+	case "end":
 		return "", nil
 	}
 

@@ -1,7 +1,15 @@
 {% extend "base.html" %}
 
 {% define "content" %}
+    {% template "templates/header.html" %}
+        {% define "page" %} Nested page {% end %}
+    {% end %}
+
     {! for i, v in .Phrases !}
         <p>{{ v }}</p>
     {! end !}
+{% end %}
+
+{% define "footer" %}
+    <h1>Nicer footer</h1>
 {% end %}

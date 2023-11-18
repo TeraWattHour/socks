@@ -12,6 +12,7 @@ import (
 type FileSystem struct {
 	Root      string
 	Files     map[string]string
+	Processed map[string]string
 	Templates map[string]*evaluator.Evaluator
 }
 
@@ -19,6 +20,7 @@ func NewFileSystem(root string) (*FileSystem, error) {
 	fs := &FileSystem{
 		Root:      root,
 		Files:     make(map[string]string),
+		Processed: make(map[string]string),
 		Templates: make(map[string]*evaluator.Evaluator),
 	}
 
@@ -28,15 +30,15 @@ func NewFileSystem(root string) (*FileSystem, error) {
 	if err := fs.preprocessFiles(); err != nil {
 		return nil, err
 	}
-	if err := fs.parseFiles(); err != nil {
+	if err := fs.parseProcessedFiles(); err != nil {
 		return nil, err
 	}
 
 	return fs, nil
 }
 
-func (fs *FileSystem) parseFiles() error {
-	for name, content := range fs.Files {
+func (fs *FileSystem) parseProcessedFiles() error {
+	for name, content := range fs.Processed {
 		tok := tokenizer.NewTokenizer(content)
 		if err := tok.Tokenize(); err != nil {
 			return err
@@ -56,10 +58,10 @@ func (fs *FileSystem) preprocessFiles() error {
 	proc := preprocessor.NewPreprocessor(fs.Files)
 
 	for filename := range fs.Files {
-		if result, err := proc.Preprocess(filename); err != nil {
-			return err
+		if result, err := proc.Preprocess(filename); err == nil {
+			fs.Processed[filename] = result
 		} else {
-			fs.Files[filename] = result
+			return err
 		}
 	}
 
