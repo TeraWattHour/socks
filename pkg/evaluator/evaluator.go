@@ -6,32 +6,31 @@ import (
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/parser"
+	"github.com/terawatthour/socks/pkg/tokenizer"
 	"reflect"
 )
 
 type Evaluator struct {
-	initialContent string
-	currentContent string
-	initialRunes   []rune
-	runes          []rune
+	initialContent []rune
+	currentContent []rune
 	programs       []parser.TagProgram
-	context        map[string]interface{}
-	state          map[string]interface{}
-	i              int
-	offset         int
+
+	context map[string]interface{}
+	state   map[string]interface{}
+
+	i      int
+	offset int
 }
 
 func NewEvaluator(p *parser.Parser) *Evaluator {
 	return &Evaluator{
 		programs:       p.Programs,
-		initialContent: p.Tokenizer.Template,
-		runes:          p.Tokenizer.Runes,
+		initialContent: p.Tokenizer.Runes,
 	}
 }
 
-func (e *Evaluator) Evaluate(context map[string]interface{}) (result string, err error) {
+func (e *Evaluator) Evaluate(context map[string]interface{}) (string, error) {
 	e.currentContent = e.initialContent
-	e.initialRunes = []rune(e.initialContent)
 	e.i = 0
 	e.offset = 0
 
@@ -39,30 +38,28 @@ func (e *Evaluator) Evaluate(context map[string]interface{}) (result string, err
 	e.context = context
 
 	for e.i < len(e.programs) {
-
 		program := e.programs[e.i]
-		var evaluated interface{}
-		var evaluatedString string
-		if program.Tag.Kind != "preprocessor" {
-			evaluated, err = e.evaluateStatement(program.Statement, e.context, e.state)
+		evaluatedString := ""
+
+		// dont evaluate preprocessor tags
+		if program.Tag.Kind != tokenizer.PreprocessorKind {
+			evaluated, err := e.evaluateStatement(program.Statement, e.context, e.state)
 			if err != nil {
 				return "", err
 			}
 			evaluatedString = fmt.Sprintf("%v", evaluated)
 		} else {
-			evaluatedString = ""
 			e.i += 1
 		}
 
-		previousLength := len(e.runes)
+		previousLength := len(e.currentContent)
 
-		e.currentContent = program.Statement.Replace([]rune(evaluatedString), e.offset, e.runes)
-
-		e.runes = []rune(e.currentContent)
-		e.offset += len(e.runes) - previousLength
+		// replace entire tag program (including its end tag if applicable) with evaluated string
+		e.currentContent = program.Replace([]rune(evaluatedString), e.offset, e.currentContent)
+		e.offset += len(e.currentContent) - previousLength
 	}
 
-	return e.currentContent, nil
+	return string(e.currentContent), nil
 }
 
 func (e *Evaluator) evaluateStatement(statement parser.Statement, context map[string]interface{}, state map[string]interface{}) (interface{}, error) {
@@ -117,7 +114,7 @@ func (e *Evaluator) evaluateIfStatement(statement parser.Statement, context map[
 
 	ifBody := ifStatement.Body
 
-	// Discard the first program (if statement)
+	// Discard the first tag program (if statement)
 	e.i += 1
 
 	j := 0
@@ -137,7 +134,7 @@ func (e *Evaluator) evaluateIfStatement(statement parser.Statement, context map[
 			}
 			evaluatedString := fmt.Sprintf("%v", evaluated)
 
-			ifBody = []rune(program.Statement.Replace([]rune(evaluatedString), offset-ifStatement.StartTag.End-1, ifBody))
+			ifBody = program.Replace([]rune(evaluatedString), offset-ifStatement.StartTag.End-1, ifBody)
 
 			newLength := len(ifBody)
 			offset += newLength - previousLength
@@ -191,7 +188,7 @@ func (e *Evaluator) evaluateForStatement(statement parser.Statement, context map
 			}
 			evaluatedString := fmt.Sprintf("%v", evaluated)
 
-			currentLoopBody = []rune(program.Statement.Replace([]rune(evaluatedString), offset-forStatement.StartTag.End-1, currentLoopBody))
+			currentLoopBody = program.Replace([]rune(evaluatedString), offset-forStatement.StartTag.End-1, currentLoopBody)
 
 			newLength := len(currentLoopBody)
 			offset += newLength - previousLength
@@ -205,7 +202,7 @@ func (e *Evaluator) evaluateForStatement(statement parser.Statement, context map
 }
 
 // Evaluator.evaluateVariableStatement evaluates variable statement and returns the result.
-// This method doesn't increment the evaluator's index!
+// This method doesn't increment the evaluator's index.
 func (e *Evaluator) evaluateVariableStatement(statement parser.Statement, context map[string]interface{}, state map[string]interface{}) (interface{}, error) {
 	vs, ok := statement.(*parser.VariableStatement)
 	if !ok {
@@ -214,7 +211,7 @@ func (e *Evaluator) evaluateVariableStatement(statement parser.Statement, contex
 
 	result, err := expr.Run(vs.Program, helpers.CombineMaps(context, state))
 	if err != nil {
-		return nil, errors.NewEvaluatorError("unable to evaluate expression: "+err.Error(), vs.Tag().Start, vs.Tag().End)
+		return nil, errors.NewEvaluatorError("unable to evaluate expression: \n"+err.Error(), vs.Tag().Start, vs.Tag().End)
 	}
 
 	return result, err
