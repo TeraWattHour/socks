@@ -11,6 +11,10 @@ type TagProgram struct {
 	Statement Statement
 }
 
+func (tp *TagProgram) Replace(inner []rune, offset int, content []rune) []rune {
+	return tp.Statement.Replace(inner, offset, content)
+}
+
 type Parser struct {
 	Tokenizer *tokenizer.Tokenizer
 	Programs  []TagProgram
@@ -84,15 +88,15 @@ func (tp *TagParser) Parse() (st Statement, err error) {
 	}
 	if tp.tag.Kind == "preprocessor" {
 		switch tp.token.Kind {
-		case tokenizer.TOK_EXTEND:
+		case tokenizer.TokExtend:
 			return tp.parseExtendStatement()
-		case tokenizer.TOK_SLOT:
+		case tokenizer.TokSlot:
 			return tp.parseSlotStatement()
-		case tokenizer.TOK_DEFINE:
+		case tokenizer.TokDefine:
 			return tp.parseDefineStatement()
-		case tokenizer.TOK_END:
+		case tokenizer.TokEnd:
 			return tp.parseEndStatement()
-		case tokenizer.TOK_TEMPLATE:
+		case tokenizer.TokTemplate:
 			return tp.parseTemplateStatement()
 		default:
 			return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
@@ -101,11 +105,11 @@ func (tp *TagParser) Parse() (st Statement, err error) {
 		return tp.parseVariableStatement()
 	} else if tp.tag.Kind == "execute" {
 		switch tp.token.Kind {
-		case tokenizer.TOK_IF:
+		case tokenizer.TokIf:
 			return tp.parseIfStatement()
-		case tokenizer.TOK_FOR:
+		case tokenizer.TokFor:
 			return tp.parseForStatement()
-		case tokenizer.TOK_END:
+		case tokenizer.TokEnd:
 			return tp.parseEndStatement()
 		}
 	}
@@ -188,7 +192,7 @@ func (tp *TagParser) parseEndStatement() (Statement, error) {
 
 func (tp *TagParser) parseTemplateStatement() (Statement, error) {
 	tp.Next()
-	if tp.token.Kind != tokenizer.TOK_STRING {
+	if tp.token.Kind != tokenizer.TokString {
 		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
 
@@ -204,7 +208,7 @@ func (tp *TagParser) parseTemplateStatement() (Statement, error) {
 
 func (tp *TagParser) parseExtendStatement() (Statement, error) {
 	tp.Next()
-	if tp.token.Kind != tokenizer.TOK_STRING {
+	if tp.token.Kind != tokenizer.TokString {
 		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
 
@@ -217,7 +221,7 @@ func (tp *TagParser) parseExtendStatement() (Statement, error) {
 
 func (tp *TagParser) parseDefineStatement() (Statement, error) {
 	tp.Next()
-	if tp.token.Kind != tokenizer.TOK_STRING {
+	if tp.token.Kind != tokenizer.TokString {
 		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
 
@@ -238,25 +242,25 @@ func (tp *TagParser) parseForStatement() (Statement, error) {
 	var valueName string
 
 	tp.Next()
-	if tp.token.Kind != tokenizer.TOK_IDENT {
+	if tp.token.Kind != tokenizer.TokIdent {
 		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
 	iteratorName = tp.token.Literal
 	tp.Next()
-	if tp.token.Kind != tokenizer.TOK_COMMA {
+	if tp.token.Kind != tokenizer.TokComma {
 		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
 	tp.Next()
-	if tp.token.Kind != tokenizer.TOK_IDENT {
+	if tp.token.Kind != tokenizer.TokIdent {
 		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
 	valueName = tp.token.Literal
 	tp.Next()
-	if tp.token.Kind != tokenizer.TOK_IN {
+	if tp.token.Kind != tokenizer.TokIn {
 		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
 	tp.Next()
-	if tp.token.Kind != tokenizer.TOK_IDENT {
+	if tp.token.Kind != tokenizer.TokIdent {
 		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
 	iterable, err := tp.parseVariableStatement()
@@ -280,7 +284,7 @@ func (tp *TagParser) parseForStatement() (Statement, error) {
 
 func (tp *TagParser) parseSlotStatement() (Statement, error) {
 	tp.Next()
-	if tp.token.Kind != tokenizer.TOK_STRING {
+	if tp.token.Kind != tokenizer.TokString {
 		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
 
