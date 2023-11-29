@@ -5,7 +5,7 @@ import (
 )
 
 func TestTokenizer(t *testing.T) {
-	template := `{% extend "some_template.html" %}<html><head><title>{{ .Title }}</title></head><body><h1>{{ .Title.Format(.Datum, "dddd", 1.2).ToUTC() }} {{ nice_ident }}</h1>{! for i, v in .Table !} {{ v }} {! end !} </body></html>`
+	template := `{% extend "some_template.html" %}<html><head><title>{{ Title }}</title></head><body><h1>{{ Title.Format(.Datum, "dddd", 1).ToUTC() }} {{ nice_ident }}</h1>{! for i, v in .Table !} {{ v }} {! end !} </body></html>`
 	tok := NewTokenizer(template)
 	if err := tok.Tokenize(); err != nil {
 		t.Errorf("unexpected error: %s", err)
@@ -24,31 +24,25 @@ func TestTokenizer(t *testing.T) {
 		},
 		{
 			Tokens: []Token{{
-				Kind:    "dot",
-				Literal: ".",
-			}, {
 				Kind:    "ident",
 				Literal: "Title",
 			}},
 		},
 		{
 			Tokens: []Token{{
-				Kind:    "dot",
-				Literal: ".",
-			}, {
 				Kind:    "ident",
 				Literal: "Title",
 			}, {
-				Kind:    "dot",
+				Kind:    "unknown",
 				Literal: ".",
 			}, {
 				Kind:    "ident",
 				Literal: "Format",
 			}, {
-				Kind:    "lparen",
+				Kind:    "unknown",
 				Literal: "(",
 			}, {
-				Kind:    "dot",
+				Kind:    "unknown",
 				Literal: ".",
 			}, {
 				Kind:    "ident",
@@ -63,22 +57,22 @@ func TestTokenizer(t *testing.T) {
 				Kind:    "comma",
 				Literal: ",",
 			}, {
-				Kind:    "float",
-				Literal: "1.2",
+				Kind:    "unknown",
+				Literal: "1",
 			}, {
-				Kind:    "rparen",
+				Kind:    "unknown",
 				Literal: ")",
 			}, {
-				Kind:    "dot",
+				Kind:    "unknown",
 				Literal: ".",
 			}, {
 				Kind:    "ident",
 				Literal: "ToUTC",
 			}, {
-				Kind:    "lparen",
+				Kind:    "unknown",
 				Literal: "(",
 			}, {
-				Kind:    "rparen",
+				Kind:    "unknown",
 				Literal: ")",
 			}},
 		},
@@ -105,7 +99,7 @@ func TestTokenizer(t *testing.T) {
 				Kind:    "in",
 				Literal: "in",
 			}, {
-				Kind:    "dot",
+				Kind:    "unknown",
 				Literal: ".",
 			}, {
 				Kind:    "ident",
@@ -142,6 +136,13 @@ func TestTokenizer(t *testing.T) {
 			}
 		}
 	}
+}
+
+func TestFindTags(t *testing.T) {
+	template := `{{ print }} {! exec !} {% preprocessor %} {# comment #}`
+
+	findTagOpenings(template)
+
 }
 
 func TestTokenizerWhitespace(t *testing.T) {

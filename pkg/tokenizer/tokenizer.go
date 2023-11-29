@@ -3,64 +3,67 @@ package tokenizer
 import (
 	"github.com/terawatthour/socks/internal/helpers"
 	errors2 "github.com/terawatthour/socks/pkg/errors"
+	"regexp"
 	"unicode"
 )
 
+var OpenTagRe = regexp.MustCompile(`(\\)?({{?|{#|{!|{%})`)
+
 const (
-	TOK_UNKNOWN = "unknown" // TOK_UNKNOWN is used for tokens that needn't be recognised by the templating engine but may be used in evaluation
+	TokUnknown = "unknown" // TokUnknown is used for tokens that needn't be recognised by the templating engine but may be used in evaluation
 
-	TOK_IDENT  = "ident"
-	TOK_STRING = "string"
-	TOK_COMMA  = "comma"
-	TOK_END    = "end"
+	TokIdent  = "ident"
+	TokString = "string"
+	TokComma  = "comma"
+	TokEnd    = "end"
 
-	// execute keywords
-	TOK_FOR = "for"
-	TOK_IN  = "in"
-	TOK_IF  = "if"
+	TokFor = "for"
+	TokIn  = "in"
+	TokIf  = "if"
 
-	// preprocessor keywords
-	TOK_EXTEND   = "extend"
-	TOK_SLOT     = "slot"
-	TOK_TEMPLATE = "template"
-	TOK_DEFINE   = "define"
+	TokExtend   = "extend"
+	TokSlot     = "slot"
+	TokTemplate = "template"
+	TokDefine   = "define"
 )
 
 var KEYWORDS = []string{
-	TOK_FOR,
-	TOK_IN,
-	TOK_EXTEND,
-	TOK_SLOT,
-	TOK_END,
-	TOK_DEFINE,
-	TOK_TEMPLATE,
-	TOK_IF,
+	TokFor,
+	TokIn,
+	TokExtend,
+	TokSlot,
+	TokEnd,
+	TokDefine,
+	TokTemplate,
+	TokIf,
 }
 
 type Tokenizer struct {
-	Tags          []Tag
-	Template      string
-	Runes         []rune
-	currentTag    *Tag
-	cursor        int
-	char          rune
-	nextChar      rune
-	isInsideTag   bool
-	isInsideQuote bool
+	Template string
+	Runes    []rune
+	Tags     []Tag
+
+	currentTag  *Tag
+	cursor      int
+	char        rune
+	nextChar    rune
+	isInsideTag bool
 }
 
+// TagKind is either PrintKind, PreprocessorKind, or ExecuteKind.
 type TagKind string
 
 const (
 	PrintKind        TagKind = "print"
 	PreprocessorKind TagKind = "preprocessor"
 	ExecuteKind      TagKind = "execute"
+	CommentKind      TagKind = "comment"
 )
 
 type Tag struct {
 	Start  int
 	End    int
-	Kind   TagKind // Tag.Kind is either "print", "preprocessor" or "execute"
+	Kind   TagKind
 	Tokens []Token
 	Body   string
 }
@@ -76,6 +79,7 @@ func NewTokenizer(template string) *Tokenizer {
 	t := &Tokenizer{
 		Template: template,
 		Runes:    []rune(template),
+		Tags:     make([]Tag, 0),
 		cursor:   -1,
 	}
 
@@ -84,14 +88,38 @@ func NewTokenizer(template string) *Tokenizer {
 	return t
 }
 
+func findTagOpenings(template string) []int {
+	return helpers.Map(OpenTagRe.FindAllStringIndex(template, -1), func(loc []int) int {
+		return loc[0]
+	})
+}
+
 func (t *Tokenizer) Tokenize() error {
+	locs := findTagOpenings(t.Template)
+	if len(locs) == 0 {
+		return nil
+	}
 
-	for t.char != 0 {
-		pushNext := true
+	for _, loc := range locs {
+		if t.cursor > loc {
+			continue
+		}
 
-		t.skipWhitespace()
+		t.cursor = loc - 1
+		t.Next()
 
-		if t.isInsideTag {
+		t.tryOpenTag()
+
+		if !t.isInsideTag {
+			continue
+		}
+
+	tagLoop:
+		for t.char != 0 {
+			t.skipWhitespace()
+
+			pushNext := true
+
 			token := Token{Start: t.cursor, Length: 1}
 
 			switch t.char {
@@ -104,13 +132,13 @@ func (t *Tokenizer) Tokenize() error {
 				}
 				literal := string(t.Runes[start:t.cursor])
 				t.Next()
-				token.Kind = TOK_STRING
+				token.Kind = TokString
 				token.Literal = literal
 				token.Start = start - 1
 				token.Length = t.cursor - start + 1
 				pushNext = false
 			case ',':
-				token.Kind = TOK_COMMA
+				token.Kind = TokComma
 				token.Literal = ","
 			default:
 				if t.isValidVariableName() {
@@ -126,7 +154,7 @@ func (t *Tokenizer) Tokenize() error {
 						}
 					} else {
 						token = Token{
-							Kind:    TOK_IDENT,
+							Kind:    TokIdent,
 							Literal: string(t.Runes[start:t.cursor]),
 						}
 					}
@@ -134,7 +162,7 @@ func (t *Tokenizer) Tokenize() error {
 					token.Length = t.cursor - start
 					pushNext = false
 				} else {
-					token.Kind = TOK_UNKNOWN
+					token.Kind = TokUnknown
 					token.Literal = string(t.char)
 				}
 			}
@@ -147,12 +175,13 @@ func (t *Tokenizer) Tokenize() error {
 				return err
 			}
 
-		} else {
-			t.tryOpenTag()
-		}
+			if !t.isInsideTag {
+				break tagLoop
+			}
 
-		if pushNext {
-			t.Next()
+			if pushNext {
+				t.Next()
+			}
 		}
 	}
 
@@ -186,16 +215,19 @@ func (t *Tokenizer) tryOpenTag() {
 		}
 		t.isInsideTag = true
 		t.Next()
+		t.Next()
 	}
 
 	if t.char == '{' {
 		switch t.nextChar {
 		case '%':
-			openTag("preprocessor")
+			openTag(PreprocessorKind)
 		case '!':
-			openTag("execute")
+			openTag(ExecuteKind)
 		case '{':
-			openTag("print")
+			openTag(PrintKind)
+		case '#':
+			openTag(CommentKind)
 		}
 	}
 }
@@ -222,11 +254,13 @@ func (t *Tokenizer) tryCloseTag() error {
 	if t.nextChar == '}' {
 		switch t.char {
 		case '}':
-			return closeTag("print")
+			return closeTag(PrintKind)
 		case '%':
-			return closeTag("preprocessor")
+			return closeTag(PreprocessorKind)
 		case '!':
-			return closeTag("execute")
+			return closeTag(ExecuteKind)
+		case '#':
+			return closeTag(CommentKind)
 		}
 	}
 
