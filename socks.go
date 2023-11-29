@@ -8,7 +8,11 @@ import (
 
 type Socks interface {
 	Run(template string, context map[string]interface{}) (string, error)
-	SetGlobals(value map[string]interface{})
+
+	AddGlobal(key string, value interface{})
+	AddGlobals(value map[string]interface{})
+	ClearGlobals()
+	ListGlobals() map[string]interface{}
 }
 
 type sock struct {
@@ -23,7 +27,8 @@ func NewSocks(templatesDirectory string) (Socks, error) {
 	}
 
 	s := &sock{
-		fs: fs,
+		fs:      fs,
+		globals: make(map[string]interface{}),
 	}
 
 	return s, nil
@@ -38,6 +43,18 @@ func (s *sock) Run(template string, context map[string]interface{}) (string, err
 	return eval.Evaluate(helpers.CombineMaps(s.globals, context))
 }
 
-func (s *sock) SetGlobals(value map[string]interface{}) {
-	s.globals = value
+func (s *sock) AddGlobal(key string, value interface{}) {
+	s.globals[key] = value
+}
+
+func (s *sock) AddGlobals(value map[string]interface{}) {
+	s.globals = helpers.CombineMaps(s.globals, value)
+}
+
+func (s *sock) ListGlobals() map[string]interface{} {
+	return s.globals
+}
+
+func (s *sock) ClearGlobals() {
+	clear(s.globals)
 }

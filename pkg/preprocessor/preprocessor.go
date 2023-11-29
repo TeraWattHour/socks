@@ -81,7 +81,10 @@ func (fp *FilePreprocessor) preprocess() (string, error) {
 	fp.i = 0
 	for fp.i < len(fp.Parser.Programs) {
 		program := fp.Parser.Programs[fp.i]
-		if program.Tag.Kind != "preprocessor" || program.Statement.Kind() == "slot" || program.Statement.Kind() == "end" {
+
+		// skip non-preprocessor tags and slot tags which need to be replaced by the parent template
+		// end tags must be handled by their opening tag
+		if program.Tag.Kind != tokenizer.PreprocessorKind || program.Statement.Kind() == "slot" || program.Statement.Kind() == "end" {
 			fp.i += 1
 			continue
 		}

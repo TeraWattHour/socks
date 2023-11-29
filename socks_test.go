@@ -11,6 +11,8 @@ func TestBasicEvaluation(t *testing.T) {
 		t.Errorf("Expected no error, got %s", err)
 	}
 
+	s.AddGlobal("now", "2019-01-01")
+
 	res, err := s.Run("nested.html", map[string]interface{}{
 		"Phrases": []string{"Herzlich willkommen", "Willkommen"},
 	})

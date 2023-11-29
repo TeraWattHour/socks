@@ -10,7 +10,7 @@ type Statement interface {
 	Tag() *tokenizer.Tag
 	Start() int
 	End() int
-	Replace(inner []rune, offset int, content []rune) string
+	Replace(inner []rune, offset int, content []rune) []rune
 }
 
 type IfStatement struct {
@@ -21,11 +21,11 @@ type IfStatement struct {
 	Body     []rune
 }
 
-func (vs *IfStatement) Replace(inner []rune, offset int, content []rune) string {
+func (vs *IfStatement) Replace(inner []rune, offset int, content []rune) []rune {
 	leading := string(content[:vs.StartTag.Start+offset])
 	trailing := string(content[vs.EndTag.End+1+offset:])
 	innerStr := string(inner)
-	return leading + innerStr + trailing
+	return []rune(leading + innerStr + trailing)
 }
 
 func (vs *IfStatement) Start() int {
@@ -50,11 +50,11 @@ type VariableStatement struct {
 	parents []Statement
 }
 
-func (vs *VariableStatement) Replace(inner []rune, offset int, content []rune) string {
+func (vs *VariableStatement) Replace(inner []rune, offset int, content []rune) []rune {
 	leading := string(content[:vs.tag.Start+offset])
 	trailing := string(content[vs.tag.End+1+offset:])
 	innerStr := string(inner)
-	return leading + innerStr + trailing
+	return []rune(leading + innerStr + trailing)
 }
 
 func (vs *VariableStatement) Start() int {
@@ -79,7 +79,7 @@ type ExtendStatement struct {
 	parents  []Statement
 }
 
-func (es *ExtendStatement) Replace(inner []rune, offset int, content []rune) string {
+func (es *ExtendStatement) Replace(inner []rune, offset int, content []rune) []rune {
 	panic("implement me")
 }
 
@@ -106,7 +106,7 @@ type TemplateStatement struct {
 	parents  []Statement
 }
 
-func (es *TemplateStatement) Replace(inner []rune, offset int, content []rune) string {
+func (es *TemplateStatement) Replace(inner []rune, offset int, content []rune) []rune {
 	panic("implement me")
 }
 
@@ -133,7 +133,7 @@ type SlotStatement struct {
 	parents  []Statement
 }
 
-func (es *SlotStatement) Replace(inner []rune, offset int, content []rune) string {
+func (es *SlotStatement) Replace(inner []rune, offset int, content []rune) []rune {
 	panic("implement me")
 }
 
@@ -159,10 +159,10 @@ type EndStatement struct {
 	parents []Statement
 }
 
-func (vs *EndStatement) Replace(inner []rune, offset int, content []rune) string {
+func (vs *EndStatement) Replace(inner []rune, offset int, content []rune) []rune {
 	leading := string(content[:vs.tag.Start+offset])
 	trailing := string(content[vs.tag.End+1+offset:])
-	return leading + trailing
+	return []rune(leading + trailing)
 }
 
 func (es *EndStatement) Start() int {
@@ -188,7 +188,7 @@ type DefineStatement struct {
 	Parents  []Statement
 }
 
-func (es *DefineStatement) Replace(inner []rune, offset int, content []rune) string {
+func (es *DefineStatement) Replace(inner []rune, offset int, content []rune) []rune {
 	panic("implement me")
 }
 
@@ -219,11 +219,11 @@ type ForStatement struct {
 	parents  []Statement
 }
 
-func (es *ForStatement) Replace(inner []rune, offset int, content []rune) string {
+func (es *ForStatement) Replace(inner []rune, offset int, content []rune) []rune {
 	leading := string(content[:es.StartTag.Start+offset])
 	trailing := string(content[es.EndTag.End+1+offset:])
 	innerStr := string(inner)
-	return leading + innerStr + trailing
+	return []rune(leading + innerStr + trailing)
 }
 
 func (es *ForStatement) Start() int {
