@@ -30,9 +30,14 @@ func NewFileSystem(root string) (*FileSystem, error) {
 	if err := fs.preprocessFiles(); err != nil {
 		return nil, err
 	}
+
+	clear(fs.Files)
+
 	if err := fs.parseProcessedFiles(); err != nil {
 		return nil, err
 	}
+
+	clear(fs.Processed)
 
 	return fs, nil
 }
@@ -75,6 +80,10 @@ func (fs *FileSystem) loadDirectory(root string) error {
 	}
 
 	for _, entry := range entries {
+		if entry.Name()[0] == '~' {
+			continue
+		}
+
 		if !entry.IsDir() {
 			by, err := os.ReadFile(path.Join(root, entry.Name()))
 			if err != nil {
