@@ -12,5 +12,4 @@ not the best, but it's good enough for most use cases.
 - [x] If statements
 - [x] Inline math/boolean operations
 - [ ] Improve error messages
-- [ ] Improve formatting with preprocessor?
 - [ ] Write proper tests
