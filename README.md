@@ -7,11 +7,10 @@ not the best, but it's good enough for most use cases.
 ## Roadmap
 - [x] Global functions
 - [x] For loops
-- [x] Method/variable chaining
-- [x] Simple inheritance
+- [x] Template inheritance
 - [x] Template embedding
-- [ ] If statements
-- [ ] Local variable initialization
-- [ ] Inline math/boolean operations (currently only external function calls are supported)
-- [ ] Better error messages
-- [ ] Better formatting with preprocessor?
+- [x] If statements
+- [x] Inline math/boolean operations
+- [ ] Improve error messages
+- [ ] Improve formatting with preprocessor?
+- [ ] Write proper tests

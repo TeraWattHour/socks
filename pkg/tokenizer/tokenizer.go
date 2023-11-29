@@ -7,48 +7,24 @@ import (
 )
 
 const (
-	TOK_DOT      = "dot"
-	TOK_LPAREN   = "lparen"
-	TOK_RPAREN   = "rparen"
-	TOK_IDENT    = "ident"
-	TOK_STRING   = "string"
-	TOK_COMMA    = "comma"
-	TOK_INTEGER  = "integer"
-	TOK_FLOAT    = "float"
-	TOK_FOR      = "for"
-	TOK_IN       = "in"
+	TOK_UNKNOWN = "unknown" // TOK_UNKNOWN is used for tokens that needn't be recognised by the templating engine but may be used in evaluation
+
+	TOK_IDENT  = "ident"
+	TOK_STRING = "string"
+	TOK_COMMA  = "comma"
+	TOK_END    = "end"
+
+	// execute keywords
+	TOK_FOR = "for"
+	TOK_IN  = "in"
+	TOK_IF  = "if"
+
+	// preprocessor keywords
 	TOK_EXTEND   = "extend"
 	TOK_SLOT     = "slot"
-	TOK_END      = "end"
 	TOK_TEMPLATE = "template"
 	TOK_DEFINE   = "define"
 )
-
-type Tokenizer struct {
-	Tags          []Tag
-	Template      string
-	Runes         []rune
-	currentTag    *Tag
-	cursor        int
-	char          rune
-	nextChar      rune
-	isInsideBlock bool
-	isInsideQuote bool
-}
-
-type Tag struct {
-	Start int
-	End   int
-	// Tag.Kind is either "print", "preprocessor" or "execute"
-	Kind   string
-	Tokens []Token
-	Body   string
-}
-
-type Token struct {
-	Kind    string
-	Literal string
-}
 
 var KEYWORDS = []string{
 	TOK_FOR,
@@ -58,6 +34,42 @@ var KEYWORDS = []string{
 	TOK_END,
 	TOK_DEFINE,
 	TOK_TEMPLATE,
+	TOK_IF,
+}
+
+type Tokenizer struct {
+	Tags          []Tag
+	Template      string
+	Runes         []rune
+	currentTag    *Tag
+	cursor        int
+	char          rune
+	nextChar      rune
+	isInsideTag   bool
+	isInsideQuote bool
+}
+
+type TagKind string
+
+const (
+	PrintKind        TagKind = "print"
+	PreprocessorKind TagKind = "preprocessor"
+	ExecuteKind      TagKind = "execute"
+)
+
+type Tag struct {
+	Start  int
+	End    int
+	Kind   TagKind // Tag.Kind is either "print", "preprocessor" or "execute"
+	Tokens []Token
+	Body   string
+}
+
+type Token struct {
+	Kind    string
+	Literal string
+	Start   int
+	Length  int
 }
 
 func NewTokenizer(template string) *Tokenizer {
@@ -73,77 +85,35 @@ func NewTokenizer(template string) *Tokenizer {
 }
 
 func (t *Tokenizer) Tokenize() error {
+
 	for t.char != 0 {
 		pushNext := true
 
 		t.skipWhitespace()
 
-		if t.isInsideBlock {
-			var token Token
+		if t.isInsideTag {
+			token := Token{Start: t.cursor, Length: 1}
 
 			switch t.char {
-			case '.':
-				token = Token{
-					Kind:    TOK_DOT,
-					Literal: ".",
-				}
-			case '(':
-				token = Token{
-					Kind:    TOK_LPAREN,
-					Literal: "(",
-				}
-			case '"':
+			case '"', '\'':
+				quoteChar := t.char
 				t.Next()
 				start := t.cursor
-				for t.char != '"' {
+				for t.char != quoteChar {
 					t.Next()
 				}
 				literal := string(t.Runes[start:t.cursor])
 				t.Next()
-				token = Token{
-					Kind:    TOK_STRING,
-					Literal: literal,
-				}
+				token.Kind = TOK_STRING
+				token.Literal = literal
+				token.Start = start - 1
+				token.Length = t.cursor - start + 1
 				pushNext = false
 			case ',':
-				token = Token{
-					Kind:    TOK_COMMA,
-					Literal: ",",
-				}
-			case ')':
-				token = Token{
-					Kind:    TOK_RPAREN,
-					Literal: ")",
-				}
+				token.Kind = TOK_COMMA
+				token.Literal = ","
 			default:
-				if t.isValidNumber() {
-					start := t.cursor
-					hasDot := t.char == '.'
-					for t.isValidNumber() || t.char == '.' {
-						t.Next()
-						isDot := t.char == '.'
-						if hasDot && isDot {
-							return errors2.NewTokenizerError("number containing two decimal separators", start, t.cursor)
-						}
-						if isDot {
-							hasDot = true
-						}
-					}
-
-					if hasDot {
-						token = Token{
-							Kind:    TOK_FLOAT,
-							Literal: string(t.Runes[start:t.cursor]),
-						}
-					} else {
-						token = Token{
-							Kind:    TOK_INTEGER,
-							Literal: string(t.Runes[start:t.cursor]),
-						}
-					}
-
-					pushNext = false
-				} else if t.isValidVariableName() {
+				if t.isValidVariableName() {
 					start := t.cursor
 					for t.isValidVariableName() || t.isValidNumber() {
 						t.Next()
@@ -160,17 +130,23 @@ func (t *Tokenizer) Tokenize() error {
 							Literal: string(t.Runes[start:t.cursor]),
 						}
 					}
+					token.Start = start
+					token.Length = t.cursor - start
 					pushNext = false
+				} else {
+					token.Kind = TOK_UNKNOWN
+					token.Literal = string(t.char)
 				}
 			}
 
-			if token.Kind != "" {
+			if t.currentTag != nil && token.Kind != "" && !(pushNext && t.canCloseTag()) {
 				t.currentTag.Tokens = append(t.currentTag.Tokens, token)
 			}
 
 			if err := t.tryCloseTag(); err != nil {
 				return err
 			}
+
 		} else {
 			t.tryOpenTag()
 		}
@@ -180,7 +156,7 @@ func (t *Tokenizer) Tokenize() error {
 		}
 	}
 
-	if t.isInsideBlock {
+	if t.isInsideTag {
 		return errors2.NewTokenizerError("unexpected end of file", t.cursor, t.cursor)
 	}
 
@@ -203,12 +179,13 @@ func (t *Tokenizer) Next() {
 }
 
 func (t *Tokenizer) tryOpenTag() {
-	openTag := func(kind string) {
+	openTag := func(kind TagKind) {
 		t.currentTag = &Tag{
 			Start: t.cursor,
 			Kind:  kind,
 		}
-		t.isInsideBlock = true
+		t.isInsideTag = true
+		t.Next()
 	}
 
 	if t.char == '{' {
@@ -223,8 +200,12 @@ func (t *Tokenizer) tryOpenTag() {
 	}
 }
 
+func (t *Tokenizer) canCloseTag() bool {
+	return t.nextChar == '}' && (t.char == '}' || t.char == '%' || t.char == '!')
+}
+
 func (t *Tokenizer) tryCloseTag() error {
-	closeTag := func(kind string) error {
+	closeTag := func(kind TagKind) error {
 		if t.currentTag == nil || t.currentTag.Kind != kind {
 			return errors2.NewTokenizerError("unexpected tag terminator", t.cursor, t.cursor)
 		}
@@ -233,7 +214,7 @@ func (t *Tokenizer) tryCloseTag() error {
 		t.Tags = append(t.Tags, *t.currentTag)
 		t.currentTag = nil
 
-		t.isInsideBlock = false
+		t.isInsideTag = false
 
 		return nil
 	}

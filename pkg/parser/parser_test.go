@@ -1,7 +1,6 @@
 package parser
 
 import (
-	"fmt"
 	"github.com/terawatthour/socks/pkg/tokenizer"
 	"testing"
 )
@@ -17,8 +16,17 @@ func TestParserSimple(t *testing.T) {
 	if err := p.Parse(); err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
+}
 
-	for _, program := range p.Programs {
-		fmt.Printf("%+v\n", program.Statement)
+func TestParseIfStatement(t *testing.T) {
+	template := `{! if Title !} <h1>{{ Title }}</h1> {! end !}`
+	tok := tokenizer.NewTokenizer(template)
+	if err := tok.Tokenize(); err != nil {
+		t.Errorf("unexpected error: %s", err)
+	}
+
+	p := NewParser(tok)
+	if err := p.Parse(); err != nil {
+		t.Errorf("unexpected error: %s", err)
 	}
 }

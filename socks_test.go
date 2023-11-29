@@ -6,7 +6,7 @@ import (
 )
 
 func TestBasicEvaluation(t *testing.T) {
-	s, err := NewSocks("test_data/basic")
+	s, err := NewSocks("test_data")
 	if err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}
@@ -17,6 +17,5 @@ func TestBasicEvaluation(t *testing.T) {
 	if err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}
-
 	fmt.Println("result", res)
 }

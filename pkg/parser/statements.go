@@ -1,64 +1,68 @@
 package parser
 
-import "github.com/terawatthour/socks/pkg/tokenizer"
+import (
+	"github.com/antonmedv/expr/vm"
+	"github.com/terawatthour/socks/pkg/tokenizer"
+)
 
 type Statement interface {
 	Kind() string
 	Tag() *tokenizer.Tag
+	Start() int
+	End() int
+	Replace(inner []rune, offset int, content []rune) string
 }
 
-// StringStatement is a string constant embedded in template
-type StringStatement struct {
-	Value   string
-	tag     *tokenizer.Tag
-	parents []Statement
+type IfStatement struct {
+	Program  *vm.Program
+	StartTag *tokenizer.Tag
+	EndTag   *tokenizer.Tag
+	parents  []Statement
+	Body     []rune
 }
 
-func (ss *StringStatement) Kind() string {
-	return "string"
+func (vs *IfStatement) Replace(inner []rune, offset int, content []rune) string {
+	leading := string(content[:vs.StartTag.Start+offset])
+	trailing := string(content[vs.EndTag.End+1+offset:])
+	innerStr := string(inner)
+	return leading + innerStr + trailing
 }
 
-func (ss *StringStatement) Tag() *tokenizer.Tag {
-	return ss.tag
+func (vs *IfStatement) Start() int {
+	return vs.StartTag.Start
 }
 
-// IntegerStatement is an integer constant embedded in template
-type IntegerStatement struct {
-	Value   int
-	tag     *tokenizer.Tag
-	parents []Statement
+func (vs *IfStatement) End() int {
+	return vs.EndTag.End
 }
 
-func (ns *IntegerStatement) Kind() string {
-	return "integer"
+func (vs *IfStatement) Kind() string {
+	return "if"
 }
 
-func (ns *IntegerStatement) Tag() *tokenizer.Tag {
-	return ns.tag
+func (vs *IfStatement) Tag() *tokenizer.Tag {
+	return vs.StartTag
 }
 
-// FloatStatement is a float64 constant embedded in template
-type FloatStatement struct {
-	Value   float64
-	tag     *tokenizer.Tag
-	parents []Statement
-}
-
-func (fs *FloatStatement) Kind() string {
-	return "float"
-}
-
-func (fs *FloatStatement) Tag() *tokenizer.Tag {
-	return fs.tag
-}
-
-// VariableStatement is a chain of context accessors embedded in template,
-// also include function calls
 type VariableStatement struct {
-	Parts   []Statement
-	IsLocal bool
+	Program *vm.Program
 	tag     *tokenizer.Tag
 	parents []Statement
+}
+
+func (vs *VariableStatement) Replace(inner []rune, offset int, content []rune) string {
+	leading := string(content[:vs.tag.Start+offset])
+	trailing := string(content[vs.tag.End+1+offset:])
+	innerStr := string(inner)
+	return leading + innerStr + trailing
+}
+
+func (vs *VariableStatement) Start() int {
+	return vs.tag.Start
+}
+
+func (vs *VariableStatement) End() int {
+	return vs.tag.End
 }
 
 func (vs *VariableStatement) Kind() string {
@@ -69,40 +73,22 @@ func (vs *VariableStatement) Tag() *tokenizer.Tag {
 	return vs.tag
 }
 
-// VariablePartStatement is a part of VariableStatement, it stores
-// the name of each part of the variable
-type VariablePartStatement struct {
-	Name string
-	tag  *tokenizer.Tag
-}
-
-func (vp *VariablePartStatement) Kind() string {
-	return "variable_part"
-}
-
-func (vp *VariablePartStatement) Tag() *tokenizer.Tag {
-	return vp.tag
-}
-
-// FunctionCallStatement stores the arguments of a function call,
-// it is a part of VariableStatement
-type FunctionCallStatement struct {
-	Args []Statement
-	tag  *tokenizer.Tag
-}
-
-func (vs *FunctionCallStatement) Kind() string {
-	return "function_call"
-}
-
-func (vs *FunctionCallStatement) Tag() *tokenizer.Tag {
-	return vs.tag
-}
-
 type ExtendStatement struct {
 	Template string
 	tag      *tokenizer.Tag
 	parents  []Statement
+}
+
+func (es *ExtendStatement) Replace(inner []rune, offset int, content []rune) string {
+	panic("implement me")
+}
+
+func (es *ExtendStatement) Start() int {
+	return es.tag.Start
+}
+
+func (es *ExtendStatement) End() int {
+	return es.tag.End
 }
 
 func (es *ExtendStatement) Kind() string {
@@ -120,6 +106,18 @@ type TemplateStatement struct {
 	parents  []Statement
 }
 
+func (es *TemplateStatement) Replace(inner []rune, offset int, content []rune) string {
+	panic("implement me")
+}
+
+func (es *TemplateStatement) Start() int {
+	return es.StartTag.Start
+}
+
+func (es *TemplateStatement) End() int {
+	return es.EndTag.End
+}
+
 func (es *TemplateStatement) Kind() string {
 	return "template"
 }
@@ -135,6 +133,18 @@ type SlotStatement struct {
 	parents  []Statement
 }
 
+func (es *SlotStatement) Replace(inner []rune, offset int, content []rune) string {
+	panic("implement me")
+}
+
+func (bs *SlotStatement) Start() int {
+	return bs.StartTag.Start
+}
+
+func (bs *SlotStatement) End() int {
+	return bs.EndTag.End
+}
+
 func (bs *SlotStatement) Kind() string {
 	return "slot"
 }
@@ -147,6 +157,20 @@ type EndStatement struct {
 	tag     *tokenizer.Tag
 	closes  Statement
 	parents []Statement
+}
+
+func (vs *EndStatement) Replace(inner []rune, offset int, content []rune) string {
+	leading := string(content[:vs.tag.Start+offset])
+	trailing := string(content[vs.tag.End+1+offset:])
+	return leading + trailing
+}
+
+func (es *EndStatement) Start() int {
+	return es.tag.Start
+}
+
+func (es *EndStatement) End() int {
+	return es.tag.End
 }
 
 func (es *EndStatement) Kind() string {
@@ -164,6 +188,18 @@ type DefineStatement struct {
 	Parents  []Statement
 }
 
+func (es *DefineStatement) Replace(inner []rune, offset int, content []rune) string {
+	panic("implement me")
+}
+
+func (es *DefineStatement) Start() int {
+	return es.StartTag.Start
+}
+
+func (es *DefineStatement) End() int {
+	return es.EndTag.End
+}
+
 func (es *DefineStatement) Kind() string {
 	return "define"
 }
@@ -176,10 +212,26 @@ type ForStatement struct {
 	IteratorName string
 	ValueName    string
 	Iterable     Statement
+	Body         []rune
 
 	StartTag *tokenizer.Tag
 	EndTag   *tokenizer.Tag
 	parents  []Statement
+}
+
+func (es *ForStatement) Replace(inner []rune, offset int, content []rune) string {
+	leading := string(content[:es.StartTag.Start+offset])
+	trailing := string(content[es.EndTag.End+1+offset:])
+	innerStr := string(inner)
+	return leading + innerStr + trailing
+}
+
+func (es *ForStatement) Start() int {
+	return es.StartTag.Start
+}
+
+func (es *ForStatement) End() int {
+	return es.EndTag.End
 }
 
 func (es *ForStatement) Kind() string {
