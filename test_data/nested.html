@@ -5,8 +5,13 @@
         {% define "page" %} Nested page {% end %}
     {% end %}
 
-    {! for i, v in .Phrases !}
-        <p>{{ v }}</p>
+    {! for i, v in Phrases !}
+    <div>
+        <p>{{ i + 1 }}: {{ v }}</p>
+        {! if i > 0 !}
+        <p>Previous {{ i }}: {{ Phrases[1] }}</p>
+        {! end !}
+    </div>
     {! end !}
 {% end %}
 

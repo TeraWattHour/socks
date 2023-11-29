@@ -1,9 +1,9 @@
 package parser
 
 import (
+	"github.com/antonmedv/expr"
 	"github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/tokenizer"
-	"strconv"
 )
 
 type TagProgram struct {
@@ -22,7 +22,6 @@ type Parser struct {
 type TagParser struct {
 	parser    *Parser
 	tag       *tokenizer.Tag
-	depth     int
 	cursor    int
 	token     *tokenizer.Token
 	nextToken *tokenizer.Token
@@ -99,18 +98,11 @@ func (tp *TagParser) Parse() (st Statement, err error) {
 			return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 		}
 	} else if tp.tag.Kind == "print" {
-		switch tp.token.Kind {
-		case tokenizer.TOK_DOT, tokenizer.TOK_IDENT:
-			return tp.parseVariableStatement()
-		case tokenizer.TOK_INTEGER:
-			return tp.parseNumericStatement()
-		case tokenizer.TOK_STRING:
-			return tp.parseStringStatement()
-		default:
-			return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-		}
+		return tp.parseVariableStatement()
 	} else if tp.tag.Kind == "execute" {
 		switch tp.token.Kind {
+		case tokenizer.TOK_IF:
+			return tp.parseIfStatement()
 		case tokenizer.TOK_FOR:
 			return tp.parseForStatement()
 		case tokenizer.TOK_END:
@@ -118,7 +110,7 @@ func (tp *TagParser) Parse() (st Statement, err error) {
 		}
 	}
 
-	return nil, errors.NewParserError("unexpected tag type: "+tp.tag.Kind, tp.tag.Start, tp.tag.End)
+	return nil, errors.NewParserError("unexpected tag type: "+string(tp.tag.Kind), tp.tag.Start, tp.tag.End)
 }
 
 func (tp *TagParser) expectNext(kind string) bool {
@@ -131,6 +123,34 @@ func (tp *TagParser) expectNext(kind string) bool {
 
 func (tp *TagParser) expectEnd() bool {
 	return tp.nextToken == nil
+}
+
+func (tp *TagParser) parseIfStatement() (Statement, error) {
+	tp.Next()
+	start := tp.token.Start
+	var end int
+
+	for tp.token != nil {
+		end = tp.token.Start + tp.token.Length
+
+		tp.Next()
+	}
+
+	literal := string(tp.parser.Tokenizer.Runes[start:end])
+	program, err := expr.Compile(literal)
+	if err != nil {
+		return nil, errors.NewParserError("unable to compile expression: "+err.Error(), tp.tag.Start, tp.tag.End)
+	}
+
+	statement := &IfStatement{
+		Program:  program,
+		StartTag: tp.tag,
+		parents:  tp.parser.unclosed,
+	}
+
+	tp.parser.unclosed = append(tp.parser.unclosed, statement)
+
+	return statement, nil
 }
 
 func (tp *TagParser) parseEndStatement() (Statement, error) {
@@ -147,9 +167,15 @@ func (tp *TagParser) parseEndStatement() (Statement, error) {
 	case "slot":
 		last.(*SlotStatement).EndTag = tp.tag
 	case "for":
-		last.(*ForStatement).EndTag = tp.tag
+		forStatement := last.(*ForStatement)
+		forStatement.EndTag = tp.tag
+		forStatement.Body = tp.parser.Tokenizer.Runes[forStatement.StartTag.End+1 : tp.tag.Start]
 	case "template":
 		last.(*TemplateStatement).EndTag = tp.tag
+	case "if":
+		ifStatement := last.(*IfStatement)
+		ifStatement.EndTag = tp.tag
+		ifStatement.Body = tp.parser.Tokenizer.Runes[ifStatement.StartTag.End+1 : tp.tag.Start]
 	}
 
 	tp.parser.unclosed = tp.parser.unclosed[:depth-1]
@@ -230,7 +256,7 @@ func (tp *TagParser) parseForStatement() (Statement, error) {
 		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
 	tp.Next()
-	if tp.token.Kind != tokenizer.TOK_DOT && tp.token.Kind != tokenizer.TOK_IDENT {
+	if tp.token.Kind != tokenizer.TOK_IDENT {
 		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
 	iterable, err := tp.parseVariableStatement()
@@ -269,110 +295,28 @@ func (tp *TagParser) parseSlotStatement() (Statement, error) {
 	return statement, nil
 }
 
-func (tp *TagParser) parseNumericStatement() (Statement, error) {
-	val, err := strconv.Atoi(tp.token.Literal)
-	if err != nil {
-		return nil, errors.NewParserError("invalid integer", tp.tag.Start, tp.tag.End)
-	}
-
-	return &IntegerStatement{
-		Value:   val,
-		tag:     tp.tag,
-		parents: tp.parser.unclosed,
-	}, nil
-}
-
-func (tp *TagParser) parseStringStatement() (Statement, error) {
-	return &StringStatement{
-		tag:     tp.tag,
-		Value:   tp.token.Literal,
-		parents: tp.parser.unclosed,
-	}, nil
-}
-
 func (tp *TagParser) parseVariableStatement() (*VariableStatement, error) {
-	st := &VariableStatement{Parts: []Statement{}, tag: tp.tag, parents: tp.parser.unclosed}
-	st.IsLocal = tp.token.Kind == tokenizer.TOK_DOT
+	start := tp.token.Start
+	var end int
 
 	for tp.token != nil {
-		if tp.token.Kind == tokenizer.TOK_DOT && !tp.expectNext(tokenizer.TOK_IDENT) {
-			return nil, errors.NewParserError("misuse of dot notation, dot must be followed by an identifier", tp.tag.Start, tp.tag.End)
-		}
-
-		if tp.token.Kind == tokenizer.TOK_LPAREN {
-			functionCall, err := tp.parseFunctionArgs()
-			if err != nil {
-				return nil, err
-			}
-			st.Parts = append(st.Parts, functionCall)
-		} else if tp.token.Kind == tokenizer.TOK_DOT && tp.expectNext(tokenizer.TOK_IDENT) {
-			tp.Next()
-		} else if tp.token.Kind == tokenizer.TOK_IDENT {
-			st.Parts = append(st.Parts, &VariablePartStatement{
-				Name: tp.token.Literal,
-				tag:  tp.tag,
-			})
-			tp.Next()
-		} else {
-			if tp.depth > 0 && tp.token.Kind == tokenizer.TOK_RPAREN {
-				break
-			}
-			return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-		}
-	}
-
-	return st, nil
-}
-
-func (tp *TagParser) parseFunctionArgs() (*FunctionCallStatement, error) {
-	tp.Next()
-	previousDepth := tp.depth
-	tp.depth += 1
-	fc := &FunctionCallStatement{Args: []Statement{}, tag: tp.tag}
-	for tp.depth > previousDepth && tp.token != nil {
-		if tp.token.Kind == tokenizer.TOK_DOT && !tp.expectNext(tokenizer.TOK_IDENT) {
-			return nil, errors.NewParserError("misuse of dot notation, dot must be followed by an identifier", tp.tag.Start, tp.tag.End)
-		}
-
-		if tp.token.Kind == tokenizer.TOK_IDENT && tp.expectNext(tokenizer.TOK_LPAREN) {
-			tp.Next()
-			inner, err := tp.parseFunctionArgs()
-			if err != nil {
-				return nil, err
-			}
-			fc.Args = append(fc.Args, inner)
-
-			continue
-		} else if tp.token.Kind == tokenizer.TOK_RPAREN {
-			tp.depth -= 1
-		} else if tp.token.Kind == tokenizer.TOK_INTEGER {
-			val, err := strconv.Atoi(tp.token.Literal)
-			if err != nil {
-				return nil, errors.NewParserError("invalid integer", tp.tag.Start, tp.tag.End)
-			}
-			fc.Args = append(fc.Args, &IntegerStatement{
-				Value: val,
-				tag:   tp.tag,
-			})
-		} else if tp.token.Kind == tokenizer.TOK_DOT && tp.expectNext(tokenizer.TOK_IDENT) {
-			variableStatement, err := tp.parseVariableStatement()
-			if err != nil {
-				return nil, err
-			}
-			fc.Args = append(fc.Args, variableStatement)
-
-			continue
-		} else if tp.token.Kind == tokenizer.TOK_STRING {
-			fc.Args = append(fc.Args, &StringStatement{
-				Value: tp.token.Literal,
-				tag:   tp.tag,
-			})
-		}
+		end = tp.token.Start + tp.token.Length
 
 		tp.Next()
 	}
 
-	return fc, nil
+	literal := string(tp.parser.Tokenizer.Runes[start:end])
+
+	program, err := expr.Compile(literal)
+	if err != nil {
+		return nil, errors.NewParserError("unable to compile expression: "+err.Error(), tp.tag.Start, tp.tag.End)
+	}
+
+	return &VariableStatement{
+		Program: program,
+		tag:     tp.tag,
+		parents: tp.parser.unclosed,
+	}, nil
 }
 
 func (tp *TagParser) Next() {

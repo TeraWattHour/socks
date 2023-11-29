@@ -144,6 +144,18 @@ func TestTokenizer(t *testing.T) {
 	}
 }
 
+func TestTokenizerWhitespace(t *testing.T) {
+	template := `{{v}}`
+	tok := NewTokenizer(template)
+	if err := tok.Tokenize(); err != nil {
+		t.Errorf("unexpected error: %s", err)
+		return
+	}
+	if tok.Tags[0].Tokens[0].Literal != "v" {
+		t.Errorf("expected token %s, got %s", "v", tok.Tags[0].Tokens[0].Literal)
+	}
+}
+
 func TestTokenizerUnexpectedTerminator(t *testing.T) {
 	template := `{{ end %}`
 	tok := NewTokenizer(template)
