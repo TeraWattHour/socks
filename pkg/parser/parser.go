@@ -241,28 +241,35 @@ func (tp *TagParser) parseForStatement() (Statement, error) {
 	var iteratorName string
 	var valueName string
 
-	tp.Next()
-	if tp.token.Kind != tokenizer.TokIdent {
-		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
+	if !tp.expectNext(tokenizer.TokIdent) {
+		return nil, errors.NewParserError("expected identifier after "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
+	tp.Next()
 	iteratorName = tp.token.Literal
-	tp.Next()
-	if tp.token.Kind != tokenizer.TokComma {
-		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
+
+	if !tp.expectNext(tokenizer.TokComma) {
+		return nil, errors.NewParserError("expected ',' after "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
+
 	tp.Next()
-	if tp.token.Kind != tokenizer.TokIdent {
-		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
+
+	if !tp.expectNext(tokenizer.TokIdent) {
+		return nil, errors.NewParserError("expected identifier after "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
+
+	tp.Next()
 	valueName = tp.token.Literal
-	tp.Next()
-	if tp.token.Kind != tokenizer.TokIn {
-		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
+
+	if !tp.expectNext(tokenizer.TokIn) {
+		return nil, errors.NewParserError("expected 'in' after "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
+
 	tp.Next()
-	if tp.token.Kind != tokenizer.TokIdent {
-		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
+	tp.Next()
+	if tp.token == nil {
+		return nil, errors.NewParserError("expected iterable after "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 	}
+
 	iterable, err := tp.parseVariableStatement()
 	if err != nil {
 		return nil, err
