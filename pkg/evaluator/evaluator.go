@@ -7,7 +7,6 @@ import (
 	"github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/parser"
 	"github.com/terawatthour/socks/pkg/tokenizer"
-	"reflect"
 )
 
 type Evaluator struct {
@@ -84,23 +83,6 @@ func (e *Evaluator) evaluateStatement(statement parser.Statement, context map[st
 	return nil, errors.NewEvaluatorError("unexpected statement kind: "+statement.Kind(), statement.Tag().Start, statement.Tag().End)
 }
 
-func convertToInterfaceSlice(obj interface{}) ([]interface{}, error) {
-	sliceValue := reflect.ValueOf(obj)
-
-	if sliceValue.Kind() != reflect.Slice {
-		return nil, errors.NewEvaluatorError("object is not iterable", -1, -1)
-	}
-
-	resultSlice := make([]interface{}, sliceValue.Len())
-
-	for i := 0; i < sliceValue.Len(); i++ {
-		value := reflect.ValueOf(sliceValue.Index(i)).Interface()
-		resultSlice[i] = value
-	}
-
-	return resultSlice, nil
-}
-
 func (e *Evaluator) evaluateIfStatement(statement parser.Statement, context map[string]interface{}, state map[string]interface{}) (interface{}, error) {
 	ifStatement := statement.(*parser.IfStatement)
 	result, err := expr.Run(ifStatement.Program, helpers.CombineMaps(context, state))
@@ -163,9 +145,9 @@ func (e *Evaluator) evaluateForStatement(statement parser.Statement, context map
 	loopBody := forStatement.Body
 	result := ""
 
-	values, err := convertToInterfaceSlice(obj)
-	if err != nil {
-		return nil, err
+	values := helpers.ConvertInterfaceToSlice(obj)
+	if values == nil {
+		return nil, errors.NewEvaluatorError("unable to convert iterable to slice", forStatement.StartTag.Start, forStatement.EndTag.End)
 	}
 
 	before := e.i
