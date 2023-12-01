@@ -13,6 +13,18 @@ func Contains[T comparable](slice []T, item T) bool {
 	return false
 }
 
+func Filter[T any](slice []T, fn func(T) bool) []T {
+	result := make([]T, 0)
+
+	for _, item := range slice {
+		if fn(item) {
+			result = append(result, item)
+		}
+	}
+
+	return result
+}
+
 func Map[T any, R any](previous []T, fn func(T) R) []R {
 	result := make([]R, len(previous))
 
