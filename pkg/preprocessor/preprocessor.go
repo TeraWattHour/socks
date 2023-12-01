@@ -148,14 +148,16 @@ func (tp *TagPreprocessor) evaluateTemplateStatement() error {
 	templateStatement := tp.Program.Statement.(*parser.TemplateStatement)
 	embeddedTemplateName := templateStatement.Template
 
-	embeddedTemplate, err := tp.FilePreprocessor.Preprocessor.Preprocess(embeddedTemplateName)
+	resolvedPath := helpers.ResolvePath(tp.FilePreprocessor.Filename, embeddedTemplateName)
+
+	embeddedTemplate, err := tp.FilePreprocessor.Preprocessor.Preprocess(resolvedPath)
 	if err != nil {
 		return err
 	}
 
 	var currentOffset int
 
-	defines := []*parser.DefineStatement{}
+	defines := make([]*parser.DefineStatement, 0)
 	for _, program := range tp.FilePreprocessor.Parser.Programs {
 		if program.Statement.Kind() == "define" {
 			parents := program.Statement.(*parser.DefineStatement).Parents
@@ -224,7 +226,9 @@ func (tp *TagPreprocessor) evaluateSlotStatement() error {
 func (tp *TagPreprocessor) evaluateExtendStatement() error {
 	extendedTemplateName := tp.Program.Statement.(*parser.ExtendStatement).Template
 
-	extendedTemplate, err := tp.FilePreprocessor.Preprocessor.Preprocess(extendedTemplateName)
+	resolvedPath := helpers.ResolvePath(tp.FilePreprocessor.Filename, extendedTemplateName)
+
+	extendedTemplate, err := tp.FilePreprocessor.Preprocessor.Preprocess(resolvedPath)
 	if err != nil {
 		return err
 	}

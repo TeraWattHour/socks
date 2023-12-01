@@ -6,7 +6,7 @@ import (
 	"github.com/terawatthour/socks/pkg/preprocessor"
 	"github.com/terawatthour/socks/pkg/tokenizer"
 	"os"
-	"path"
+	"path/filepath"
 )
 
 type FileSystem struct {
@@ -17,31 +17,40 @@ type FileSystem struct {
 	staticContext map[string]interface{}
 }
 
-func NewFileSystem(root string, staticContext map[string]interface{}) (*FileSystem, error) {
-	fs := &FileSystem{
-		Root:          root,
-		Files:         make(map[string]string),
-		Processed:     make(map[string]string),
-		Templates:     make(map[string]*evaluator.Evaluator),
-		staticContext: staticContext,
+func NewFileSystem() *FileSystem {
+	return &FileSystem{
+		Files:     make(map[string]string),
+		Processed: make(map[string]string),
+		Templates: make(map[string]*evaluator.Evaluator),
+	}
+}
+
+func (fs *FileSystem) LoadTemplates(patterns ...string) error {
+	for _, pattern := range patterns {
+		entryNames, err := filepath.Glob(pattern)
+		if err != nil {
+			return err
+		}
+
+		for _, entryName := range entryNames {
+			st, err := os.Stat(entryName)
+			if err != nil {
+				return err
+			}
+			if st.IsDir() {
+				continue
+			}
+
+			by, err := os.ReadFile(entryName)
+			if err != nil {
+				return err
+			}
+
+			fs.Files[entryName] = string(by)
+		}
 	}
 
-	if err := fs.loadDirectory(root); err != nil {
-		return nil, err
-	}
-	if err := fs.preprocessFiles(); err != nil {
-		return nil, err
-	}
-
-	clear(fs.Files)
-
-	if err := fs.parseProcessedFiles(); err != nil {
-		return nil, err
-	}
-
-	clear(fs.Processed)
-
-	return fs, nil
+	return nil
 }
 
 func (fs *FileSystem) parseProcessedFiles() error {
@@ -61,8 +70,8 @@ func (fs *FileSystem) parseProcessedFiles() error {
 	return nil
 }
 
-func (fs *FileSystem) preprocessFiles() error {
-	proc := preprocessor.NewPreprocessor(fs.Files, fs.staticContext)
+func (fs *FileSystem) PreprocessFiles(staticContext map[string]interface{}) error {
+	proc := preprocessor.NewPreprocessor(fs.Files, staticContext)
 
 	for filename := range fs.Files {
 		if result, err := proc.Preprocess(filename); err == nil {
@@ -72,33 +81,5 @@ func (fs *FileSystem) preprocessFiles() error {
 		}
 	}
 
-	return nil
-}
-
-func (fs *FileSystem) loadDirectory(root string) error {
-	entries, err := os.ReadDir(root)
-	if err != nil {
-		return err
-	}
-
-	for _, entry := range entries {
-		if entry.Name()[0] == '~' {
-			continue
-		}
-
-		if !entry.IsDir() {
-			by, err := os.ReadFile(path.Join(root, entry.Name()))
-			if err != nil {
-				return err
-			}
-			withoutBase := path.Join(root, entry.Name())[len(fs.Root)+1:]
-			fs.Files[withoutBase] = string(by)
-		} else {
-			if err := fs.loadDirectory(path.Join(root, entry.Name())); err != nil {
-				return err
-			}
-		}
-	}
-
-	return nil
+	return fs.parseProcessedFiles()
 }

@@ -80,7 +80,7 @@ type ExtendStatement struct {
 }
 
 func (es *ExtendStatement) Replace(inner []rune, offset int, content []rune) []rune {
-	panic("implement me")
+	return []rune("")
 }
 
 func (es *ExtendStatement) Start() int {
