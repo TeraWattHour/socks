@@ -50,12 +50,13 @@ type Tokenizer struct {
 	isInsideTag bool
 }
 
-// TagKind is either PrintKind, PreprocessorKind, or ExecuteKind.
+// TagKind is either PrintKind, PreprocessorKind, StaticKind, or ExecuteKind.
 type TagKind string
 
 const (
 	PrintKind        TagKind = "print"
 	PreprocessorKind TagKind = "preprocessor"
+	StaticKind       TagKind = "static"
 	ExecuteKind      TagKind = "execute"
 	CommentKind      TagKind = "comment"
 )
@@ -228,12 +229,14 @@ func (t *Tokenizer) tryOpenTag() {
 			openTag(PrintKind)
 		case '#':
 			openTag(CommentKind)
+		case '$':
+			openTag(StaticKind)
 		}
 	}
 }
 
 func (t *Tokenizer) canCloseTag() bool {
-	return t.nextChar == '}' && (t.char == '}' || t.char == '%' || t.char == '!')
+	return t.nextChar == '}' && (t.char == '}' || t.char == '%' || t.char == '!' || t.char == '$')
 }
 
 func (t *Tokenizer) tryCloseTag() error {
@@ -261,6 +264,8 @@ func (t *Tokenizer) tryCloseTag() error {
 			return closeTag(ExecuteKind)
 		case '#':
 			return closeTag(CommentKind)
+		case '$':
+			return closeTag(StaticKind)
 		}
 	}
 

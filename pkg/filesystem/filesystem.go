@@ -10,18 +10,20 @@ import (
 )
 
 type FileSystem struct {
-	Root      string
-	Files     map[string]string
-	Processed map[string]string
-	Templates map[string]*evaluator.Evaluator
+	Root          string
+	Files         map[string]string
+	Processed     map[string]string
+	Templates     map[string]*evaluator.Evaluator
+	staticContext map[string]interface{}
 }
 
-func NewFileSystem(root string) (*FileSystem, error) {
+func NewFileSystem(root string, staticContext map[string]interface{}) (*FileSystem, error) {
 	fs := &FileSystem{
-		Root:      root,
-		Files:     make(map[string]string),
-		Processed: make(map[string]string),
-		Templates: make(map[string]*evaluator.Evaluator),
+		Root:          root,
+		Files:         make(map[string]string),
+		Processed:     make(map[string]string),
+		Templates:     make(map[string]*evaluator.Evaluator),
+		staticContext: staticContext,
 	}
 
 	if err := fs.loadDirectory(root); err != nil {
@@ -53,14 +55,14 @@ func (fs *FileSystem) parseProcessedFiles() error {
 			return err
 		}
 
-		fs.Templates[name] = evaluator.NewEvaluator(par)
+		fs.Templates[name] = evaluator.NewEvaluator(par, evaluator.RuntimeMode)
 	}
 
 	return nil
 }
 
 func (fs *FileSystem) preprocessFiles() error {
-	proc := preprocessor.NewPreprocessor(fs.Files)
+	proc := preprocessor.NewPreprocessor(fs.Files, fs.staticContext)
 
 	for filename := range fs.Files {
 		if result, err := proc.Preprocess(filename); err == nil {

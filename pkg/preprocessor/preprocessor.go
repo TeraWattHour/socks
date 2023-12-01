@@ -1,6 +1,6 @@
 package preprocessor
 
-// Preprocessor is responsible for preprocessing the template before it is evaluated.
+// Preprocessor is responsible for preprocessing the template before it is evaluated and removing potential comments.
 // Preprocessing should only be done once per template.
 // The features of this preprocessor are:
 // - extend: extend another template
@@ -11,13 +11,15 @@ package preprocessor
 import (
 	"fmt"
 	"github.com/terawatthour/socks/internal/helpers"
+	"github.com/terawatthour/socks/pkg/evaluator"
 	"github.com/terawatthour/socks/pkg/parser"
 	"github.com/terawatthour/socks/pkg/tokenizer"
 )
 
 type Preprocessor struct {
-	Files     map[string]string
-	Processed map[string]string
+	files         map[string]string
+	processed     map[string]string
+	staticContext map[string]interface{}
 }
 
 type FilePreprocessor struct {
@@ -33,9 +35,10 @@ type TagPreprocessor struct {
 	Program          *parser.TagProgram
 }
 
-func NewPreprocessor(files map[string]string) *Preprocessor {
+func NewPreprocessor(files map[string]string, staticContext map[string]interface{}) *Preprocessor {
 	return &Preprocessor{
-		Files: files,
+		files:         files,
+		staticContext: staticContext,
 	}
 }
 
@@ -60,7 +63,7 @@ func (p *Preprocessor) Preprocess(filename string) (string, error) {
 }
 
 func (fp *FilePreprocessor) preprocess() (string, error) {
-	content, ok := fp.Preprocessor.Files[fp.Filename]
+	content, ok := fp.Preprocessor.files[fp.Filename]
 	if !ok {
 		return "", fmt.Errorf("template %s not found", fp.Filename)
 	}
@@ -82,17 +85,21 @@ func (fp *FilePreprocessor) preprocess() (string, error) {
 	for fp.i < len(fp.Parser.Programs) {
 		program := fp.Parser.Programs[fp.i]
 
-		// skip non-preprocessor tags and slot tags which need to be replaced by the parent template
-		// end tags must be handled by their opening tag
-		if program.Tag.Kind != tokenizer.PreprocessorKind || program.Statement.Kind() == "slot" || program.Statement.Kind() == "end" {
+		if program.Tag.Kind == tokenizer.CommentKind {
+			fp.Result = fp.Result[:program.Tag.Start] + fp.Result[program.Tag.End+1:]
+			fp.i += 1
+		} else if program.Tag.Kind != tokenizer.PreprocessorKind || program.Statement.Kind() == "slot" || program.Statement.Kind() == "end" {
+			// skip non-preprocessor tags and slot tags which need to be replaced by the parent template
+			// end tags must be handled by their opening tag
+
 			fp.i += 1
 			continue
-		}
-
-		tagPreprocessor := NewTagPreprocessor(fp, &program)
-		err := tagPreprocessor.evaluateProgram()
-		if err != nil {
-			return "", err
+		} else {
+			tagPreprocessor := NewTagPreprocessor(fp, &program)
+			err := tagPreprocessor.evaluateProgram()
+			if err != nil {
+				return "", err
+			}
 		}
 
 		tok := tokenizer.NewTokenizer(fp.Result)
@@ -108,7 +115,22 @@ func (fp *FilePreprocessor) preprocess() (string, error) {
 		fp.i = 0
 	}
 
-	return fp.Result, nil
+	result, err := evaluator.NewEvaluator(fp.Parser, evaluator.StaticMode).Evaluate(fp.Preprocessor.staticContext)
+	if err != nil {
+		return "", err
+	}
+
+	tok = tokenizer.NewTokenizer(result)
+	if err := tok.Tokenize(); err != nil {
+		return "", err
+	}
+
+	fp.Parser = parser.NewParser(tok)
+	if err := fp.Parser.Parse(); err != nil {
+		return "", err
+	}
+
+	return result, nil
 }
 
 func (tp *TagPreprocessor) evaluateProgram() error {

@@ -181,6 +181,32 @@ func (es *EndStatement) Tag() *tokenizer.Tag {
 	return es.tag
 }
 
+type CommentStatement struct {
+	tag *tokenizer.Tag
+}
+
+func (es *CommentStatement) Tag() *tokenizer.Tag {
+	return es.tag
+}
+
+func (es *CommentStatement) Replace(_ []rune, offset int, content []rune) []rune {
+	leading := string(content[:es.tag.Start+offset])
+	trailing := string(content[es.tag.End+1+offset:])
+	return []rune(leading + trailing)
+}
+
+func (es *CommentStatement) Start() int {
+	return es.tag.Start
+}
+
+func (es *CommentStatement) End() int {
+	return es.tag.End
+}
+
+func (es *CommentStatement) Kind() string {
+	return "comment"
+}
+
 type DefineStatement struct {
 	Name     string
 	StartTag *tokenizer.Tag
