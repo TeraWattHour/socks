@@ -4,6 +4,20 @@ import (
 	"reflect"
 )
 
+func CombineSlicesUnique[T comparable](slices ...[]T) []T {
+	result := make([]T, 0)
+
+	for _, slice := range slices {
+		for _, item := range slice {
+			if !Contains(result, item) {
+				result = append(result, item)
+			}
+		}
+	}
+
+	return result
+}
+
 func Contains[T comparable](slice []T, item T) bool {
 	for _, s := range slice {
 		if s == item {

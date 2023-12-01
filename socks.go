@@ -9,6 +9,9 @@ import (
 type Socks interface {
 	Run(template string, context map[string]interface{}) (string, error)
 
+	LoadTemplates(patterns ...string) error
+	PreprocessTemplates(staticContext map[string]interface{}) error
+
 	AddGlobal(key string, value interface{})
 	AddGlobals(value map[string]interface{})
 	ClearGlobals()
@@ -20,18 +23,21 @@ type sock struct {
 	globals map[string]interface{}
 }
 
-func NewSocks(templatesDirectory string, staticContext map[string]interface{}) (Socks, error) {
-	fs, err := filesystem.NewFileSystem(templatesDirectory, staticContext)
-	if err != nil {
-		return nil, err
-	}
+func NewSocks() Socks {
+	fs := filesystem.NewFileSystem()
 
-	s := &sock{
+	return &sock{
 		fs:      fs,
 		globals: make(map[string]interface{}),
 	}
+}
 
-	return s, nil
+func (s *sock) LoadTemplates(patterns ...string) error {
+	return s.fs.LoadTemplates(patterns...)
+}
+
+func (s *sock) PreprocessTemplates(staticContext map[string]interface{}) error {
+	return s.fs.PreprocessFiles(staticContext)
 }
 
 func (s *sock) Run(template string, context map[string]interface{}) (string, error) {

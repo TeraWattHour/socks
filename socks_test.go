@@ -6,16 +6,21 @@ import (
 )
 
 func TestBasicEvaluation(t *testing.T) {
-	s, err := NewSocks("test_data", map[string]interface{}{
-		"Server": "Frankfurt",
-	})
+	s := NewSocks()
+	err := s.LoadTemplates("test_data/*.html", "test_data/**/*.html")
 	if err != nil {
+		t.Errorf("Expected no error, got %s", err)
+	}
+
+	if err := s.PreprocessTemplates(map[string]interface{}{
+		"Server": "localhost",
+	}); err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}
 
 	s.AddGlobal("now", "2019-01-01")
 
-	res, err := s.Run("nested.html", map[string]interface{}{
+	res, err := s.Run("test_data/nested.html", map[string]interface{}{
 		"Phrases": []string{"Herzlich willkommen", "Willkommen"},
 	})
 	if err != nil {

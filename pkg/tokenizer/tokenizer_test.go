@@ -1,11 +1,12 @@
 package tokenizer
 
 import (
+	"fmt"
 	"testing"
 )
 
 func TestTokenizer(t *testing.T) {
-	template := `{% extend "some_template.html" %}<html><head><title>{{ Title }}</title></head><body><h1>{{ Title.Format(.Datum, "dddd", 1).ToUTC() }} {{ nice_ident }}</h1>{! for i, v in .Table !} {{ v }} {! end !} </body></html>`
+	template := `{% extend "some_template.html" %}<html><head><title>{{ Title }}</title></head><body><h1>{{ Title.Format(.Datum, "dddd", 1).ToUTC() }} {{ nice_ident }}</h1>{! for i, v in .Table !} {{ v }} {! end !} </body></html>{{ xdd }}`
 	tok := NewTokenizer(template)
 	if err := tok.Tokenize(); err != nil {
 		t.Errorf("unexpected error: %s", err)
@@ -118,6 +119,12 @@ func TestTokenizer(t *testing.T) {
 				Literal: "end",
 			}},
 		},
+		{
+			Tokens: []Token{{
+				Kind:    "ident",
+				Literal: "xdd",
+			}},
+		},
 	}
 
 	for i, block := range expected {
@@ -136,13 +143,6 @@ func TestTokenizer(t *testing.T) {
 			}
 		}
 	}
-}
-
-func TestFindTags(t *testing.T) {
-	template := `{{ print }} {! exec !} {% preprocessor %} {# comment #}`
-
-	findTagOpenings(template)
-
 }
 
 func TestTokenizerWhitespace(t *testing.T) {
@@ -167,7 +167,7 @@ func TestTokenizerUnexpectedTerminator(t *testing.T) {
 }
 
 func TestTokenizerNiceLetters(t *testing.T) {
-	template := "{{ żółć }} {{ ęśąłó }}"
+	template := `{{ żółć }} {{ ęśąłó }}`
 	tok := NewTokenizer(template)
 	if err := tok.Tokenize(); err != nil {
 		t.Errorf("unexpected error: %s", err)
@@ -185,12 +185,12 @@ func TestTokenizerNiceLetters(t *testing.T) {
 			Literal: "ęśąłó",
 		}},
 	}}
-
+	fmt.Println(tok.Tags)
 	for i, block := range expected {
 		for j, token := range block.Tokens {
 			failed := false
 			if token.Kind != tok.Tags[i].Tokens[j].Kind {
-				t.Errorf("expected Kind %s, got %s", tok.Tags[i].Tokens[j].Kind, token.Kind)
+				t.Errorf("expected kind %s, got %s", tok.Tags[i].Tokens[j].Kind, token.Kind)
 				failed = true
 			}
 			if token.Literal != tok.Tags[i].Tokens[j].Literal {

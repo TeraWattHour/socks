@@ -96,30 +96,11 @@ func findTagOpenings(template string) []int {
 }
 
 func (t *Tokenizer) Tokenize() error {
-	locs := findTagOpenings(t.Template)
-	if len(locs) == 0 {
-		return nil
-	}
+	for t.char != 0 {
+		pushNext := true
+		t.skipWhitespace()
 
-	for _, loc := range locs {
-		if t.cursor > loc {
-			continue
-		}
-
-		t.cursor = loc - 1
-		t.Next()
-
-		t.tryOpenTag()
-
-		if !t.isInsideTag {
-			continue
-		}
-
-	tagLoop:
-		for t.char != 0 {
-			t.skipWhitespace()
-
-			pushNext := true
+		if t.isInsideTag {
 
 			token := Token{Start: t.cursor, Length: 1}
 
@@ -176,13 +157,12 @@ func (t *Tokenizer) Tokenize() error {
 				return err
 			}
 
-			if !t.isInsideTag {
-				break tagLoop
-			}
+		} else {
+			t.tryOpenTag()
+		}
 
-			if pushNext {
-				t.Next()
-			}
+		if pushNext {
+			t.Next()
 		}
 	}
 
