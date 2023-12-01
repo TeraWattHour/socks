@@ -6,7 +6,9 @@ import (
 )
 
 func TestBasicEvaluation(t *testing.T) {
-	s, err := NewSocks("test_data")
+	s, err := NewSocks("test_data", map[string]interface{}{
+		"Server": "Frankfurt",
+	})
 	if err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}

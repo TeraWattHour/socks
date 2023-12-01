@@ -20,8 +20,8 @@ type sock struct {
 	globals map[string]interface{}
 }
 
-func NewSocks(templatesDirectory string) (Socks, error) {
-	fs, err := filesystem.NewFileSystem(templatesDirectory)
+func NewSocks(templatesDirectory string, staticContext map[string]interface{}) (Socks, error) {
+	fs, err := filesystem.NewFileSystem(templatesDirectory, staticContext)
 	if err != nil {
 		return nil, err
 	}

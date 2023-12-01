@@ -86,7 +86,23 @@ func (tp *TagParser) Parse() (st Statement, err error) {
 	if tp.token == nil {
 		return nil, errors.NewParserError("empty tag", tp.tag.Start, tp.tag.Start)
 	}
-	if tp.tag.Kind == "preprocessor" {
+
+	if tp.tag.Kind == tokenizer.CommentKind {
+		return &CommentStatement{tag: tp.tag}, nil
+	}
+
+	if tp.tag.Kind == tokenizer.ExecuteKind || tp.tag.Kind == tokenizer.StaticKind {
+		switch tp.token.Kind {
+		case tokenizer.TokIf:
+			return tp.parseIfStatement()
+		case tokenizer.TokFor:
+			return tp.parseForStatement()
+		case tokenizer.TokEnd:
+			return tp.parseEndStatement()
+		}
+	}
+
+	if tp.tag.Kind == tokenizer.PreprocessorKind {
 		switch tp.token.Kind {
 		case tokenizer.TokExtend:
 			return tp.parseExtendStatement()
@@ -98,23 +114,14 @@ func (tp *TagParser) Parse() (st Statement, err error) {
 			return tp.parseEndStatement()
 		case tokenizer.TokTemplate:
 			return tp.parseTemplateStatement()
-		default:
-			return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-		}
-	} else if tp.tag.Kind == "print" {
-		return tp.parseVariableStatement()
-	} else if tp.tag.Kind == "execute" {
-		switch tp.token.Kind {
-		case tokenizer.TokIf:
-			return tp.parseIfStatement()
-		case tokenizer.TokFor:
-			return tp.parseForStatement()
-		case tokenizer.TokEnd:
-			return tp.parseEndStatement()
 		}
 	}
 
-	return nil, errors.NewParserError("unexpected tag type: "+string(tp.tag.Kind), tp.tag.Start, tp.tag.End)
+	if tp.tag.Kind == tokenizer.PrintKind || tp.tag.Kind == tokenizer.StaticKind {
+		return tp.parseVariableStatement()
+	}
+
+	return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
 }
 
 func (tp *TagParser) expectNext(kind string) bool {

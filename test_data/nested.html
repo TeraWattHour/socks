@@ -1,7 +1,10 @@
 {% extend "base.html" %}
 
 {% define "content" %}
-    {{ now }}
+    <p>Hello from the {$ Server $} server</p>
+
+    {# The next tag should produce <nil> #}
+    {{ Server }}
 
     {% template "templates/header.html" %}
         {% define "page" %} Nested page {% end %}

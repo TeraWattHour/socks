@@ -9,6 +9,13 @@ import (
 	"github.com/terawatthour/socks/pkg/tokenizer"
 )
 
+type EvaluationMode int
+
+const (
+	RuntimeMode EvaluationMode = iota
+	StaticMode  EvaluationMode = iota
+)
+
 type Evaluator struct {
 	initialContent []rune
 	currentContent []rune
@@ -19,13 +26,25 @@ type Evaluator struct {
 
 	i      int
 	offset int
+	mode   EvaluationMode
 }
 
-func NewEvaluator(p *parser.Parser) *Evaluator {
-	return &Evaluator{
-		programs:       p.Programs,
+func NewEvaluator(p *parser.Parser, mode EvaluationMode) *Evaluator {
+	e := &Evaluator{
 		initialContent: p.Tokenizer.Runes,
+		mode:           mode,
 	}
+
+	e.programs = helpers.Filter(p.Programs, func(program parser.TagProgram) bool {
+		if mode == RuntimeMode {
+			return program.Tag.Kind != tokenizer.StaticKind && program.Tag.Kind != tokenizer.PreprocessorKind
+		} else if mode == StaticMode {
+			return program.Tag.Kind == tokenizer.StaticKind
+		}
+		return false
+	})
+
+	return e
 }
 
 func (e *Evaluator) Evaluate(context map[string]interface{}) (string, error) {
@@ -40,8 +59,13 @@ func (e *Evaluator) Evaluate(context map[string]interface{}) (string, error) {
 		program := e.programs[e.i]
 		evaluatedString := ""
 
-		// dont evaluate preprocessor tags
-		if program.Tag.Kind != tokenizer.PreprocessorKind {
+		kind := program.Tag.Kind
+		if kind == tokenizer.PreprocessorKind {
+			e.i += 1
+			continue
+		}
+
+		if (e.mode == RuntimeMode && kind != tokenizer.PreprocessorKind && kind != tokenizer.StaticKind) || (e.mode == StaticMode && kind == tokenizer.StaticKind) {
 			evaluated, err := e.evaluateStatement(program.Statement, e.context, e.state)
 			if err != nil {
 				return "", err
@@ -53,7 +77,6 @@ func (e *Evaluator) Evaluate(context map[string]interface{}) (string, error) {
 
 		previousLength := len(e.currentContent)
 
-		// replace entire tag program (including its end tag if applicable) with evaluated string
 		e.currentContent = program.Replace([]rune(evaluatedString), e.offset, e.currentContent)
 		e.offset += len(e.currentContent) - previousLength
 	}
