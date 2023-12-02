@@ -20,8 +20,13 @@ func TestBasicEvaluation(t *testing.T) {
 
 	s.AddGlobal("now", "2019-01-01")
 
+	type Phrase struct {
+		Content  string
+		Language string
+	}
+
 	res, err := s.Run("test_data/nested.html", map[string]interface{}{
-		"Phrases": []string{"Herzlich willkommen", "Willkommen"},
+		"Phrases": []Phrase{{Content: "Hello", Language: "en"}, {Content: "Hallo", Language: "de"}},
 	})
 	if err != nil {
 		t.Errorf("Expected no error, got %s", err)
