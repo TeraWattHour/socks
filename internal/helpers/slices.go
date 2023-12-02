@@ -59,8 +59,7 @@ func ConvertInterfaceToSlice(obj interface{}) []interface{} {
 	resultSlice := make([]interface{}, sliceValue.Len())
 
 	for i := 0; i < sliceValue.Len(); i++ {
-		value := reflect.ValueOf(sliceValue.Index(i)).Interface()
-		resultSlice[i] = value
+		resultSlice[i] = sliceValue.Index(i).Interface()
 	}
 
 	return resultSlice
