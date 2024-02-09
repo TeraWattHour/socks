@@ -6,27 +6,42 @@ import (
 )
 
 func TestParserSimple(t *testing.T) {
-	template := `<html><head><title>{{ .Title }}</title></head><body><h1>{{ .Format("najs kok", .Title()) }} {% template "xd" %} {% define "content" %} defined content {% end %} {% end %}  </h1></body></html>`
+	template := `
+    @template("templates/header.html")
+        @define("page")
+            nested page
+        @enddefine
+
+        @define("message")
+            Hello from the nested page
+        @enddefine
+    @endtemplate
+`
+
 	tok := tokenizer.NewTokenizer(template)
 	if err := tok.Tokenize(); err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
 
 	p := NewParser(tok)
-	if err := p.Parse(); err != nil {
+	programs, err := p.Parse()
+	if err != nil {
 		t.Errorf("unexpected error: %s", err)
+		return
 	}
+
+	PrintPrograms(programs)
 }
 
-func TestParseIfStatement(t *testing.T) {
-	template := `{! if Title !} <h1>{{ Title }}</h1> {! end !}`
+func TestParserPrint(t *testing.T) {
+	template := ` {{ Title }} `
 	tok := tokenizer.NewTokenizer(template)
 	if err := tok.Tokenize(); err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
 
 	p := NewParser(tok)
-	if err := p.Parse(); err != nil {
+	if _, err := p.Parse(); err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
 }

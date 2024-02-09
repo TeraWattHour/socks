@@ -1,51 +1,36 @@
 package errors
 
-import "fmt"
-
-type ErrorStage string
-
-const (
-	ERROR_PREPROCESSOR = "preprocessor"
-	ERROR_TOKENIZER    = "tokenizer"
-	ERROR_PARSER       = "parser"
-	ERROR_EVALUATOR    = "evaluator"
+import (
+	"fmt"
 )
 
 type Error struct {
-	Stage   ErrorStage
 	Message string
-	Start   int
-	End     int
 }
 
-func NewError(stage ErrorStage, message string, start int, end int) *Error {
-	if end < start {
-		end = start
-	}
+func NewError(message string) *Error {
 	return &Error{
-		Stage:   stage,
 		Message: message,
-		Start:   start,
-		End:     end,
 	}
-}
-
-func NewPreprocessorError(message string, start int, end int) *Error {
-	return NewError(ERROR_PREPROCESSOR, message, start, end)
-}
-
-func NewEvaluatorError(message string, start int, end int) *Error {
-	return NewError(ERROR_EVALUATOR, message, start, end)
-}
-
-func NewTokenizerError(message string, start int, end int) *Error {
-	return NewError(ERROR_TOKENIZER, message, start, end)
-}
-
-func NewParserError(message string, start int, end int) *Error {
-	return NewError(ERROR_PARSER, message, start, end)
 }
 
 func (pe *Error) Error() string {
-	return fmt.Sprintf("%s error: %s", pe.Stage, pe.Message)
+	return fmt.Sprintf("%s %s: %s", "test_data/templates/header.html:2", colorize("ERROR", RED), bold(pe.Message))
+}
+
+type Color int
+
+const (
+	RED Color = iota + 31
+	GREEN
+	YELLOW
+	BLUE
+)
+
+func colorize(content string, color Color) string {
+	return fmt.Sprintf("\033[1;%dm%s\033[00m", color, content)
+}
+
+func bold(content string) string {
+	return fmt.Sprintf("\033[1m%s\033[00m", content)
 }

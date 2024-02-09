@@ -3,64 +3,112 @@ package socks
 import (
 	"fmt"
 	"github.com/terawatthour/socks/internal/helpers"
-	"github.com/terawatthour/socks/pkg/filesystem"
+	"io"
 )
 
 type Socks interface {
-	Run(template string, context map[string]interface{}) (string, error)
+	ExecuteToString(template string, context map[string]interface{}) (string, error)
+	Execute(w io.Writer, template string, context map[string]interface{}) (int, error)
 
 	LoadTemplates(patterns ...string) error
+	LoadTemplateFromString(filename string, content string)
 	PreprocessTemplates(staticContext map[string]interface{}) error
 
 	AddGlobal(key string, value interface{})
 	AddGlobals(value map[string]interface{})
+	GetGlobals() map[string]interface{}
 	ClearGlobals()
-	ListGlobals() map[string]interface{}
+
+	SetOptions(options *Options)
+	GetOptions() *Options
 }
 
-type sock struct {
-	fs      *filesystem.FileSystem
+type socks struct {
+	fs      *fileSystem
 	globals map[string]interface{}
+	options *Options
 }
 
-func NewSocks() Socks {
-	fs := filesystem.NewFileSystem()
+type Options struct {
+	Sanitizer func(string) string
+}
 
-	return &sock{
+func NewSocks(options ...*Options) Socks {
+	if len(options) > 1 {
+		panic("expected one or zero options, got more than one")
+	}
+	opts := &Options{}
+	if len(options) == 1 {
+		opts = options[0]
+	}
+	fs := newFileSystem(opts)
+
+	return &socks{
 		fs:      fs,
 		globals: make(map[string]interface{}),
+		options: opts,
 	}
 }
 
-func (s *sock) LoadTemplates(patterns ...string) error {
-	return s.fs.LoadTemplates(patterns...)
+func (s *socks) LoadTemplates(patterns ...string) error {
+	return s.fs.loadTemplates(patterns...)
 }
 
-func (s *sock) PreprocessTemplates(staticContext map[string]interface{}) error {
-	return s.fs.PreprocessFiles(staticContext)
+func (s *socks) SetOptions(options *Options) {
+	s.options = options
+	s.fs.options = options
 }
 
-func (s *sock) Run(template string, context map[string]interface{}) (string, error) {
-	eval, ok := s.fs.Templates[template]
+func (s *socks) GetOptions() *Options {
+	return s.options
+}
+
+func (s *socks) LoadTemplateFromString(filename string, content string) {
+	s.fs.loadTemplateFromString(filename, content)
+}
+
+func (s *socks) PreprocessTemplates(staticContext map[string]interface{}) error {
+	return s.fs.preprocessTemplates(staticContext)
+}
+
+func (s *socks) ExecuteToString(template string, context map[string]interface{}) (string, error) {
+	eval, ok := s.fs.templates[template]
 	if !ok {
 		return "", fmt.Errorf("template %s not found", template)
 	}
 
-	return eval.Evaluate(helpers.CombineMaps(s.globals, context))
+	result, err := eval.Evaluate(helpers.CombineMaps(s.globals, context))
+	if err != nil {
+		return "", err
+	}
+	return result, nil
 }
 
-func (s *sock) AddGlobal(key string, value interface{}) {
+func (s *socks) Execute(w io.Writer, template string, context map[string]any) (int, error) {
+	eval, ok := s.fs.templates[template]
+	if !ok {
+		return 0, fmt.Errorf("template %s not found", template)
+	}
+
+	result, err := eval.Evaluate(helpers.CombineMaps(s.globals, context))
+	if err != nil {
+		return 0, err
+	}
+	return w.Write([]byte(result))
+}
+
+func (s *socks) AddGlobal(key string, value any) {
 	s.globals[key] = value
 }
 
-func (s *sock) AddGlobals(value map[string]interface{}) {
+func (s *socks) AddGlobals(value map[string]any) {
 	s.globals = helpers.CombineMaps(s.globals, value)
 }
 
-func (s *sock) ListGlobals() map[string]interface{} {
+func (s *socks) GetGlobals() map[string]any {
 	return s.globals
 }
 
-func (s *sock) ClearGlobals() {
+func (s *socks) ClearGlobals() {
 	clear(s.globals)
 }

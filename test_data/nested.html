@@ -1,25 +1,19 @@
-{% extend "base.html" %}
+@extend("base.html")
 
-{% define "content" %}
-    <p>Hello from the {$ Server $} server</p>
+@define("content")
+    @template("templates/nested.html")
+    
+    @endtemplate
 
-    {# The next tag should produce <nil> #}
-    {{ Server }}
+    <p>Hello from the {{ Server }} server</p>
 
-    {% template "templates/header.html" %}
-        {% define "page" %} Nested page {% end %}
-    {% end %}
-
-    {! for i, phrase in Phrases !}
+    @for[nostatic](phrase, i in Phrases)
     <div>
         <p>{{ i + 1 }}: {{ phrase.Content }}</p>
-        {! if i > 0 !}
+        @if(i > 0)
         <p>Previous {{ i }}: {{ Phrases[i-1].Content }}</p>
-        {! end !}
+        @endif
     </div>
-    {! end !}
-{% end %}
+    @endfor
+@enddefine
 
-{% define "footer" %}
-    <h1>Nicer footer</h1>
-{% end %}
