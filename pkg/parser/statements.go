@@ -35,6 +35,7 @@ type Statement interface {
 	Tag() *tokenizer.Tag
 	NoStatic() bool
 	String() string
+	ChangeProgramCount(int)
 }
 
 // ---------------------- Print Statement ----------------------
@@ -43,6 +44,10 @@ type PrintStatement struct {
 	Program  *expression.VM
 	tag      *tokenizer.Tag
 	noStatic bool
+}
+
+func (vs *PrintStatement) ChangeProgramCount(i int) {
+	return
 }
 
 func (vs *PrintStatement) String() string {
@@ -70,6 +75,14 @@ type IfStatement struct {
 	bodyStart int
 	Programs  int
 	noStatic  bool
+	Parent    Statement
+}
+
+func (vs *IfStatement) ChangeProgramCount(i int) {
+	vs.Programs += i
+	if vs.Parent != nil {
+		vs.Parent.ChangeProgramCount(i)
+	}
 }
 
 func (vs *IfStatement) NoStatic() bool {
@@ -98,13 +111,21 @@ type ForStatement struct {
 	tag       *tokenizer.Tag
 	bodyStart int
 	noStatic  bool
+	Parent    Statement
+}
+
+func (es *ForStatement) ChangeProgramCount(i int) {
+	es.Programs += i
+	if es.Parent != nil {
+		es.Parent.ChangeProgramCount(i)
+	}
 }
 
 func (es *ForStatement) String() string {
 	if es.KeyName != "" {
-		return fmt.Sprintf("for: %s, %s in", es.KeyName, es.ValueName)
+		return fmt.Sprintf("%s: %s, %s in [%p]", helpers.FixedWidth("FOR", 8), es.KeyName, es.ValueName, es)
 	}
-	return fmt.Sprintf("for: %s in", es.ValueName)
+	return fmt.Sprintf("%s: %s in [%p]", helpers.FixedWidth("FOR", 8), es.ValueName, es)
 }
 
 func (es *ForStatement) NoStatic() bool {
@@ -124,6 +145,10 @@ func (es *ForStatement) Tag() *tokenizer.Tag {
 type ExtendStatement struct {
 	Template string
 	tag      *tokenizer.Tag
+}
+
+func (es *ExtendStatement) ChangeProgramCount(i int) {
+	return
 }
 
 func (es *ExtendStatement) String() string {
@@ -150,6 +175,15 @@ type TemplateStatement struct {
 	EndTag    *tokenizer.Tag
 	Programs  int
 	BodyStart int
+	Depth     int
+	Parent    Statement
+}
+
+func (es *TemplateStatement) ChangeProgramCount(i int) {
+	es.Programs += i
+	if es.Parent != nil {
+		es.Parent.ChangeProgramCount(i)
+	}
 }
 
 func (es *TemplateStatement) String() string {
@@ -175,7 +209,15 @@ type SlotStatement struct {
 	tag       *tokenizer.Tag
 	Programs  int
 	bodyStart int
-	Parents   []Statement
+	Depth     int
+	Parent    Statement
+}
+
+func (ss *SlotStatement) ChangeProgramCount(i int) {
+	ss.Programs += i
+	if ss.Parent != nil {
+		ss.Parent.ChangeProgramCount(i)
+	}
 }
 
 func (ss *SlotStatement) String() string {
@@ -201,7 +243,15 @@ type DefineStatement struct {
 	tag       *tokenizer.Tag
 	Programs  int
 	bodyStart int
-	Parents   []Statement
+	Parent    Statement
+	Depth     int
+}
+
+func (es *DefineStatement) ChangeProgramCount(i int) {
+	es.Programs += i
+	if es.Parent != nil {
+		es.Parent.ChangeProgramCount(i)
+	}
 }
 
 func (es *DefineStatement) Kind() string {

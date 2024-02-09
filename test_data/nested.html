@@ -1,7 +1,7 @@
 @extend("base.html")
 
 @define("content")
-    @template("templates/nested.html")
+    @template("templates/header.html")
     
     @endtemplate
 
@@ -9,7 +9,9 @@
 
     @for[nostatic](phrase, i in Phrases)
     <div>
-        <p>{{ i + 1 }}: {{ phrase.Content }}</p>
+        <p>
+            @template("templates/number.html") @define("number"){{ i + 1 }}@enddefine@endtemplate
+            : {{ phrase.Content }}</p>
         @if(i > 0)
         <p>Previous {{ i }}: {{ Phrases[i-1].Content }}</p>
         @endif

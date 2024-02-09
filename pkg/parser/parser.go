@@ -123,6 +123,7 @@ func (p *Parser) parseIfStatement() (Statement, error) {
 		Program:   vm,
 		noStatic:  noStatic || p.checkNoStatic(),
 		bodyStart: len(p.Programs) + 1,
+		Parent:    p.getParent(),
 	}
 
 	p.noStatic = append(p.noStatic, noStatic)
@@ -178,6 +179,7 @@ func (p *Parser) parseForStatement() (Statement, error) {
 		Iterable:  vm,
 		noStatic:  noStatic || p.checkNoStatic(),
 		bodyStart: len(p.Programs) + 1,
+		Parent:    p.getParent(),
 	}
 
 	p.unclosed = append(p.unclosed, statement)
@@ -212,11 +214,12 @@ func (p *Parser) parseDefineStatement() (Statement, error) {
 
 	statement := &DefineStatement{
 		Name:      piece.Tokens()[1].Literal,
-		Parents:   p.unclosed,
+		Parent:    p.getParent(),
 		bodyStart: len(p.Programs) + 1,
+		Depth:     len(p.unclosed),
 	}
-	p.unclosed = append(p.unclosed, statement)
 
+	p.unclosed = append(p.unclosed, statement)
 	return statement, nil
 }
 
@@ -230,8 +233,9 @@ func (p *Parser) parseSlotStatement() (Statement, error) {
 
 	statement := &SlotStatement{
 		Name:      piece.Tokens()[1].Literal,
-		Parents:   p.unclosed,
+		Parent:    p.getParent(),
 		bodyStart: len(p.Programs) + 1,
+		Depth:     len(p.unclosed),
 	}
 	p.unclosed = append(p.unclosed, statement)
 	return statement, nil
@@ -248,6 +252,8 @@ func (p *Parser) parseTemplateStatement() (Statement, error) {
 	statement := &TemplateStatement{
 		Template:  piece.Tokens()[1].Literal,
 		BodyStart: len(p.Programs) + 1,
+		Parent:    p.getParent(),
+		Depth:     len(p.unclosed),
 	}
 	p.unclosed = append(p.unclosed, statement)
 	return statement, nil
@@ -289,6 +295,8 @@ func (p *Parser) parseEndStatement() (Statement, error) {
 	case "template":
 		templateStatement := last.(*TemplateStatement)
 		templateStatement.Programs = len(p.Programs) - templateStatement.BodyStart
+	default:
+		panic("unreachable")
 	}
 
 	p.unclosed = p.unclosed[:depth-1]
@@ -313,15 +321,24 @@ func (p *Parser) Next() {
 	}
 }
 
-func PrintPrograms(programs []Program) {
-	fmt.Println("Programs:")
+func (p *Parser) getParent() Statement {
+	if len(p.unclosed) == 0 {
+		return nil
+	}
+	return p.unclosed[len(p.unclosed)-1]
+}
+
+func PrintPrograms(label string, programs []Program) {
+	fmt.Printf("Programs (%s):\n", label)
 	indents := []int{}
 	for _, program := range programs {
 		if len(indents) > 0 {
 			fmt.Print(strings.Repeat("  ", len(indents)-1), "└─")
-			indents[len(indents)-1] -= 1
-			if indents[len(indents)-1] == 0 {
-				indents = indents[:len(indents)-1]
+			for i := len(indents) - 1; i >= 0; i-- {
+				indents[i] -= 1
+				if indents[i] == 0 {
+					indents = indents[:i]
+				}
 			}
 		}
 		fmt.Print(program)
