@@ -1,6 +1,10 @@
 package helpers
 
-func SwapInnerText(text []rune, start int, end int, replacement []rune) (updated string, offset int) {
-	updated = string(text[:start]) + string(replacement) + string(text[end:])
-	return updated, len(replacement) - (end - start)
+import "strings"
+
+func FixedWidth(s string, size int) string {
+	if len(s) > size {
+		return s[:size]
+	}
+	return s + strings.Repeat(" ", size-len(s))
 }

@@ -1,19 +1,16 @@
-{% extend "superbase.html" %}
-{% define "content" %}
+@extend("superbase.html")
+@define("content")
 
 <head>
     <meta charset="UTF-8">
     <meta name="viewport"
           content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
     <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Hello from {$ Server $}</title>
+    <title>Hello from {{ Server }}</title>
 </head>
 <body>
-{% slot "content" %}
-    <h1>default content</h1>
-{% end %}
-{% slot "footer" %}
-    <h1>default footer</h1>
-{% end %}
+@slot("content") <h1>default content</h1> @endslot
+@slot("footer") <h1>default footer</h1> @endslot 
 </body>
-{% end %}
+
+@enddefine

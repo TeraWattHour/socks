@@ -1,39 +1,83 @@
 package parser
 
 import (
-	"github.com/antonmedv/expr/vm"
+	"fmt"
+	"github.com/terawatthour/socks/internal/helpers"
+	"github.com/terawatthour/socks/pkg/expression"
 	"github.com/terawatthour/socks/pkg/tokenizer"
+	"strings"
 )
+
+var PreprocessorKinds = []string{"extend", "template", "slot", "define"}
+
+type Program interface {
+	Kind() string
+	String() string
+	Tag() *tokenizer.Tag
+}
+
+type Text string
+
+func (t Text) Kind() string {
+	return "text"
+}
+
+func (t Text) String() string {
+	return fmt.Sprintf("%s: `%s`", helpers.FixedWidth("TEXT", 8), strings.ReplaceAll(string(t), "\n", "\\n"))
+}
+
+func (t Text) Tag() *tokenizer.Tag {
+	return nil
+}
 
 type Statement interface {
 	Kind() string
 	Tag() *tokenizer.Tag
-	Start() int
-	End() int
-	Replace(inner []rune, offset int, content []rune) []rune
+	NoStatic() bool
+	String() string
 }
+
+// ---------------------- Print Statement ----------------------
+
+type PrintStatement struct {
+	Program  *expression.VM
+	tag      *tokenizer.Tag
+	noStatic bool
+}
+
+func (vs *PrintStatement) String() string {
+	return "print"
+}
+
+func (vs *PrintStatement) NoStatic() bool {
+	return vs.noStatic
+}
+
+func (vs *PrintStatement) Kind() string {
+	return "variable"
+}
+
+func (vs *PrintStatement) Tag() *tokenizer.Tag {
+	return vs.tag
+}
+
+// ---------------------- If Statement ----------------------
 
 type IfStatement struct {
-	Program  *vm.Program
-	StartTag *tokenizer.Tag
-	EndTag   *tokenizer.Tag
-	parents  []Statement
-	Body     []rune
+	Program   *expression.VM
+	StartTag  *tokenizer.Tag
+	EndTag    *tokenizer.Tag
+	bodyStart int
+	Programs  int
+	noStatic  bool
 }
 
-func (vs *IfStatement) Replace(inner []rune, offset int, content []rune) []rune {
-	leading := string(content[:vs.StartTag.Start+offset])
-	trailing := string(content[vs.EndTag.End+1+offset:])
-	innerStr := string(inner)
-	return []rune(leading + innerStr + trailing)
+func (vs *IfStatement) NoStatic() bool {
+	return vs.noStatic
 }
 
-func (vs *IfStatement) Start() int {
-	return vs.StartTag.Start
-}
-
-func (vs *IfStatement) End() int {
-	return vs.EndTag.End
+func (vs *IfStatement) String() string {
+	return "if"
 }
 
 func (vs *IfStatement) Kind() string {
@@ -44,51 +88,50 @@ func (vs *IfStatement) Tag() *tokenizer.Tag {
 	return vs.StartTag
 }
 
-type VariableStatement struct {
-	Program *vm.Program
-	tag     *tokenizer.Tag
-	parents []Statement
+// ---------------------- For Statement ----------------------
+
+type ForStatement struct {
+	Iterable  *expression.VM
+	KeyName   string
+	ValueName string
+	Programs  int
+	tag       *tokenizer.Tag
+	bodyStart int
+	noStatic  bool
 }
 
-func (vs *VariableStatement) Replace(inner []rune, offset int, content []rune) []rune {
-	leading := string(content[:vs.tag.Start+offset])
-	trailing := string(content[vs.tag.End+1+offset:])
-	innerStr := string(inner)
-	return []rune(leading + innerStr + trailing)
+func (es *ForStatement) String() string {
+	if es.KeyName != "" {
+		return fmt.Sprintf("for: %s, %s in", es.KeyName, es.ValueName)
+	}
+	return fmt.Sprintf("for: %s in", es.ValueName)
 }
 
-func (vs *VariableStatement) Start() int {
-	return vs.tag.Start
+func (es *ForStatement) NoStatic() bool {
+	return es.noStatic
 }
 
-func (vs *VariableStatement) End() int {
-	return vs.tag.End
+func (es *ForStatement) Kind() string {
+	return "for"
 }
 
-func (vs *VariableStatement) Kind() string {
-	return "variable"
+func (es *ForStatement) Tag() *tokenizer.Tag {
+	return es.tag
 }
 
-func (vs *VariableStatement) Tag() *tokenizer.Tag {
-	return vs.tag
-}
+// ---------------------- Extend Statement ----------------------
 
 type ExtendStatement struct {
 	Template string
 	tag      *tokenizer.Tag
-	parents  []Statement
 }
 
-func (es *ExtendStatement) Replace(inner []rune, offset int, content []rune) []rune {
-	return []rune("")
+func (es *ExtendStatement) String() string {
+	return fmt.Sprintf("extend: %s", es.Template)
 }
 
-func (es *ExtendStatement) Start() int {
-	return es.tag.Start
-}
-
-func (es *ExtendStatement) End() int {
-	return es.tag.End
+func (es *ExtendStatement) NoStatic() bool {
+	return false
 }
 
 func (es *ExtendStatement) Kind() string {
@@ -99,23 +142,22 @@ func (es *ExtendStatement) Tag() *tokenizer.Tag {
 	return es.tag
 }
 
+// ---------------------- Template Statement ----------------------
+
 type TemplateStatement struct {
-	Template string
-	StartTag *tokenizer.Tag
-	EndTag   *tokenizer.Tag
-	parents  []Statement
+	Template  string
+	StartTag  *tokenizer.Tag
+	EndTag    *tokenizer.Tag
+	Programs  int
+	BodyStart int
 }
 
-func (es *TemplateStatement) Replace(inner []rune, offset int, content []rune) []rune {
-	panic("implement me")
+func (es *TemplateStatement) String() string {
+	return fmt.Sprintf("template: %s", es.Template)
 }
 
-func (es *TemplateStatement) Start() int {
-	return es.StartTag.Start
-}
-
-func (es *TemplateStatement) End() int {
-	return es.EndTag.End
+func (es *TemplateStatement) NoStatic() bool {
+	return false
 }
 
 func (es *TemplateStatement) Kind() string {
@@ -126,144 +168,54 @@ func (es *TemplateStatement) Tag() *tokenizer.Tag {
 	return es.StartTag
 }
 
+// ---------------------- Slot Statement ----------------------
+
 type SlotStatement struct {
-	Name     string
-	StartTag *tokenizer.Tag
-	EndTag   *tokenizer.Tag
-	parents  []Statement
+	Name      string
+	tag       *tokenizer.Tag
+	Programs  int
+	bodyStart int
+	Parents   []Statement
 }
 
-func (es *SlotStatement) Replace(inner []rune, offset int, content []rune) []rune {
-	panic("implement me")
+func (ss *SlotStatement) String() string {
+	return fmt.Sprintf("slot: %s", ss.Name)
 }
 
-func (bs *SlotStatement) Start() int {
-	return bs.StartTag.Start
+func (ss *SlotStatement) NoStatic() bool {
+	return false
 }
 
-func (bs *SlotStatement) End() int {
-	return bs.EndTag.End
+func (ss *SlotStatement) Tag() *tokenizer.Tag {
+	return ss.tag
 }
 
-func (bs *SlotStatement) Kind() string {
+func (ss *SlotStatement) Kind() string {
 	return "slot"
 }
 
-func (bs *SlotStatement) Tag() *tokenizer.Tag {
-	return bs.StartTag
-}
-
-type EndStatement struct {
-	tag     *tokenizer.Tag
-	closes  Statement
-	parents []Statement
-}
-
-func (vs *EndStatement) Replace(inner []rune, offset int, content []rune) []rune {
-	leading := string(content[:vs.tag.Start+offset])
-	trailing := string(content[vs.tag.End+1+offset:])
-	return []rune(leading + trailing)
-}
-
-func (es *EndStatement) Start() int {
-	return es.tag.Start
-}
-
-func (es *EndStatement) End() int {
-	return es.tag.End
-}
-
-func (es *EndStatement) Kind() string {
-	return "end"
-}
-
-func (es *EndStatement) Tag() *tokenizer.Tag {
-	return es.tag
-}
-
-type CommentStatement struct {
-	tag *tokenizer.Tag
-}
-
-func (es *CommentStatement) Tag() *tokenizer.Tag {
-	return es.tag
-}
-
-func (es *CommentStatement) Replace(_ []rune, offset int, content []rune) []rune {
-	leading := string(content[:es.tag.Start+offset])
-	trailing := string(content[es.tag.End+1+offset:])
-	return []rune(leading + trailing)
-}
-
-func (es *CommentStatement) Start() int {
-	return es.tag.Start
-}
-
-func (es *CommentStatement) End() int {
-	return es.tag.End
-}
-
-func (es *CommentStatement) Kind() string {
-	return "comment"
-}
+// ---------------------- Define Statement ----------------------
 
 type DefineStatement struct {
-	Name     string
-	StartTag *tokenizer.Tag
-	EndTag   *tokenizer.Tag
-	Parents  []Statement
-}
-
-func (es *DefineStatement) Replace(inner []rune, offset int, content []rune) []rune {
-	panic("implement me")
-}
-
-func (es *DefineStatement) Start() int {
-	return es.StartTag.Start
-}
-
-func (es *DefineStatement) End() int {
-	return es.EndTag.End
+	Name      string
+	tag       *tokenizer.Tag
+	Programs  int
+	bodyStart int
+	Parents   []Statement
 }
 
 func (es *DefineStatement) Kind() string {
 	return "define"
 }
 
+func (es *DefineStatement) String() string {
+	return fmt.Sprintf("%s: %s", helpers.FixedWidth("DEFINE", 8), es.Name)
+}
+
+func (es *DefineStatement) NoStatic() bool {
+	return false
+}
+
 func (es *DefineStatement) Tag() *tokenizer.Tag {
-	return es.StartTag
-}
-
-type ForStatement struct {
-	IteratorName string
-	ValueName    string
-	Iterable     Statement
-	Body         []rune
-
-	StartTag *tokenizer.Tag
-	EndTag   *tokenizer.Tag
-	parents  []Statement
-}
-
-func (es *ForStatement) Replace(inner []rune, offset int, content []rune) []rune {
-	leading := string(content[:es.StartTag.Start+offset])
-	trailing := string(content[es.EndTag.End+1+offset:])
-	innerStr := string(inner)
-	return []rune(leading + innerStr + trailing)
-}
-
-func (es *ForStatement) Start() int {
-	return es.StartTag.Start
-}
-
-func (es *ForStatement) End() int {
-	return es.EndTag.End
-}
-
-func (es *ForStatement) Kind() string {
-	return "for"
-}
-
-func (es *ForStatement) Tag() *tokenizer.Tag {
-	return es.StartTag
+	return es.tag
 }

@@ -1,363 +1,340 @@
 package parser
 
 import (
-	"github.com/antonmedv/expr"
+	"fmt"
 	"github.com/terawatthour/socks/pkg/errors"
+	"github.com/terawatthour/socks/pkg/expression"
 	"github.com/terawatthour/socks/pkg/tokenizer"
+	"reflect"
+	"slices"
+	"strings"
 )
-
-type TagProgram struct {
-	Tag       *tokenizer.Tag
-	Statement Statement
-}
-
-func (tp *TagProgram) Replace(inner []rune, offset int, content []rune) []rune {
-	return tp.Statement.Replace(inner, offset, content)
-}
 
 type Parser struct {
 	Tokenizer *tokenizer.Tokenizer
-	Programs  []TagProgram
+	Programs  []Program
 	cursor    int
-	tag       *tokenizer.Tag
+	piece     tokenizer.Element
 	unclosed  []Statement
-}
-
-type TagParser struct {
-	parser    *Parser
-	tag       *tokenizer.Tag
-	cursor    int
-	token     *tokenizer.Token
-	nextToken *tokenizer.Token
+	noStatic  []bool
+	errors    []errors.Error
 }
 
 func NewParser(tokenizer *tokenizer.Tokenizer) *Parser {
 	return &Parser{
 		Tokenizer: tokenizer,
 		cursor:    -1,
+		noStatic:  []bool{},
+		Programs:  make([]Program, 0),
 		unclosed:  make([]Statement, 0),
+		errors:    make([]errors.Error, 0),
 	}
 }
 
-func NewTagParser(parser *Parser, tag *tokenizer.Tag) *TagParser {
-	return &TagParser{
-		parser: parser,
-		tag:    tag,
-		cursor: -1,
-	}
-}
-
-func (p *Parser) Parse() error {
+func (p *Parser) Parse() ([]Program, error) {
 	p.Next()
 
-	var programs []TagProgram
+	for p.piece != nil {
+		switch p.piece.Kind() {
+		case "text":
+			p.Programs = append(p.Programs, Text(p.piece.(tokenizer.Text)))
+		case "tag":
+			piece := p.piece.(*tokenizer.Tag)
+			if piece.Type == tokenizer.CommentKind {
+				p.Next()
+				continue
+			}
 
-	for p.tag != nil {
-		statement, err := NewTagParser(p, p.tag).Parse()
-		if err != nil {
-			return err
+			expr, err := expression.NewParser(p.piece.Tokens()).Parse()
+			if err != nil {
+				return nil, err
+			}
+			compiled, err := expression.NewCompiler(expr).Compile()
+			if err != nil {
+				return nil, err
+			}
+
+			vm := expression.NewVM(compiled)
+
+			if expr != nil {
+				p.Programs = append(p.Programs, &PrintStatement{Program: vm, tag: piece, noStatic: p.checkNoStatic()})
+			}
+		case "statement":
+			statement, err := p.parseStatement()
+			if err != nil {
+				return nil, err
+			} else if statement != nil {
+				p.Programs = append(p.Programs, statement)
+			}
 		}
-
-		programs = append(programs, TagProgram{
-			Tag:       p.tag,
-			Statement: statement,
-		})
 
 		p.Next()
 	}
 
 	if len(p.unclosed) > 0 {
-		tag := p.unclosed[0].Tag()
-		if tag == nil {
-			return errors.NewParserError("unclosed tag", -1, -1)
-		}
-		return errors.NewParserError("unclosed tag", tag.Start, tag.End)
+		return nil, errors.NewError("unclosed tag")
 	}
 
-	p.Programs = programs
-	return nil
+	return p.Programs, nil
 }
 
-// Parse parses a tag, returns a statement (Statement) that can be evaluated and an error (*Error).
-// This function is called individually for each tag.
-func (tp *TagParser) Parse() (st Statement, err error) {
-	tp.Next()
-
-	if tp.token == nil {
-		return nil, errors.NewParserError("empty tag", tp.tag.Start, tp.tag.Start)
-	}
-
-	if tp.tag.Kind == tokenizer.CommentKind {
-		return &CommentStatement{tag: tp.tag}, nil
-	}
-
-	if tp.tag.Kind == tokenizer.ExecuteKind || tp.tag.Kind == tokenizer.StaticKind {
-		switch tp.token.Kind {
-		case tokenizer.TokIf:
-			return tp.parseIfStatement()
-		case tokenizer.TokFor:
-			return tp.parseForStatement()
-		case tokenizer.TokEnd:
-			return tp.parseEndStatement()
-		}
-	}
-
-	if tp.tag.Kind == tokenizer.PreprocessorKind {
-		switch tp.token.Kind {
-		case tokenizer.TokExtend:
-			return tp.parseExtendStatement()
-		case tokenizer.TokSlot:
-			return tp.parseSlotStatement()
-		case tokenizer.TokDefine:
-			return tp.parseDefineStatement()
-		case tokenizer.TokEnd:
-			return tp.parseEndStatement()
-		case tokenizer.TokTemplate:
-			return tp.parseTemplateStatement()
-		}
-	}
-
-	if tp.tag.Kind == tokenizer.PrintKind || tp.tag.Kind == tokenizer.StaticKind {
-		return tp.parseVariableStatement()
-	}
-
-	return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-}
-
-func (tp *TagParser) expectNext(kind string) bool {
-	if tp.nextToken == nil {
-		return false
-	}
-
-	return tp.nextToken.Kind == kind
-}
-
-func (tp *TagParser) expectEnd() bool {
-	return tp.nextToken == nil
-}
-
-func (tp *TagParser) parseIfStatement() (Statement, error) {
-	tp.Next()
-	start := tp.token.Start
-	var end int
-
-	for tp.token != nil {
-		end = tp.token.Start + tp.token.Length
-
-		tp.Next()
-	}
-
-	literal := string(tp.parser.Tokenizer.Runes[start:end])
-	program, err := expr.Compile(literal)
-	if err != nil {
-		return nil, errors.NewParserError("unable to compile expression: "+err.Error(), tp.tag.Start, tp.tag.End)
-	}
-
-	statement := &IfStatement{
-		Program:  program,
-		StartTag: tp.tag,
-		parents:  tp.parser.unclosed,
-	}
-
-	tp.parser.unclosed = append(tp.parser.unclosed, statement)
-
-	return statement, nil
-}
-
-func (tp *TagParser) parseEndStatement() (Statement, error) {
-	depth := len(tp.parser.unclosed)
-	if depth == 0 {
-		return nil, errors.NewParserError("unexpected end tag", tp.tag.Start, tp.tag.End)
-	}
-
-	last := tp.parser.unclosed[depth-1]
-
-	switch last.Kind() {
-	case "define":
-		last.(*DefineStatement).EndTag = tp.tag
-	case "slot":
-		last.(*SlotStatement).EndTag = tp.tag
-	case "for":
-		forStatement := last.(*ForStatement)
-		forStatement.EndTag = tp.tag
-		forStatement.Body = tp.parser.Tokenizer.Runes[forStatement.StartTag.End+1 : tp.tag.Start]
-	case "template":
-		last.(*TemplateStatement).EndTag = tp.tag
+func (p *Parser) parseStatement() (Statement, error) {
+	piece := p.piece.(*tokenizer.Statement)
+	switch piece.Instruction {
 	case "if":
-		ifStatement := last.(*IfStatement)
-		ifStatement.EndTag = tp.tag
-		ifStatement.Body = tp.parser.Tokenizer.Runes[ifStatement.StartTag.End+1 : tp.tag.Start]
+		return p.parseIfStatement()
+	case "for":
+		return p.parseForStatement()
+	case "extend":
+		return p.parseExtendStatement()
+	case "define":
+		return p.parseDefineStatement()
+	case "slot":
+		return p.parseSlotStatement()
+	case "template":
+		return p.parseTemplateStatement()
+	default:
+		if strings.HasPrefix(piece.Instruction, "end") {
+			return p.parseEndStatement()
+		}
 	}
 
-	tp.parser.unclosed = tp.parser.unclosed[:depth-1]
-
-	return &EndStatement{
-		closes: last,
-		tag:    tp.tag,
-	}, nil
+	return nil, errors.NewError("unrecognised token: '@" + piece.Instruction + "'")
 }
 
-func (tp *TagParser) parseTemplateStatement() (Statement, error) {
-	tp.Next()
-	if tp.token.Kind != tokenizer.TokString {
-		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-	}
+func (p *Parser) parseIfStatement() (Statement, error) {
+	piece := p.piece.(*tokenizer.Statement)
 
-	statement := &TemplateStatement{
-		Template: tp.token.Literal,
-		StartTag: tp.tag,
-	}
-
-	tp.parser.unclosed = append(tp.parser.unclosed, statement)
-
-	return statement, nil
-}
-
-func (tp *TagParser) parseExtendStatement() (Statement, error) {
-	tp.Next()
-	if tp.token.Kind != tokenizer.TokString {
-		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-	}
-
-	return &ExtendStatement{
-		Template: tp.token.Literal,
-		tag:      tp.tag,
-		parents:  tp.parser.unclosed,
-	}, nil
-}
-
-func (tp *TagParser) parseDefineStatement() (Statement, error) {
-	tp.Next()
-	if tp.token.Kind != tokenizer.TokString {
-		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-	}
-
-	statement := &DefineStatement{
-		Name:     tp.token.Literal,
-		StartTag: tp.tag,
-		Parents:  tp.parser.unclosed,
-	}
-
-	tp.parser.unclosed = append(tp.parser.unclosed, statement)
-
-	return statement, nil
-}
-
-func (tp *TagParser) parseForStatement() (Statement, error) {
-	var iterable Statement
-	var iteratorName string
-	var valueName string
-
-	if !tp.expectNext(tokenizer.TokIdent) {
-		return nil, errors.NewParserError("expected identifier after "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-	}
-	tp.Next()
-	iteratorName = tp.token.Literal
-
-	if !tp.expectNext(tokenizer.TokComma) {
-		return nil, errors.NewParserError("expected ',' after "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-	}
-
-	tp.Next()
-
-	if !tp.expectNext(tokenizer.TokIdent) {
-		return nil, errors.NewParserError("expected identifier after "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-	}
-
-	tp.Next()
-	valueName = tp.token.Literal
-
-	if !tp.expectNext(tokenizer.TokIn) {
-		return nil, errors.NewParserError("expected 'in' after "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-	}
-
-	tp.Next()
-	tp.Next()
-	if tp.token == nil {
-		return nil, errors.NewParserError("expected iterable after "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-	}
-
-	iterable, err := tp.parseVariableStatement()
+	expr, err := expression.NewParser(piece.Tokens()).Parse()
 	if err != nil {
 		return nil, err
 	}
 
-	statement := &ForStatement{
-		IteratorName: iteratorName,
-		ValueName:    valueName,
-		Iterable:     iterable,
-		StartTag:     tp.tag,
-		EndTag:       nil,
-		parents:      tp.parser.unclosed,
-	}
-
-	tp.parser.unclosed = append(tp.parser.unclosed, statement)
-
-	return statement, nil
-}
-
-func (tp *TagParser) parseSlotStatement() (Statement, error) {
-	tp.Next()
-	if tp.token.Kind != tokenizer.TokString {
-		return nil, errors.NewParserError("unexpected token: "+tp.token.Literal, tp.tag.Start, tp.tag.End)
-	}
-
-	statement := &SlotStatement{
-		Name:     tp.token.Literal,
-		StartTag: tp.tag,
-		parents:  tp.parser.unclosed,
-	}
-
-	tp.parser.unclosed = append(tp.parser.unclosed, statement)
-
-	return statement, nil
-}
-
-func (tp *TagParser) parseVariableStatement() (*VariableStatement, error) {
-	start := tp.token.Start
-	var end int
-
-	for tp.token != nil {
-		end = tp.token.Start + tp.token.Length
-
-		tp.Next()
-	}
-
-	literal := string(tp.parser.Tokenizer.Runes[start:end])
-
-	program, err := expr.Compile(literal)
+	compiled, err := expression.NewCompiler(expr).Compile()
 	if err != nil {
-		return nil, errors.NewParserError("unable to compile expression: "+err.Error(), tp.tag.Start, tp.tag.End)
+		return nil, err
 	}
 
-	return &VariableStatement{
-		Program: program,
-		tag:     tp.tag,
-		parents: tp.parser.unclosed,
+	vm := expression.NewVM(compiled)
+
+	noStatic := slices.Index(piece.Flags, "nostatic") != -1
+
+	statement := &IfStatement{
+		Program:   vm,
+		noStatic:  noStatic || p.checkNoStatic(),
+		bodyStart: len(p.Programs) + 1,
+	}
+
+	p.noStatic = append(p.noStatic, noStatic)
+	p.unclosed = append(p.unclosed, statement)
+	return statement, nil
+}
+
+func (p *Parser) parseForStatement() (Statement, error) {
+	piece := p.piece.(*tokenizer.Statement)
+
+	tokens := piece.Tokens()
+	tokens = tokens[1 : len(tokens)-1]
+
+	if len(tokens) < 3 {
+		return nil, errors.NewError("unexpected token: '@for'")
+	}
+
+	var keyName string
+	valueName := tokens[0].Literal
+	if tokens[1].Kind == tokenizer.TokComma {
+		if tokens[2].Kind != tokenizer.TokIdent {
+			return nil, errors.NewError("unexpected token: '@for'")
+		}
+		keyName = tokens[2].Literal
+		if tokens[3].Kind != tokenizer.TokIn {
+			return nil, errors.NewError("unexpected token: '@for'")
+		}
+		tokens = tokens[4:]
+	} else {
+		if tokens[1].Kind != tokenizer.TokIn {
+			return nil, errors.NewError("unexpected token: '@for'")
+		}
+		tokens = tokens[2:]
+	}
+
+	expr, err := expression.NewParser(tokens).Parse()
+	if err != nil {
+		return nil, err
+	}
+
+	compiled, err := expression.NewCompiler(expr).Compile()
+	if err != nil {
+		return nil, err
+	}
+
+	vm := expression.NewVM(compiled)
+
+	noStatic := slices.Index(piece.Flags, "nostatic") != -1
+
+	statement := &ForStatement{
+		KeyName:   keyName,
+		ValueName: valueName,
+		Iterable:  vm,
+		noStatic:  noStatic || p.checkNoStatic(),
+		bodyStart: len(p.Programs) + 1,
+	}
+
+	p.unclosed = append(p.unclosed, statement)
+	p.noStatic = append(p.noStatic, noStatic)
+	return statement, nil
+}
+
+// @extend(templateName)
+func (p *Parser) parseExtendStatement() (Statement, error) {
+	piece := p.piece.(*tokenizer.Statement)
+
+	if len(piece.Tokens()) != 3 {
+		return nil, errors.NewError("unexpected statement: '@extend', expected template name")
+	}
+
+	return &ExtendStatement{
+		Template: piece.Tokens()[1].Literal,
 	}, nil
 }
 
-func (tp *TagParser) Next() {
-	tp.cursor += 1
-	if tp.cursor >= len(tp.tag.Tokens) {
-		tp.token = nil
-	} else {
-		tp.token = &tp.tag.Tokens[tp.cursor]
+// @define(name)
+func (p *Parser) parseDefineStatement() (Statement, error) {
+	piece := p.piece.(*tokenizer.Statement)
+
+	if len(piece.Tokens()) != 3 {
+		return nil, errors.NewError("unexpected statement: '@define', expected name")
 	}
 
-	if tp.cursor+1 >= len(tp.tag.Tokens) {
-		tp.nextToken = nil
-	} else {
-		tp.nextToken = &tp.tag.Tokens[tp.cursor+1]
+	if len(p.unclosed) != 0 && p.unclosed[len(p.unclosed)-1].Kind() != "template" {
+		return nil, errors.NewError("@define statements must be placed inside a @template block or at the root level")
 	}
+
+	statement := &DefineStatement{
+		Name:      piece.Tokens()[1].Literal,
+		Parents:   p.unclosed,
+		bodyStart: len(p.Programs) + 1,
+	}
+	p.unclosed = append(p.unclosed, statement)
+
+	return statement, nil
+}
+
+// @slot(name)
+func (p *Parser) parseSlotStatement() (Statement, error) {
+	piece := p.piece.(*tokenizer.Statement)
+
+	if len(piece.Tokens()) != 3 {
+		return nil, errors.NewError("unexpected statement: '@slot', expected name")
+	}
+
+	statement := &SlotStatement{
+		Name:      piece.Tokens()[1].Literal,
+		Parents:   p.unclosed,
+		bodyStart: len(p.Programs) + 1,
+	}
+	p.unclosed = append(p.unclosed, statement)
+	return statement, nil
+}
+
+// @template(name)
+func (p *Parser) parseTemplateStatement() (Statement, error) {
+	piece := p.piece.(*tokenizer.Statement)
+
+	if len(piece.Tokens()) != 3 {
+		return nil, errors.NewError("unexpected statement: '@slot', expected name")
+	}
+
+	statement := &TemplateStatement{
+		Template:  piece.Tokens()[1].Literal,
+		BodyStart: len(p.Programs) + 1,
+	}
+	p.unclosed = append(p.unclosed, statement)
+	return statement, nil
+}
+
+func (p *Parser) parseEndStatement() (Statement, error) {
+	piece := p.piece.(*tokenizer.Statement)
+
+	target := piece.Instruction[3:]
+	if target != "define" && target != "slot" && target != "template" && target != "if" && target != "for" {
+		return nil, errors.NewError("unexpected token: '@" + piece.Instruction + "'")
+	}
+
+	depth := len(p.unclosed)
+	if depth == 0 {
+		return nil, errors.NewError("unexpected end tag")
+	}
+
+	last := p.unclosed[depth-1]
+	if last.(Statement).Kind() != target {
+		return nil, errors.NewError(fmt.Sprintf("unexpected end tag, no '%s' statement to close", target))
+	}
+
+	switch last.Kind() {
+	case "if":
+		ifStatement := last.(*IfStatement)
+		ifStatement.Programs = len(p.Programs) - ifStatement.bodyStart
+		p.noStatic = p.noStatic[:len(p.noStatic)-1]
+	case "for":
+		forStatement := last.(*ForStatement)
+		forStatement.Programs = len(p.Programs) - forStatement.bodyStart
+		p.noStatic = p.noStatic[:len(p.noStatic)-1]
+	case "slot":
+		slotStatement := last.(*SlotStatement)
+		slotStatement.Programs = len(p.Programs) - slotStatement.bodyStart
+	case "define":
+		defineStatement := last.(*DefineStatement)
+		defineStatement.Programs = len(p.Programs) - defineStatement.bodyStart
+	case "template":
+		templateStatement := last.(*TemplateStatement)
+		templateStatement.Programs = len(p.Programs) - templateStatement.BodyStart
+	}
+
+	p.unclosed = p.unclosed[:depth-1]
+	return nil, nil
+}
+
+func (p *Parser) checkNoStatic() bool {
+	for _, noStatic := range p.noStatic {
+		if noStatic {
+			return true
+		}
+	}
+	return false
 }
 
 func (p *Parser) Next() {
 	p.cursor += 1
-
-	if p.cursor >= len(p.Tokenizer.Tags) {
-		p.tag = nil
+	if p.cursor >= len(p.Tokenizer.Elements) {
+		p.piece = nil
 	} else {
-		p.tag = &p.Tokenizer.Tags[p.cursor]
+		p.piece = p.Tokenizer.Elements[p.cursor]
 	}
+}
+
+func PrintPrograms(programs []Program) {
+	fmt.Println("Programs:")
+	indents := []int{}
+	for _, program := range programs {
+		if len(indents) > 0 {
+			fmt.Print(strings.Repeat("  ", len(indents)-1), "└─")
+			indents[len(indents)-1] -= 1
+			if indents[len(indents)-1] == 0 {
+				indents = indents[:len(indents)-1]
+			}
+		}
+		fmt.Print(program)
+		if reflect.TypeOf(program).Kind() == reflect.String {
+			fmt.Println()
+			continue
+		}
+		programsField := reflect.Indirect(reflect.ValueOf(program)).FieldByName("Programs")
+		if programsField.IsValid() {
+			indents = append(indents, int(programsField.Int()))
+			fmt.Printf(" Programs: (%d)", int(programsField.Int()))
+		}
+		fmt.Println()
+	}
+	fmt.Println("End Programs")
 }
