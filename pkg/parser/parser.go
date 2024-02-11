@@ -351,7 +351,7 @@ func PrintPrograms(label string, programs []Program) {
 			fmt.Println()
 			continue
 		}
-		programsField := reflect.Indirect(reflect.ValueOf(program)).FieldByName("programs")
+		programsField := reflect.Indirect(reflect.ValueOf(program)).FieldByName("Programs")
 		if programsField.IsValid() {
 			indents = append(indents, int(programsField.Int()))
 		}
