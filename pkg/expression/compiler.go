@@ -2,7 +2,6 @@ package expression
 
 import (
 	"fmt"
-	"reflect"
 	"slices"
 )
 
@@ -20,69 +19,6 @@ type Compiler struct {
 	chunk Chunk
 }
 
-var builtinNames = []string{
-	"float32",
-	"float64",
-	"int",
-	"int8",
-	"int16",
-	"int32",
-	"int64",
-	"uint",
-	"uint8",
-	"uint16",
-	"uint32",
-	"uint64",
-	"uintptr",
-	"len",
-	"range",
-	"rangeStep",
-}
-
-var builtinsOne = map[string]func(val any) any{
-	"float32": castFloat32,
-	"float64": castFloat64,
-	"int":     castInt,
-	"int8":    castInt8,
-	"int16":   castInt16,
-	"int32":   castInt32,
-	"int64":   castInt64,
-	"uint":    castUint,
-	"uint8":   castUint8,
-	"uint16":  castUint16,
-	"uint32":  castUint32,
-	"uint64":  castUint64,
-	"uintptr": castUintptr,
-	"len":     length,
-}
-
-var builtinsTwo = map[string]func(val1, val2 any) any{
-	"range": rangeArray,
-}
-
-var builtinsThree = map[string]func(val1, val2, val3 any) any{
-	"rangeStep": rangeArrayStep,
-}
-
-var numBuiltinsOne = reflect.ValueOf(builtinsOne).Len()
-var numBuiltinsTwo = reflect.ValueOf(builtinsTwo).Len()
-var numBuiltinsThree = reflect.ValueOf(builtinsThree).Len()
-
-func builtinType(name string) int {
-	idx := slices.Index(builtinNames, name)
-	if idx == -1 {
-		panic("not a builtin")
-	} else if idx < numBuiltinsOne {
-		return 1
-	} else if idx < numBuiltinsOne+numBuiltinsTwo {
-		return 2
-	} else if idx < numBuiltinsOne+numBuiltinsTwo+numBuiltinsThree {
-		return 3
-	}
-
-	panic("not implemented")
-}
-
 func NewCompiler(expr Expression) *Compiler {
 	return &Compiler{
 		expr: expr,
@@ -96,19 +32,18 @@ func NewCompiler(expr Expression) *Compiler {
 func (c *Compiler) Compile() (Chunk, error) {
 	defer func() {
 		if err := recover(); err != nil {
-			fmt.Println("here")
 			fmt.Println(err)
 		}
 	}()
-	c.compile(c.expr, false)
+	c.compile(c.expr)
 	return c.chunk, nil
 }
 
-func (c *Compiler) compile(expr Expression, chain bool) {
+func (c *Compiler) compile(expr Expression) {
 	switch expr := expr.(type) {
 	case *Array:
 		for _, item := range expr.Items {
-			c.compile(item, false)
+			c.compile(item)
 		}
 		c.emit(OpArray)
 		c.emit(len(expr.Items))
@@ -125,7 +60,7 @@ func (c *Compiler) compile(expr Expression, chain bool) {
 		c.emit(c.addConstant(expr.Value))
 	case *Builtin:
 		for _, arg := range expr.Args {
-			c.compile(arg, false)
+			c.compile(arg)
 		}
 		builtinType := builtinType(expr.Name)
 		if len(expr.Args) != builtinType {
@@ -142,23 +77,23 @@ func (c *Compiler) compile(expr Expression, chain bool) {
 			c.emit(slices.Index(builtinNames, expr.Name))
 		}
 	case *FunctionCall:
-		c.compile(expr.Called, chain)
+		c.compile(expr.Called)
 		for _, arg := range expr.Args {
-			c.compile(arg, false)
+			c.compile(arg)
 		}
 		c.emit(OpCall)
 		c.emit(len(expr.Args))
 	case *ArrayAccess:
-		c.compile(expr.Accessed, chain)
-		c.compile(expr.Index, false)
+		c.compile(expr.Accessed)
+		c.compile(expr.Index)
 		c.emit(OpArrayAccess)
 	case *VariableAccess:
-		c.compile(expr.Left, chain)
+		c.compile(expr.Left)
 		c.emit(OpChain)
-		c.compile(expr.Right, true)
+		c.compile(expr.Right)
 	case *InfixExpression:
-		c.compile(expr.Left, chain)
-		c.compile(expr.Right, chain)
+		c.compile(expr.Left)
+		c.compile(expr.Right)
 		switch expr.Op {
 		case "and":
 			c.emit(OpAnd)
@@ -190,7 +125,7 @@ func (c *Compiler) compile(expr Expression, chain bool) {
 			c.emit(OpExponent)
 		}
 	case *PrefixExpression:
-		c.compile(expr.Right, chain)
+		c.compile(expr.Right)
 		switch expr.Op {
 		case "not":
 			c.emit(OpNot)

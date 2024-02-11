@@ -1,8 +1,10 @@
 package preprocessor
 
 import (
+	"errors"
 	"fmt"
 	"github.com/terawatthour/socks/internal/helpers"
+	errors2 "github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/parser"
 	"github.com/terawatthour/socks/pkg/tokenizer"
 )
@@ -13,49 +15,54 @@ type Preprocessor struct {
 	staticContext map[string]interface{}
 }
 
-type FilePreprocessor struct {
-	Preprocessor *Preprocessor
+type filePreprocessor struct {
+	preprocessor *Preprocessor
 	filename     string
 	programs     []parser.Program
 	result       []parser.Program
 	i            int
 }
 
-func NewPreprocessor(files map[string]string, staticContext map[string]interface{}) *Preprocessor {
+func New(files map[string]string, staticContext map[string]interface{}) *Preprocessor {
 	return &Preprocessor{
 		files:         files,
 		staticContext: staticContext,
 	}
 }
 
-func NewFilePreprocessor(filename string, preprocessor *Preprocessor) *FilePreprocessor {
-	return &FilePreprocessor{
-		Preprocessor: preprocessor,
+func (p *Preprocessor) Preprocess(filename string, keepSlots bool) ([]parser.Program, error) {
+	filePreprocessor := &filePreprocessor{
+		preprocessor: p,
 		filename:     filename,
 		result:       make([]parser.Program, 0),
 		programs:     make([]parser.Program, 0),
 		i:            0,
 	}
+	return filePreprocessor.preprocess(keepSlots)
 }
 
-func (p *Preprocessor) Preprocess(filename string, keepSlots bool) ([]parser.Program, error) {
-	return NewFilePreprocessor(filename, p).preprocess(keepSlots)
-}
-
-func (fp *FilePreprocessor) preprocess(keepSlots bool) (res []parser.Program, err error) {
-	content, ok := fp.Preprocessor.files[fp.filename]
+func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, err error) {
+	content, ok := fp.preprocessor.files[fp.filename]
 	if !ok {
-		return nil, fmt.Errorf("template %s not found", fp.filename)
+		return nil, errors2.NewError(fmt.Sprintf("template `%s` not found", fp.filename))
 	}
 
-	tok := tokenizer.NewTokenizer(content)
-	if err := tok.Tokenize(); err != nil {
-		return nil, err
-	}
-
-	fp.programs, err = parser.NewParser(tok).Parse()
+	elements, err := tokenizer.Tokenize(content)
 	if err != nil {
-		return nil, err
+		var tokenizerError *errors2.Error
+		errors.As(err, &tokenizerError)
+		tokenizerError.File = fp.filename
+
+		return nil, tokenizerError
+	}
+
+	fp.programs, err = parser.Parse(elements)
+	if err != nil {
+		var parserError *errors2.Error
+		errors.As(err, &parserError)
+		parserError.File = fp.filename
+
+		return nil, parserError
 	}
 
 	var extends = ""
@@ -68,7 +75,7 @@ func (fp *FilePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 		case "extend":
 			extends = program.(*parser.ExtendStatement).Template
 			if extends == "" {
-				return nil, fmt.Errorf("extend statement must have a valid file name")
+				return nil, errors2.NewErrorWithLocation("extend statement must have a valid file name", program.Location())
 			}
 		case "template":
 			if err := fp.evaluateTemplateStatement(); err != nil {
@@ -95,13 +102,13 @@ func (fp *FilePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 	return fp.result, nil
 }
 
-func (fp *FilePreprocessor) evaluateTemplateStatement() error {
+func (fp *filePreprocessor) evaluateTemplateStatement() error {
 	templateStatement := fp.programs[fp.i].(*parser.TemplateStatement)
 	templateName := templateStatement.Template
 
 	resolvedPath := helpers.ResolvePath(fp.filename, templateName)
 
-	includedPrograms, err := fp.Preprocessor.Preprocess(resolvedPath, true)
+	includedPrograms, err := fp.preprocessor.Preprocess(resolvedPath, true)
 	if err != nil {
 		return err
 	}
@@ -157,10 +164,10 @@ func (fp *FilePreprocessor) evaluateTemplateStatement() error {
 	return nil
 }
 
-func (fp *FilePreprocessor) extendTemplate(parentTemplate string) error {
+func (fp *filePreprocessor) extendTemplate(parentTemplate string) error {
 	resolvedPath := helpers.ResolvePath(fp.filename, parentTemplate)
 
-	parentPrograms, err := fp.Preprocessor.Preprocess(resolvedPath, true)
+	parentPrograms, err := fp.preprocessor.Preprocess(resolvedPath, true)
 	if err != nil {
 		return err
 	}

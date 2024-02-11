@@ -17,7 +17,7 @@ type Evaluator struct {
 	i int
 }
 
-func NewEvaluator(programs []parser.Program, sanitizer func(string) string) *Evaluator {
+func New(programs []parser.Program, sanitizer func(string) string) *Evaluator {
 	return &Evaluator{programs: programs, sanitizer: sanitizer}
 }
 
@@ -57,24 +57,19 @@ func (e *Evaluator) evaluateStatement(statement parser.Statement, context map[st
 		return e.evaluateIfStatement(statement, context)
 	}
 
-	tag := statement.Tag()
-	if tag == nil {
-		return errors.NewError("unexpected statement: " + statement.Kind())
-	}
-
-	return errors.NewError("unexpected statement kind: " + statement.Kind())
+	return errors.NewError("unexpected statement")
 }
 
 func (e *Evaluator) evaluateIfStatement(statement parser.Statement, context map[string]any) error {
 	ifStatement := statement.(*parser.IfStatement)
 	result, err := ifStatement.Program.Run(context)
 	if err != nil {
-		return errors.NewError("unable to evaluate expression: " + err.Error())
+		return errors.NewErrorWithLocation("unable to evaluate: "+err.Error(), ifStatement.Location())
 	}
 
 	resultBool, ok := result.(bool)
 	if !ok {
-		return errors.NewError("expression is not a boolean")
+		return errors.NewErrorWithLocation("expression doesn't return a boolean", ifStatement.Location())
 	}
 
 	// Discard the first tag program (if statement)
@@ -106,7 +101,7 @@ func (e *Evaluator) evaluateForStatement(statement parser.Statement, context map
 
 	values := helpers.ConvertInterfaceToSlice(obj)
 	if values == nil {
-		return errors.NewError("for loop iterable must be either a slice, array or map")
+		return errors.NewErrorWithLocation("for loop iterable must be either a slice, array or map", forStatement.Location())
 	}
 
 	before := e.i
@@ -134,7 +129,7 @@ func (e *Evaluator) evaluatePrintStatement(statement parser.Statement, context m
 
 	result, err := printStatement.Program.Run(context)
 	if err != nil {
-		return errors.NewError("unable to evaluate expression: \n" + err.Error())
+		return errors.NewErrorWithLocation("unable to evaluate expression: "+err.Error(), printStatement.Location())
 	}
 
 	stringified := fmt.Sprintf("%v", result)

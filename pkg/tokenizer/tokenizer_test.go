@@ -1,6 +1,7 @@
 package tokenizer
 
 import (
+	"fmt"
 	"testing"
 )
 
@@ -12,7 +13,7 @@ import (
 // 		return
 // 	}
 
-// 	expected := []Tag{
+// 	expected := []Mustache{
 // 		{
 // 			tokens: []Token{{
 // 				Type:    "extend",
@@ -173,7 +174,7 @@ import (
 // 		return
 // 	}
 
-// 	expected := []Tag{{
+// 	expected := []Mustache{{
 // 		tokens: []Token{{
 // 			Type:    "ident",
 // 			Literal: "żółć",
@@ -217,18 +218,33 @@ import (
 
 func TestTokenization(t *testing.T) {
 	template := `
-@template("test")
-	@define("content")
-		<div>hello</div>
-	@enddefine
-@endtemplate
+@extend("base.html")
 
-@if(nice > 10.2) 
-	<div>nice value is {{ nice }}</div>
-@endif`
-	tok := NewTokenizer(template)
-	if err := tok.Tokenize(); err != nil {
+@define("content")
+    @template("templates/header.html")
+    
+    @endtemplate
+
+
+    <p>Hello from the {{ Server }} server</p>
+
+    @for[nostatic](phrase, i in Phrases)
+    <div>
+        <p>
+            @template("templates/number.html") @define("number"){{ i + 1 }}@enddefine@endtemplate
+            : {{ phrase.Content }}</p>
+        @if(i > 0)
+        <p>Previous {{ i }}: {{ Phrases[i-1].Content }}</p>
+        @endif
+    </div>
+    @endfor
+@enddefine`
+	elements, err := Tokenize(template)
+	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 		return
+	}
+	for _, element := range elements {
+		fmt.Println(element)
 	}
 }

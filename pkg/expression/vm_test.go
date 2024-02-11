@@ -11,10 +11,12 @@ type tescik struct {
 }
 
 func TestVM_Run(t *testing.T) {
-	tok := tokenizer.NewTokenizer("{{ 1 in range(1, 4) }}")
-	tok.Tokenize()
-	p := NewParser(tok.Elements[0].Tokens())
-	expr, err := p.Parse()
+	elements, err := tokenizer.Tokenize("{{ 1 in range(1, 4) }}")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
+	}
+	expr, err := Parse(elements[0].(*tokenizer.Mustache).Tokens)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 		return

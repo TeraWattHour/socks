@@ -169,11 +169,11 @@ outerLoop:
 		}
 	}
 	if len(vm.stack) == 0 {
-		return nil, fmt.Errorf("expression ")
+		return nil, fmt.Errorf("expression doesnt return a value")
 	}
 
 	if len(vm.stack) != 1 {
-		panic(fmt.Sprintf("expected 1 value on the stack, got %d", len(vm.stack)))
+		panic(fmt.Sprintf("expression returns multiple values"))
 	}
 
 	return vm.stack.pop(), nil

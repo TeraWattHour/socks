@@ -55,12 +55,12 @@ func (fs *fileSystem) loadTemplateFromString(filename string, content string) {
 }
 
 func (fs *fileSystem) preprocessTemplates(staticContext map[string]interface{}) error {
-	proc := preprocessor.NewPreprocessor(fs.files, staticContext)
+	proc := preprocessor.New(fs.files, staticContext)
 	for filename := range fs.files {
 		if content, err := proc.Preprocess(filename, false); err != nil {
 			return err
 		} else {
-			fs.templates[filename] = evaluator.NewEvaluator(content, fs.options.Sanitizer)
+			fs.templates[filename] = evaluator.New(content, fs.options.Sanitizer)
 		}
 	}
 

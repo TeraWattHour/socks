@@ -2,37 +2,18 @@ package tokenizer
 
 import (
 	"fmt"
+	"github.com/terawatthour/socks/internal/helpers"
 	"slices"
 	"unicode"
 
 	errors2 "github.com/terawatthour/socks/pkg/errors"
 )
 
-type Element interface {
-	Kind() string
-	String() string
-	Tokens() []Token
-}
+type _tokenizer struct {
+	template []rune
+	elements []Element
 
-type Text string
-
-func (t Text) Kind() string {
-	return "text"
-}
-
-func (t Text) String() string {
-	return string(t)
-}
-
-func (t Text) Tokens() []Token {
-	return nil
-}
-
-type Tokenizer struct {
-	Template []rune
-	Elements []Element
-
-	currentTag  *Tag
+	currentTag  *Mustache
 	cursor      int
 	prevChar    rune
 	char        rune
@@ -41,168 +22,118 @@ type Tokenizer struct {
 	lastClosing int
 	line        int
 	column      int
-}
-
-// TagType is either PrintKind, PreprocessorKind, StaticKind, or ExecuteKind.
-type TagType string
-
-const (
-	PrintKind   TagType = "print"
-	CommentKind TagType = "comment"
-)
-
-type Tag struct {
-	Start    int
-	End      int
-	Literal  string
-	Sanitize bool
-	Type     TagType
-	tokens   []Token
-}
-
-func (t *Tag) Tokens() []Token {
-	return t.tokens
-}
-
-func (t *Tag) Kind() string {
-	return "tag"
-}
-
-func (t *Tag) String() string {
-	return t.Literal
-}
-
-type Statement struct {
-	Instruction string
-	tokens      []Token
-	Flags       []string
-}
-
-func (s *Statement) Tokens() []Token {
-	return s.tokens
-}
-
-func (s *Statement) Kind() string {
-	return "statement"
-}
-
-func (s *Statement) String() string {
-	return s.Instruction
+	location    helpers.Location
 }
 
 type Token struct {
-	Kind     string
-	Literal  string
-	Start    int
-	Length   int
-	Location Location
-}
-
-type Location struct {
-	Line   int
-	Column int
+	Kind          string
+	Literal       string
+	Start         int
+	Length        int
+	LocationStart helpers.Location
+	LocationEnd   helpers.Location
 }
 
 func (t Token) String() string {
 	return fmt.Sprintf("[type: %s, literal: %s]", t.Kind, t.Literal)
 }
 
-func NewTokenizer(template string) *Tokenizer {
-	t := &Tokenizer{
-		Template: []rune(template),
-		Elements: make([]Element, 0),
+func Tokenize(template string) ([]Element, error) {
+	t := &_tokenizer{
+		template: []rune(template),
+		elements: make([]Element, 0),
 		cursor:   -1,
 		line:     1,
 		column:   0,
 	}
 
-	t.Next()
+	t.next()
 
-	return t
+	return t.tokenize()
 }
 
-func (t *Tokenizer) Tokenize() error {
+func (t *_tokenizer) tokenize() ([]Element, error) {
 	for t.char != 0 {
-
 		t.skipWhitespace()
 
-		if t.isInsideTag {
+		if t.tryOpenMustache() {
 			t.tokenizeExpression()
 			continue
-		} else {
-			t.tryOpenTag()
-			if t.isInsideTag {
-				continue
-			}
 		}
 
+		// open an instruction tag
 		if t.char == '@' && t.prevChar != '\\' {
-			t.grabText(t.cursor)
-			t.Next()
-			if t.isAsciiLetter() {
+			loc := helpers.Location{t.line, t.column}
+			t.next()
+			if isAsciiLetter(t.nextChar) {
+				t.grabText(t.cursor - 1)
+
 				start := t.cursor
-				for t.isAsciiLetter() {
-					t.Next()
+				for isAsciiLetter(t.char) {
+					t.next()
 				}
-				literal := string(t.Template[start:t.cursor])
+				endOfInstruction := t.cursor
+				literal := string(t.template[start:endOfInstruction])
 				if !isValidStatementLiteral(literal) {
-					return errors2.NewError(fmt.Sprintf("unexpected instruction '%s'", literal))
+					return nil, errors2.NewErrorWithLocation(fmt.Sprintf("unexpected instruction %s, escape it with a backslash: %s@%s", literal, helpers.Colorize("\\", "green"), literal), loc)
 				}
 				statement := Statement{
 					Instruction: literal,
-					tokens:      make([]Token, 0),
+					Tokens:      make([]Token, 0),
+					Location:    helpers.Location{t.line, t.column},
 				}
 				t.skipWhitespace()
 				if t.char == '[' {
-					t.Next()
+					t.next()
 					t.skipWhitespace()
 					if t.char == ']' {
-						return errors2.NewError("unexpected empty flag set")
+						return nil, errors2.NewErrorWithLocation("unexpected empty flag set", t.location)
 					}
 					flags := make([]string, 0)
 					for t.char != ']' {
 						start := t.cursor
-						for t.isAsciiLetter() {
-							t.Next()
+						for isAsciiLetter(t.char) {
+							t.next()
 						}
-						flags = append(flags, string(t.Template[start:t.cursor]))
+						flags = append(flags, string(t.template[start:t.cursor]))
 						t.skipWhitespace()
 						if t.char == ']' {
 							break
 						}
 						if t.char != ',' {
-							return errors2.NewError(fmt.Sprintf("unexpected token in flag set: '%s'", string(t.char)))
+							return nil, errors2.NewError(fmt.Sprintf("unexpected token in flag set: '%s'", string(t.char)))
 						}
-						t.Next()
+						t.next()
 					}
 					statement.Flags = flags
-					t.Next()
+					t.next()
 					t.skipWhitespace()
 				}
 				if t.char != '(' {
-					t.Elements = append(t.Elements, &statement)
-					t.lastClosing = t.cursor
+					t.elements = append(t.elements, &statement)
+					t.lastClosing = endOfInstruction
 					continue
 				}
 				tokens := t.tokenizeExpression()
-				statement.tokens = append(statement.tokens, tokens...)
-				t.Elements = append(t.Elements, &statement)
+				statement.Tokens = append(statement.Tokens, tokens...)
+				t.elements = append(t.elements, &statement)
+				continue
 			}
 		}
 
-		t.Next()
+		t.next()
 	}
 
 	if t.isInsideTag {
-		return errors2.NewError("unexpected end of template")
+		return nil, errors2.NewError("unexpected end of template")
 	}
 
-	t.Elements = append(t.Elements, Text(t.Template[t.lastClosing:len(t.Template)]))
+	t.grabText(t.cursor)
 
-	return nil
+	return t.elements, nil
 }
 
-func (t *Tokenizer) tokenizeExpression() []Token {
+func (t *_tokenizer) tokenizeExpression() []Token {
 	depth := 0
 
 	tokens := make([]Token, 0)
@@ -211,7 +142,7 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 		t.skipWhitespace()
 
 		if t.isInsideTag {
-			if closed, err := t.tryCloseTag(); err != nil {
+			if closed, err := t.tryCloseMustache(); err != nil {
 				panic(err)
 			} else if closed {
 				return tokens
@@ -219,7 +150,7 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 		}
 
 		pushNext := true
-		token := Token{Start: t.cursor, Length: 1, Literal: string(t.char), Location: Location{t.line, t.column}}
+		token := Token{Start: t.cursor, Length: 1, Literal: string(t.char), LocationStart: helpers.Location{t.line, t.column}, LocationEnd: helpers.Location{t.line, t.column + 1}}
 
 		switch t.char {
 		case '.':
@@ -230,7 +161,7 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 			if t.nextChar == '.' {
 				token.Kind = TokOptionalChain
 				token.Literal = "?."
-				t.Next()
+				t.next()
 			} else {
 				token.Kind = TokQuestion
 			}
@@ -260,7 +191,7 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 			if t.nextChar == '*' {
 				token.Kind = TokPower
 				token.Literal = "**"
-				t.Next()
+				t.next()
 			} else {
 				token.Kind = TokAsterisk
 			}
@@ -268,7 +199,7 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 			if t.nextChar == '/' {
 				token.Kind = TokFloorDiv
 				token.Literal = "//"
-				t.Next()
+				t.next()
 			} else {
 				token.Kind = TokSlash
 			}
@@ -276,7 +207,7 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 			if t.nextChar == '=' {
 				token.Kind = TokLte
 				token.Literal = "<="
-				t.Next()
+				t.next()
 			} else {
 				token.Kind = TokLt
 			}
@@ -284,7 +215,7 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 			if t.nextChar == '=' {
 				token.Kind = TokGte
 				token.Literal = ">="
-				t.Next()
+				t.next()
 			} else {
 				token.Kind = TokGt
 			}
@@ -292,7 +223,7 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 			if t.nextChar == '=' {
 				token.Kind = TokNeq
 				token.Literal = "!="
-				t.Next()
+				t.next()
 			} else {
 				token.Kind = TokBang
 			}
@@ -300,22 +231,22 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 			if t.nextChar == '=' {
 				token.Kind = TokEq
 				token.Literal = "=="
-				t.Next()
+				t.next()
 			} else {
 				panic("unexpected token '='")
 			}
 		case '"', '\'':
 			quoteChar := t.char
-			t.Next()
+			t.next()
 			start := t.cursor
 			for t.char != quoteChar {
 				if t.char == 0 {
 					panic("unterminated string literal")
 				}
-				t.Next()
+				t.next()
 			}
-			literal := string(t.Template[start:t.cursor])
-			t.Next()
+			literal := string(t.template[start:t.cursor])
+			t.next()
 			token.Kind = TokString
 			token.Literal = literal
 			token.Start = start - 1
@@ -333,9 +264,9 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 			if t.isValidVariableName() {
 				start := t.cursor
 				for t.isValidVariableName() || t.isDigit() {
-					t.Next()
+					t.next()
 				}
-				literal := string(t.Template[start:t.cursor])
+				literal := string(t.template[start:t.cursor])
 				if slices.Index(Keywords, literal) != -1 {
 					token = Token{
 						Kind:    literal,
@@ -344,7 +275,7 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 				} else {
 					token = Token{
 						Kind:    TokIdent,
-						Literal: string(t.Template[start:t.cursor]),
+						Literal: string(t.template[start:t.cursor]),
 					}
 				}
 				token.Start = start
@@ -354,7 +285,7 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 				start := t.cursor
 				hasDot := false
 				for t.isDigit() || t.char == '.' {
-					t.Next()
+					t.next()
 					if t.char == '.' {
 						if hasDot {
 							panic("unexpected dot in number")
@@ -362,7 +293,7 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 						hasDot = true
 					}
 				}
-				literal := string(t.Template[start:t.cursor])
+				literal := string(t.template[start:t.cursor])
 				token = Token{
 					Kind:    TokNumber,
 					Literal: literal,
@@ -376,36 +307,40 @@ func (t *Tokenizer) tokenizeExpression() []Token {
 			}
 		}
 
+		token.Length = t.cursor - token.Start
+		if pushNext {
+			t.next()
+		}
+
+		token.LocationEnd = helpers.Location{t.line, t.column}
+
 		tokens = append(tokens, token)
 		if t.isInsideTag {
-			t.currentTag.tokens = append(t.currentTag.tokens, token)
+			t.currentTag.Tokens = append(t.currentTag.Tokens, token)
 		}
 		if !t.isInsideTag && depth == 0 {
-			t.lastClosing = t.cursor + 1
+			t.lastClosing = t.cursor
 			break
 		}
 
-		if pushNext {
-			t.Next()
-		}
 	}
 
 	return tokens
 }
 
-func (t *Tokenizer) Next() {
+func (t *_tokenizer) next() {
 	t.cursor += 1
 	t.prevChar = t.char
-	if t.cursor >= len(t.Template) {
+	if t.cursor >= len(t.template) {
 		t.char = 0
 	} else {
-		t.char = t.Template[t.cursor]
+		t.char = t.template[t.cursor]
 	}
 
-	if t.cursor+1 >= len(t.Template) {
+	if t.cursor+1 >= len(t.template) {
 		t.nextChar = 0
 	} else {
-		t.nextChar = t.Template[t.cursor+1]
+		t.nextChar = t.template[t.cursor+1]
 	}
 
 	if t.char == '\n' {
@@ -414,93 +349,77 @@ func (t *Tokenizer) Next() {
 	} else {
 		t.column += 1
 	}
+
+	t.location = helpers.Location{t.line, t.column}
 }
 
-func (t *Tokenizer) grabText(cursor int) {
-	if t.lastClosing < cursor && cursor < len(t.Template) {
-		t.Elements = append(t.Elements, Text(t.Template[t.lastClosing:cursor]))
+func (t *_tokenizer) grabText(cursor int) {
+	if t.lastClosing <= cursor && cursor <= len(t.template) {
+		t.elements = append(t.elements, Text(t.template[t.lastClosing:cursor]))
 	}
 }
 
-func (t *Tokenizer) tryOpenTag() {
+func (t *_tokenizer) tryOpenMustache() bool {
 	if t.prevChar == '\\' {
-		return
+		return false
 	}
 
-	openTag := func(kind TagType) {
+	if t.char == '{' && (t.nextChar == '{' || t.nextChar == '#' || t.nextChar == '!') {
 		t.grabText(t.cursor)
 
-		t.currentTag = &Tag{
-			Start: t.cursor,
-			Type:  kind,
+		t.currentTag = &Mustache{
+			start:     t.cursor,
+			Location:  helpers.Location{t.line, t.column},
+			IsComment: t.nextChar == '#',
+			Sanitize:  t.nextChar == '{',
 		}
-		t.Next()
-		t.currentTag.Sanitize = t.char == '{'
 		t.isInsideTag = true
-		t.Next()
+
+		t.next()
+		t.next()
+		return true
 	}
 
-	if t.char == '{' {
-		switch t.nextChar {
-		case '{':
-			openTag(PrintKind)
-		case '#':
-			openTag(CommentKind)
-		case '!':
-			openTag(PrintKind)
-		}
-	}
+	return false
 }
 
-func (t *Tokenizer) tryCloseTag() (bool, error) {
-	closeTag := func(kind TagType) (bool, error) {
-		if t.currentTag == nil || t.currentTag.Type != kind || t.currentTag.Sanitize != (t.char == '}') {
+func (t *_tokenizer) tryCloseMustache() (bool, error) {
+	if t.nextChar == '}' && (t.char == '}' || t.char == '#' || t.char == '!') {
+		if t.currentTag == nil || t.currentTag.IsComment && t.char != '#' || t.currentTag.Sanitize && t.char != '}' {
 			return false, errors2.NewError("unexpected tag termination")
 		}
-		t.currentTag.End = t.cursor + 2
-		t.currentTag.Literal = string(t.Template[t.currentTag.Start:t.currentTag.End])
+		t.currentTag.Literal = string(t.template[t.currentTag.start : t.cursor+2])
 		t.lastClosing = t.cursor + 2
-		t.Elements = append(t.Elements, t.currentTag)
+		t.elements = append(t.elements, t.currentTag)
 		t.currentTag = nil
 
-		t.Next()
-		t.Next()
+		t.next()
+		t.next()
 
 		t.isInsideTag = false
 
 		return true, nil
 	}
 
-	if t.nextChar == '}' {
-		switch t.char {
-		case '}':
-			return closeTag(PrintKind)
-		case '#':
-			return closeTag(CommentKind)
-		case '!':
-			return closeTag(PrintKind)
-		}
-	}
-
 	return false, nil
 }
 
-func (t *Tokenizer) skipWhitespace() {
+func (t *_tokenizer) skipWhitespace() {
 	for unicode.IsSpace(t.char) && t.char != 0 {
-		t.Next()
+		t.next()
 	}
 }
 
-func (t *Tokenizer) isValidVariableName() bool {
+func (t *_tokenizer) isValidVariableName() bool {
 	return unicode.IsLetter(t.char) || t.char == '_'
 }
 
-func (t *Tokenizer) isDigit() bool {
+func (t *_tokenizer) isDigit() bool {
 	return t.char >= '0' && t.char <= '9'
 }
 
-func (t *Tokenizer) isAsciiLetter() bool {
-	return t.char >= 'a' && t.char <= 'z' || t.char >= 'A' && t.char <= 'Z' || t.char == '_'
+func isAsciiLetter(chr rune) bool {
+	return chr >= 'a' && chr <= 'z' || chr >= 'A' && chr <= 'Z' || chr == '_'
 }
 
 func isValidStatementLiteral(literal string) bool {

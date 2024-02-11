@@ -165,62 +165,6 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
-			name: "sets",
-			expr: "[1] @> [4] + [1, 2, 3] or not([4] <@> [1, 2, 3])",
-			want: &InfixExpression{
-				Left: &InfixExpression{
-					Left: &Array{Items: []Expression{
-						&Numeric{Value: 1},
-					}},
-					Op: "@>",
-					Right: &InfixExpression{
-						Left: &Array{Items: []Expression{
-							&Numeric{Value: 4},
-						}},
-						Op: "+",
-						Right: &Array{Items: []Expression{
-							&Numeric{Value: 1},
-							&Numeric{Value: 2},
-							&Numeric{Value: 3},
-						}},
-					},
-				},
-				Op: "or",
-				Right: &PrefixExpression{
-					Op: "not",
-					Right: &InfixExpression{
-						Left: &Array{Items: []Expression{
-							&Numeric{Value: 4},
-						}},
-						Op: "<@>",
-						Right: &Array{Items: []Expression{
-							&Numeric{Value: 1},
-							&Numeric{Value: 2},
-							&Numeric{Value: 3},
-						}},
-					},
-				},
-			},
-		},
-		{
-			"set symmetric difference",
-			"[1, 2, 3] ^ [2, 3, 4]",
-			&InfixExpression{
-				Left: &Array{Items: []Expression{
-					&Numeric{Value: 1},
-					&Numeric{Value: 2},
-					&Numeric{Value: 3},
-				}},
-				Op: "^",
-				Right: &Array{Items: []Expression{
-					&Numeric{Value: 2},
-					&Numeric{Value: 3},
-					&Numeric{Value: 4},
-				}},
-			},
-			false,
-		},
-		{
 			"negation",
 			"not(1 not in [2] and 1 in [2])",
 			&PrefixExpression{
@@ -246,12 +190,15 @@ func TestParse(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		tok := tokenizer.NewTokenizer(fmt.Sprintf("{{ %s }}", tt.expr))
-		tok.Tokenize()
-		p := NewParser(tok.Elements[0].Tokens())
-		got, err := p.Parse()
+		elements, err := tokenizer.Tokenize(fmt.Sprintf("{{ %s }}", tt.expr))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			continue
+		}
+		p := newParser(elements[0].(*tokenizer.Mustache).Tokens)
+		got, err := p.parser()
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. Parse() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. parser() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		if !got.IsEqual(tt.want) {
@@ -262,14 +209,18 @@ func TestParse(t *testing.T) {
 }
 
 func TestVariableAccess(t *testing.T) {
-	tok := tokenizer.NewTokenizer("{{ int(test) + 13.4 }}")
-	tok.Tokenize()
-	p := NewParser(tok.Elements[0].Tokens())
-	got, err := p.Parse()
+	elements, err := tokenizer.Tokenize("{{ test.int(int(123)) }}")
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 		return
 	}
+
+	got, err := Parse(elements[0].(*tokenizer.Mustache).Tokens)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
+	}
+
 	want := &InfixExpression{
 		Left: &VariableAccess{
 			Left: &VariableAccess{

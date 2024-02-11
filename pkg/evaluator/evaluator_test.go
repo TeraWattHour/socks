@@ -26,20 +26,19 @@ func TestEvaluator(t *testing.T) {
 	}}
 
 	for _, set := range sets {
-		tok := tokenizer.NewTokenizer(set.template)
-		if err := tok.Tokenize(); err != nil {
-			t.Errorf("unexpected error: %s", err)
-			return
-		}
-
-		par := parser.NewParser(tok)
-		programs, err := par.Parse()
+		elements, err := tokenizer.Tokenize(set.template)
 		if err != nil {
 			t.Errorf("unexpected error: %s", err)
 			return
 		}
 
-		eval := NewEvaluator(programs, nil)
+		programs, err := parser.Parse(elements)
+		if err != nil {
+			t.Errorf("unexpected error: %s", err)
+			return
+		}
+
+		eval := New(programs, nil)
 		evaluated, err := eval.Evaluate(set.env)
 		if err != nil {
 			t.Errorf("unexpected error: %s", err)

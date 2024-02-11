@@ -36,10 +36,15 @@ import (
 )
 
 func main() {
-    s := socks.NewSocks()
+    s := socks.NewSocks(&socks.Options{
+        Sanitizer: func(s string) string {
+            // Sanitize your output here, everything that
+            // goes through the {{ ... }} tag is going to be sanitized 
+            return s
+        },
+    })
 	
-    err := s.LoadTemplates("templates/*.html")
-    if err != nil {
+    if err := s.LoadTemplates("templates/*.html"); err != nil {
         panic(err)
     }
 
@@ -108,7 +113,7 @@ Preprocessor tags, the result of the expression will be printed to the template.
 Comment tag, the content of this tag will be ignored.
 ```html
 {# This is a comment #}
-<!-- this is a HTML comment, but it won't be removed -->
+<!-- this is an HTML comment, but it won't be removed -->
 ```
 
 ### Execution tag
@@ -123,3 +128,8 @@ Execution tag, used for executing statements like `for` or `if` at runtime.
     <p>{{ Users[0].Name }}</p>
 @endif
 ```
+
+## Roadmap
+- [ ] Runtime error handling
+- [ ] Constant folding 
+- [ ] Add more tests
