@@ -128,7 +128,7 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 		return nil, errors2.NewError("unexpected end of template")
 	}
 
-	t.grabText(t.cursor)
+	t.elements = append(t.elements, Text(t.template[t.lastClosing:]))
 
 	return t.elements, nil
 }
