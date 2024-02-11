@@ -8,12 +8,10 @@ import (
 	"strings"
 )
 
-var PreprocessorKinds = []string{"extend", "template", "slot", "define"}
-
 type Program interface {
 	Kind() string
 	String() string
-	Tag() *tokenizer.Tag
+	Location() helpers.Location
 }
 
 type Text string
@@ -26,24 +24,32 @@ func (t Text) String() string {
 	return fmt.Sprintf("%s: `%s`", helpers.FixedWidth("TEXT", 8), strings.ReplaceAll(string(t), "\n", "\\n"))
 }
 
-func (t Text) Tag() *tokenizer.Tag {
+func (t Text) Tag() *tokenizer.Mustache {
 	return nil
+}
+
+func (t Text) Location() helpers.Location {
+	panic("unreachable")
 }
 
 type Statement interface {
 	Kind() string
-	Tag() *tokenizer.Tag
 	NoStatic() bool
 	String() string
 	ChangeProgramCount(int)
+	Location() helpers.Location
 }
 
 // ---------------------- Print Statement ----------------------
 
 type PrintStatement struct {
 	Program  *expression.VM
-	tag      *tokenizer.Tag
+	tag      *tokenizer.Mustache
 	noStatic bool
+}
+
+func (vs *PrintStatement) Location() helpers.Location {
+	return vs.tag.Location
 }
 
 func (vs *PrintStatement) ChangeProgramCount(i int) {
@@ -62,7 +68,7 @@ func (vs *PrintStatement) Kind() string {
 	return "variable"
 }
 
-func (vs *PrintStatement) Tag() *tokenizer.Tag {
+func (vs *PrintStatement) Tag() *tokenizer.Mustache {
 	return vs.tag
 }
 
@@ -70,12 +76,15 @@ func (vs *PrintStatement) Tag() *tokenizer.Tag {
 
 type IfStatement struct {
 	Program   *expression.VM
-	StartTag  *tokenizer.Tag
-	EndTag    *tokenizer.Tag
 	bodyStart int
 	Programs  int
 	noStatic  bool
 	Parent    Statement
+	location  helpers.Location
+}
+
+func (vs *IfStatement) Location() helpers.Location {
+	return vs.location
 }
 
 func (vs *IfStatement) ChangeProgramCount(i int) {
@@ -97,10 +106,6 @@ func (vs *IfStatement) Kind() string {
 	return "if"
 }
 
-func (vs *IfStatement) Tag() *tokenizer.Tag {
-	return vs.StartTag
-}
-
 // ---------------------- For Statement ----------------------
 
 type ForStatement struct {
@@ -108,10 +113,14 @@ type ForStatement struct {
 	KeyName   string
 	ValueName string
 	Programs  int
-	tag       *tokenizer.Tag
 	bodyStart int
 	noStatic  bool
 	Parent    Statement
+	location  helpers.Location
+}
+
+func (es *ForStatement) Location() helpers.Location {
+	return es.location
 }
 
 func (es *ForStatement) ChangeProgramCount(i int) {
@@ -136,15 +145,15 @@ func (es *ForStatement) Kind() string {
 	return "for"
 }
 
-func (es *ForStatement) Tag() *tokenizer.Tag {
-	return es.tag
-}
-
 // ---------------------- Extend Statement ----------------------
 
 type ExtendStatement struct {
 	Template string
-	tag      *tokenizer.Tag
+	location helpers.Location
+}
+
+func (es *ExtendStatement) Location() helpers.Location {
+	return es.location
 }
 
 func (es *ExtendStatement) ChangeProgramCount(i int) {
@@ -163,20 +172,19 @@ func (es *ExtendStatement) Kind() string {
 	return "extend"
 }
 
-func (es *ExtendStatement) Tag() *tokenizer.Tag {
-	return es.tag
-}
-
-// ---------------------- Template Statement ----------------------
+// ---------------------- template Statement ----------------------
 
 type TemplateStatement struct {
 	Template  string
-	StartTag  *tokenizer.Tag
-	EndTag    *tokenizer.Tag
+	location  helpers.Location
 	Programs  int
 	BodyStart int
 	Depth     int
 	Parent    Statement
+}
+
+func (es *TemplateStatement) Location() helpers.Location {
+	return es.location
 }
 
 func (es *TemplateStatement) ChangeProgramCount(i int) {
@@ -187,7 +195,7 @@ func (es *TemplateStatement) ChangeProgramCount(i int) {
 }
 
 func (es *TemplateStatement) String() string {
-	return fmt.Sprintf("template: %s", es.Template)
+	return fmt.Sprintf("%s: %s", helpers.FixedWidth("TEMPLATE", 8), es.Template)
 }
 
 func (es *TemplateStatement) NoStatic() bool {
@@ -198,19 +206,19 @@ func (es *TemplateStatement) Kind() string {
 	return "template"
 }
 
-func (es *TemplateStatement) Tag() *tokenizer.Tag {
-	return es.StartTag
-}
-
 // ---------------------- Slot Statement ----------------------
 
 type SlotStatement struct {
 	Name      string
-	tag       *tokenizer.Tag
 	Programs  int
 	bodyStart int
 	Depth     int
 	Parent    Statement
+	location  helpers.Location
+}
+
+func (ss *SlotStatement) Location() helpers.Location {
+	return ss.location
 }
 
 func (ss *SlotStatement) ChangeProgramCount(i int) {
@@ -228,10 +236,6 @@ func (ss *SlotStatement) NoStatic() bool {
 	return false
 }
 
-func (ss *SlotStatement) Tag() *tokenizer.Tag {
-	return ss.tag
-}
-
 func (ss *SlotStatement) Kind() string {
 	return "slot"
 }
@@ -240,11 +244,15 @@ func (ss *SlotStatement) Kind() string {
 
 type DefineStatement struct {
 	Name      string
-	tag       *tokenizer.Tag
+	location  helpers.Location
 	Programs  int
 	bodyStart int
 	Parent    Statement
 	Depth     int
+}
+
+func (es *DefineStatement) Location() helpers.Location {
+	return es.location
 }
 
 func (es *DefineStatement) ChangeProgramCount(i int) {
@@ -264,8 +272,4 @@ func (es *DefineStatement) String() string {
 
 func (es *DefineStatement) NoStatic() bool {
 	return false
-}
-
-func (es *DefineStatement) Tag() *tokenizer.Tag {
-	return es.tag
 }

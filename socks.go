@@ -3,6 +3,7 @@ package socks
 import (
 	"fmt"
 	"github.com/terawatthour/socks/internal/helpers"
+	errors2 "github.com/terawatthour/socks/pkg/errors"
 	"io"
 )
 
@@ -12,15 +13,12 @@ type Socks interface {
 
 	LoadTemplates(patterns ...string) error
 	LoadTemplateFromString(filename string, content string)
-	PreprocessTemplates(staticContext map[string]interface{}) error
+	Compile(staticContext map[string]interface{}) error
 
 	AddGlobal(key string, value interface{})
 	AddGlobals(value map[string]interface{})
 	GetGlobals() map[string]interface{}
 	ClearGlobals()
-
-	SetOptions(options *Options)
-	GetOptions() *Options
 }
 
 type socks struct {
@@ -54,27 +52,18 @@ func (s *socks) LoadTemplates(patterns ...string) error {
 	return s.fs.loadTemplates(patterns...)
 }
 
-func (s *socks) SetOptions(options *Options) {
-	s.options = options
-	s.fs.options = options
-}
-
-func (s *socks) GetOptions() *Options {
-	return s.options
-}
-
 func (s *socks) LoadTemplateFromString(filename string, content string) {
 	s.fs.loadTemplateFromString(filename, content)
 }
 
-func (s *socks) PreprocessTemplates(staticContext map[string]interface{}) error {
+func (s *socks) Compile(staticContext map[string]interface{}) error {
 	return s.fs.preprocessTemplates(staticContext)
 }
 
 func (s *socks) ExecuteToString(template string, context map[string]interface{}) (string, error) {
 	eval, ok := s.fs.templates[template]
 	if !ok {
-		return "", fmt.Errorf("template %s not found", template)
+		return "", errors2.NewError(fmt.Sprintf("template `%s` not found", template))
 	}
 
 	result, err := eval.Evaluate(helpers.CombineMaps(s.globals, context))
@@ -87,7 +76,7 @@ func (s *socks) ExecuteToString(template string, context map[string]interface{})
 func (s *socks) Execute(w io.Writer, template string, context map[string]any) (int, error) {
 	eval, ok := s.fs.templates[template]
 	if !ok {
-		return 0, fmt.Errorf("template %s not found", template)
+		return 0, errors2.NewError(fmt.Sprintf("template `%s` not found", template))
 	}
 
 	result, err := eval.Evaluate(helpers.CombineMaps(s.globals, context))

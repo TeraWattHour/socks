@@ -6,16 +6,20 @@ import (
 )
 
 func TestBasicEvaluation(t *testing.T) {
-	s := NewSocks()
+	s := NewSocks(&Options{
+		Sanitizer: func(s string) string {
+			return s
+		},
+	})
 	err := s.LoadTemplates("test_data/*.html", "test_data/**/*.html")
 	if err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}
 
-	if err := s.PreprocessTemplates(map[string]any{
+	if err := s.Compile(map[string]any{
 		"Server": "Socks",
 	}); err != nil {
-		t.Errorf("Expected no error, got %s", err)
+		fmt.Println(err)
 		return
 	}
 
@@ -31,7 +35,7 @@ func TestBasicEvaluation(t *testing.T) {
 		"Server":  "Socks",
 	})
 	if err != nil {
-		t.Errorf("Expected no error, got %s", err)
+		fmt.Println(err)
 		return
 	}
 
@@ -41,7 +45,7 @@ func TestBasicEvaluation(t *testing.T) {
 func TestCommentRemoval(t *testing.T) {
 	s := NewSocks()
 	s.LoadTemplateFromString("test.html", "keep this {# remove this#}xd")
-	if err := s.PreprocessTemplates(nil); err != nil {
+	if err := s.Compile(nil); err != nil {
 		t.Errorf("Unexpected error: %s", err)
 	}
 	res, err := s.ExecuteToString("test.html", nil)

@@ -18,30 +18,16 @@ func TestParserSimple(t *testing.T) {
     @endtemplate
 `
 
-	tok := tokenizer.NewTokenizer(template)
-	if err := tok.Tokenize(); err != nil {
+	elements, err := tokenizer.Tokenize(template)
+	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 	}
 
-	p := NewParser(tok)
-	programs, err := p.Parse()
+	programs, err := Parse(elements)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 		return
 	}
 
-	PrintPrograms(programs)
-}
-
-func TestParserPrint(t *testing.T) {
-	template := ` {{ Title }} `
-	tok := tokenizer.NewTokenizer(template)
-	if err := tok.Tokenize(); err != nil {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	p := NewParser(tok)
-	if _, err := p.Parse(); err != nil {
-		t.Errorf("unexpected error: %s", err)
-	}
+	PrintPrograms("TestParserSimple", programs)
 }

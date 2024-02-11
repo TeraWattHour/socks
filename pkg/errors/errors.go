@@ -2,10 +2,13 @@ package errors
 
 import (
 	"fmt"
+	"github.com/terawatthour/socks/internal/helpers"
 )
 
 type Error struct {
-	Message string
+	Message  string
+	File     string
+	Location helpers.Location
 }
 
 func NewError(message string) *Error {
@@ -14,23 +17,16 @@ func NewError(message string) *Error {
 	}
 }
 
+func NewErrorWithLocation(message string, location helpers.Location) *Error {
+	return &Error{
+		Location: location,
+		Message:  message,
+	}
+}
+
 func (pe *Error) Error() string {
-	return fmt.Sprintf("%s %s: %s", "test_data/templates/header.html:2", colorize("ERROR", RED), bold(pe.Message))
-}
-
-type Color int
-
-const (
-	RED Color = iota + 31
-	GREEN
-	YELLOW
-	BLUE
-)
-
-func colorize(content string, color Color) string {
-	return fmt.Sprintf("\033[1;%dm%s\033[00m", color, content)
-}
-
-func bold(content string) string {
-	return fmt.Sprintf("\033[1m%s\033[00m", content)
+	if pe.File == "" {
+		return fmt.Sprintf("%s: %s", helpers.Colorize("ERROR", "red"), helpers.Bold(pe.Message))
+	}
+	return fmt.Sprintf("%s %s: %s", fmt.Sprintf("%s:%d:%d", pe.File, pe.Location.Line, pe.Location.Column), helpers.Colorize("ERROR", "red"), helpers.Bold(pe.Message))
 }

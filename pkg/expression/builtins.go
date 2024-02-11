@@ -3,7 +3,71 @@ package expression
 import (
 	"fmt"
 	"reflect"
+	"slices"
 )
+
+var builtinNames = []string{
+	"float32",
+	"float64",
+	"int",
+	"int8",
+	"int16",
+	"int32",
+	"int64",
+	"uint",
+	"uint8",
+	"uint16",
+	"uint32",
+	"uint64",
+	"uintptr",
+	"len",
+	"range",
+	"rangeStep",
+}
+
+var builtinsOne = map[string]func(val any) any{
+	"float32": castFloat32,
+	"float64": castFloat64,
+	"int":     castInt,
+	"int8":    castInt8,
+	"int16":   castInt16,
+	"int32":   castInt32,
+	"int64":   castInt64,
+	"uint":    castUint,
+	"uint8":   castUint8,
+	"uint16":  castUint16,
+	"uint32":  castUint32,
+	"uint64":  castUint64,
+	"uintptr": castUintptr,
+	"len":     length,
+}
+
+var builtinsTwo = map[string]func(val1, val2 any) any{
+	"range": rangeArray,
+}
+
+var builtinsThree = map[string]func(val1, val2, val3 any) any{
+	"rangeStep": rangeArrayStep,
+}
+
+var numBuiltinsOne = reflect.ValueOf(builtinsOne).Len()
+var numBuiltinsTwo = reflect.ValueOf(builtinsTwo).Len()
+var numBuiltinsThree = reflect.ValueOf(builtinsThree).Len()
+
+func builtinType(name string) int {
+	idx := slices.Index(builtinNames, name)
+	if idx == -1 {
+		panic("not a builtin")
+	} else if idx < numBuiltinsOne {
+		return 1
+	} else if idx < numBuiltinsOne+numBuiltinsTwo {
+		return 2
+	} else if idx < numBuiltinsOne+numBuiltinsTwo+numBuiltinsThree {
+		return 3
+	}
+
+	panic("not implemented")
+}
 
 func length(_val any) any {
 	switch val := _val.(type) {

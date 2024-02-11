@@ -8,10 +8,14 @@ import (
 
 func TestCompiler(t *testing.T) {
 	t.Run("simple expression", func(t *testing.T) {
-		tok := tokenizer.NewTokenizer("{{ test.int(int(123)) }}")
-		tok.Tokenize()
-		p := NewParser(tok.Elements[0].Tokens())
-		expr, err := p.Parse()
+		elements, err := tokenizer.Tokenize("{{ test.int(int(123)) }}")
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+
+		p := newParser(elements[1].(*tokenizer.Mustache).Tokens)
+		expr, err := p.parser()
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 			return
