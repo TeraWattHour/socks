@@ -1,8 +1,9 @@
 # Socks
 
-Socks is a simple template engine for Go. It is made to be simple
-and easy to use. It's not a code generator, so its performance is
-not the best, but it's good enough for most use cases.
+Socks is a templating library for Go. It is made to be simple
+and easy to use. It provides easy ways to extend and include
+templates, it comes with a custom bytecode expression evaluator, 
+static evaluation and more nice-to-haves. 
 
 ## Getting started
 
