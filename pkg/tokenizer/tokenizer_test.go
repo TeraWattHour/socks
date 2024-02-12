@@ -225,6 +225,10 @@ func TestTokenization(t *testing.T) {
     
     @endtemplate
 
+	<style>
+		@import url(some font)
+	</style>
+
 
     <p>Hello from the {{ Server }} server</p>
 

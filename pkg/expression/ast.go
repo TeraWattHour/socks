@@ -6,6 +6,11 @@ import (
 	"strings"
 )
 
+type WrappedExpression struct {
+	Expr           Expression
+	RequiredIdents []string
+}
+
 type Node interface {
 	Literal() string
 	IsEqual(Node) bool

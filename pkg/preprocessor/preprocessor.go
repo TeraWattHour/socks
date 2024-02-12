@@ -7,12 +7,14 @@ import (
 	errors2 "github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/parser"
 	"github.com/terawatthour/socks/pkg/tokenizer"
+	"reflect"
 )
 
 type Preprocessor struct {
 	files         map[string]string
 	processed     map[string]string
 	staticContext map[string]interface{}
+	sanitizer     func(string) string
 }
 
 type filePreprocessor struct {
@@ -23,10 +25,11 @@ type filePreprocessor struct {
 	i            int
 }
 
-func New(files map[string]string, staticContext map[string]interface{}) *Preprocessor {
+func New(files map[string]string, staticContext map[string]interface{}, sanitizer func(string) string) *Preprocessor {
 	return &Preprocessor{
 		files:         files,
 		staticContext: staticContext,
+		sanitizer:     sanitizer,
 	}
 }
 
@@ -99,7 +102,63 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 		}
 	}
 
+	evaluationResult, err := evaluate(fp.result, fp.preprocessor.staticContext, fp.preprocessor.sanitizer)
+	if err != nil {
+		updateParents(fp.result)
+		fp.foldText()
+		return fp.result, nil
+	}
+
+	fp.result = evaluationResult
+
+	updateParents(fp.result)
+	fp.foldText()
+
 	return fp.result, nil
+}
+
+func (fp *filePreprocessor) foldText() {
+	for i := 1; i < len(fp.result); i++ {
+		if fp.result[i].Kind() == "text" && fp.result[i-1].Kind() == "text" {
+			text1 := fp.result[i-1].(*parser.Text)
+			text2 := fp.result[i].(*parser.Text)
+			if text1.Parent != text2.Parent {
+				continue
+			}
+			text1.Content += text2.Content
+			text1.ChangeProgramCount(-1)
+			fp.result = append(fp.result[:i], fp.result[i+1:]...)
+			i--
+		}
+	}
+}
+
+// TODO: this shouldn't be required, but the preprocessor doesn't set the parent for nested programs
+// that were inserted in @template or @extend
+func updateParents(programs []parser.Program) {
+	parents := make([]parser.Statement, 0)
+	indents := make([]int, 0)
+	for _, program := range programs {
+		var parent parser.Statement
+		if len(indents) > 0 {
+			parent = parents[len(parents)-1]
+			for i := len(indents) - 1; i >= 0; i-- {
+				indents[i] -= 1
+				if indents[i] == 0 {
+					indents = indents[:i]
+					parents = parents[:i]
+				}
+			}
+		}
+		program := reflect.ValueOf(program).Interface().(parser.Program)
+		program.SetParent(parent)
+
+		programsField := reflect.Indirect(reflect.ValueOf(program)).FieldByName("Programs")
+		if programsField.IsValid() {
+			indents = append(indents, int(programsField.Int()))
+			parents = append(parents, program.(parser.Statement))
+		}
+	}
 }
 
 func (fp *filePreprocessor) evaluateTemplateStatement() error {

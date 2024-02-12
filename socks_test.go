@@ -32,7 +32,6 @@ func TestBasicEvaluation(t *testing.T) {
 
 	res, err := s.ExecuteToString("test_data/nested.html", map[string]interface{}{
 		"Phrases": []Phrase{{Content: "Hello", Language: "en"}, {Content: "Hallo", Language: "de"}},
-		"Server":  "Socks",
 	})
 	if err != nil {
 		fmt.Println(err)

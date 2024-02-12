@@ -21,7 +21,7 @@ func TestCompiler(t *testing.T) {
 			return
 		}
 
-		compiler := NewCompiler(expr)
+		compiler := NewCompiler(expr.Expr)
 		compiler.Compile()
 
 		//

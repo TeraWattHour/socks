@@ -5,6 +5,7 @@ import (
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/parser"
+	"reflect"
 )
 
 type Evaluator struct {
@@ -39,7 +40,7 @@ func (e *Evaluator) Evaluate(context map[string]any) (string, error) {
 func (e *Evaluator) evaluateProgram(program parser.Program, context map[string]any) error {
 	switch program.Kind() {
 	case "text":
-		e.result += string(program.(parser.Text))
+		e.result += program.(*parser.Text).Content
 		e.i += 1
 		return nil
 	default:
@@ -77,7 +78,7 @@ func (e *Evaluator) evaluateIfStatement(statement parser.Statement, context map[
 
 	before := e.i
 	if resultBool {
-		for e.i < before+ifStatement.Programs && e.i < len(e.programs) {
+		for e.i < before+ifStatement.Programs {
 			err := e.evaluateProgram(e.programs[e.i], context)
 			if err != nil {
 				return err
@@ -101,7 +102,7 @@ func (e *Evaluator) evaluateForStatement(statement parser.Statement, context map
 
 	values := helpers.ConvertInterfaceToSlice(obj)
 	if values == nil {
-		return errors.NewErrorWithLocation("for loop iterable must be either a slice, array or map", forStatement.Location())
+		return errors.NewErrorWithLocation(fmt.Sprintf("for loop iterable must be either a slice, array or map, received %s", reflect.TypeOf(obj)), forStatement.Location())
 	}
 
 	before := e.i
