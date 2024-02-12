@@ -168,12 +168,14 @@ outerLoop:
 			vm.stack.push(binaryDivision(left, right))
 		}
 	}
+
 	if len(vm.stack) == 0 {
 		return nil, fmt.Errorf("expression doesnt return a value")
 	}
 
 	if len(vm.stack) != 1 {
-		panic(fmt.Sprintf("expression returns multiple values"))
+		fmt.Println(vm.stack)
+		return nil, fmt.Errorf("expression returns multiple values")
 	}
 
 	return vm.stack.pop(), nil

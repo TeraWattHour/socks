@@ -36,7 +36,7 @@ func (p *_parser) Parse() ([]Program, error) {
 	for p.piece != nil {
 		switch p.piece.Kind() {
 		case tokenizer.TextKind:
-			p.programs = append(p.programs, Text(p.piece.(tokenizer.Text)))
+			p.programs = append(p.programs, &Text{string(p.piece.(tokenizer.Text)), p.parent()})
 		case tokenizer.MustacheKind:
 			piece := p.piece.(*tokenizer.Mustache)
 			if piece.IsComment {
@@ -48,7 +48,7 @@ func (p *_parser) Parse() ([]Program, error) {
 			if err != nil {
 				return nil, err
 			}
-			compiled, err := expression.NewCompiler(expr).Compile()
+			compiled, err := expression.NewCompiler(expr.Expr).Compile()
 			if err != nil {
 				return nil, err
 			}
@@ -56,7 +56,14 @@ func (p *_parser) Parse() ([]Program, error) {
 			vm := expression.NewVM(compiled)
 
 			if expr != nil {
-				p.programs = append(p.programs, &PrintStatement{Program: vm, tag: piece, noStatic: p.checkNoStatic()})
+				p.addDependencies(expr.RequiredIdents...)
+				p.programs = append(p.programs, &PrintStatement{
+					Program:      vm,
+					tag:          piece,
+					noStatic:     p.checkNoStatic(),
+					Parent:       p.parent(),
+					Dependencies: expr.RequiredIdents,
+				})
 			}
 		case tokenizer.StatementKind:
 			statement, err := p.parseStatement()
@@ -109,7 +116,7 @@ func (p *_parser) parseIfStatement() (Statement, error) {
 		return nil, err
 	}
 
-	compiled, err := expression.NewCompiler(expr).Compile()
+	compiled, err := expression.NewCompiler(expr.Expr).Compile()
 	if err != nil {
 		return nil, err
 	}
@@ -122,12 +129,14 @@ func (p *_parser) parseIfStatement() (Statement, error) {
 		Program:   vm,
 		noStatic:  noStatic || p.checkNoStatic(),
 		bodyStart: len(p.programs) + 1,
-		Parent:    p.getParent(),
+		Parent:    p.parent(),
 		location:  piece.Location,
 	}
 
 	p.noStatic = append(p.noStatic, noStatic)
 	p.unclosed = append(p.unclosed, statement)
+	p.addDependencies(expr.RequiredIdents...)
+
 	return statement, nil
 }
 
@@ -143,11 +152,14 @@ func (p *_parser) parseForStatement() (Statement, error) {
 
 	var keyName string
 	valueName := tokens[0].Literal
+	locals := []string{valueName}
+
 	if tokens[1].Kind == tokenizer.TokComma {
 		if tokens[2].Kind != tokenizer.TokIdent {
 			return nil, errors.NewError("unexpected token: '@for'")
 		}
 		keyName = tokens[2].Literal
+		locals = append(locals, keyName)
 		if tokens[3].Kind != tokenizer.TokIn {
 			return nil, errors.NewError("unexpected token: '@for'")
 		}
@@ -164,7 +176,7 @@ func (p *_parser) parseForStatement() (Statement, error) {
 		return nil, err
 	}
 
-	compiled, err := expression.NewCompiler(expr).Compile()
+	compiled, err := expression.NewCompiler(expr.Expr).Compile()
 	if err != nil {
 		return nil, err
 	}
@@ -179,12 +191,14 @@ func (p *_parser) parseForStatement() (Statement, error) {
 		Iterable:  vm,
 		noStatic:  noStatic || p.checkNoStatic(),
 		bodyStart: len(p.programs) + 1,
-		Parent:    p.getParent(),
+		Parent:    p.parent(),
 		location:  piece.Location,
 	}
 
 	p.unclosed = append(p.unclosed, statement)
 	p.noStatic = append(p.noStatic, noStatic)
+	p.addDependencies(expr.RequiredIdents...)
+
 	return statement, nil
 }
 
@@ -216,7 +230,7 @@ func (p *_parser) parseDefineStatement() (Statement, error) {
 
 	statement := &DefineStatement{
 		Name:      piece.Tokens[1].Literal,
-		Parent:    p.getParent(),
+		Parent:    p.parent(),
 		bodyStart: len(p.programs) + 1,
 		Depth:     len(p.unclosed),
 		location:  piece.Location,
@@ -236,7 +250,7 @@ func (p *_parser) parseSlotStatement() (Statement, error) {
 
 	statement := &SlotStatement{
 		Name:      piece.Tokens[1].Literal,
-		Parent:    p.getParent(),
+		Parent:    p.parent(),
 		bodyStart: len(p.programs) + 1,
 		Depth:     len(p.unclosed),
 		location:  piece.Location,
@@ -256,7 +270,7 @@ func (p *_parser) parseTemplateStatement() (Statement, error) {
 	statement := &TemplateStatement{
 		Template:  piece.Tokens[1].Literal,
 		BodyStart: len(p.programs) + 1,
-		Parent:    p.getParent(),
+		Parent:    p.parent(),
 		Depth:     len(p.unclosed),
 		location:  piece.Location,
 	}
@@ -290,6 +304,7 @@ func (p *_parser) parseEndStatement() (Statement, error) {
 	case "for":
 		forStatement := last.(*ForStatement)
 		forStatement.Programs = len(p.programs) - forStatement.bodyStart
+		p.removeDependencies(forStatement.KeyName, forStatement.ValueName)
 		p.noStatic = p.noStatic[:len(p.noStatic)-1]
 	case "slot":
 		slotStatement := last.(*SlotStatement)
@@ -326,7 +341,41 @@ func (p *_parser) next() {
 	}
 }
 
-func (p *_parser) getParent() Statement {
+func (p *_parser) addDependencies(dependencies ...string) {
+	for _, unclosed := range p.unclosed {
+		switch unclosed.Kind() {
+		case "if":
+			ifStatement := unclosed.(*IfStatement)
+			ifStatement.Dependencies = append(ifStatement.Dependencies, dependencies...)
+		case "for":
+			forStatement := unclosed.(*ForStatement)
+			forStatement.Dependencies = append(forStatement.Dependencies, dependencies...)
+			forStatement.Dependencies = slices.DeleteFunc(forStatement.Dependencies, func(s string) bool {
+				return s == forStatement.KeyName || s == forStatement.ValueName
+			})
+		}
+	}
+}
+
+func (p *_parser) removeDependencies(dependencies ...string) {
+	for _, unclosed := range p.unclosed {
+		switch unclosed.Kind() {
+		case "if":
+			ifStatement := unclosed.(*IfStatement)
+			ifStatement.Dependencies = slices.DeleteFunc(ifStatement.Dependencies, func(s string) bool {
+				return slices.Contains(dependencies, s)
+			})
+		case "for":
+			forStatement := unclosed.(*ForStatement)
+			forStatement.Dependencies = append(forStatement.Dependencies, dependencies...)
+			forStatement.Dependencies = slices.DeleteFunc(forStatement.Dependencies, func(s string) bool {
+				return slices.Contains(dependencies, s)
+			})
+		}
+	}
+}
+
+func (p *_parser) parent() Statement {
 	if len(p.unclosed) == 0 {
 		return nil
 	}

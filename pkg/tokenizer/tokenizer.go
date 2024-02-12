@@ -63,10 +63,8 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 
 		// open an instruction tag
 		if t.char == '@' && t.prevChar != '\\' {
-			loc := helpers.Location{t.line, t.column}
 			t.next()
 			if isAsciiLetter(t.nextChar) {
-				t.grabText(t.cursor - 1)
 
 				start := t.cursor
 				for isAsciiLetter(t.char) {
@@ -75,8 +73,10 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 				endOfInstruction := t.cursor
 				literal := string(t.template[start:endOfInstruction])
 				if !isValidStatementLiteral(literal) {
-					return nil, errors2.NewErrorWithLocation(fmt.Sprintf("unexpected instruction %s, escape it with a backslash: %s@%s", literal, helpers.Colorize("\\", "green"), literal), loc)
+					continue
 				}
+				t.grabText(start - 1)
+
 				statement := Statement{
 					Instruction: literal,
 					Tokens:      make([]Token, 0),

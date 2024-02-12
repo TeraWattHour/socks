@@ -2,18 +2,18 @@
     <div class="max-w-screen-sm mx-auto w-full">
         <nav class="py-4 pb-4 px-6 flex flex-row justify-between items-center">
             <a class="font-bold text-xl" href="/">
-                @slot("title")
-                    Main page
-                @endslot
+                @slot("title") Main page @endslot
             </a>
-            <span>
-                Today is: {{ now }}
-            </span>
+            <div class="flex flex-row items-center justify-center space-x-3">
+                @for(menu in Menus)
+                    <a href="#">{{ menu }}</a>
+                @endfor
+            </div>
             <div class="flex flex-row items-center space-x-5 justify-end">
                 <a
-                    href="#"
-                    target="_blank"
-                    class="p-2 hover:bg-neutral-900 transition-all rounded-md"
+                        href="#"
+                        target="_blank"
+                        class="p-2 hover:bg-neutral-900 transition-all rounded-md"
                 >
                     <svg
                             role="img"

@@ -25,3 +25,52 @@ func ConvertInterfaceToSlice(obj any) []any {
 
 	return nil
 }
+
+func Filter[T any](ss []T, test func(T) bool) (ret []T) {
+	for _, s := range ss {
+		if test(s) {
+			ret = append(ret, s)
+		}
+	}
+	return
+}
+
+func SlicesEqual[T comparable](a, b []T) bool {
+	if len(a) != len(b) {
+		return false
+	}
+	for _, v := range a {
+		found := true
+		for _, w := range b {
+			if v == w {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}
+
+// Subset checks whether a is a subset of B
+func Subset[T comparable](a, B []T) bool {
+	if len(a) > len(B) {
+		return false
+	}
+
+	for _, v := range a {
+		found := false
+		for _, w := range B {
+			if v == w {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
+}

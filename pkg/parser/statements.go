@@ -12,24 +12,39 @@ type Program interface {
 	Kind() string
 	String() string
 	Location() helpers.Location
+	ChangeProgramCount(int)
+	SetParent(Statement)
 }
 
-type Text string
+type Text struct {
+	Content string
+	Parent  Statement
+}
 
-func (t Text) Kind() string {
+func (t *Text) ChangeProgramCount(i int) {
+	if t.Parent != nil {
+		t.Parent.ChangeProgramCount(i)
+	}
+}
+
+func (t *Text) Kind() string {
 	return "text"
 }
 
-func (t Text) String() string {
-	return fmt.Sprintf("%s: `%s`", helpers.FixedWidth("TEXT", 8), strings.ReplaceAll(string(t), "\n", "\\n"))
+func (t *Text) String() string {
+	return fmt.Sprintf("%s: `%s`", helpers.FixedWidth("TEXT", 8), strings.ReplaceAll(t.Content, "\n", "\\n"))
 }
 
-func (t Text) Tag() *tokenizer.Mustache {
+func (t *Text) Tag() *tokenizer.Mustache {
 	return nil
 }
 
-func (t Text) Location() helpers.Location {
+func (t *Text) Location() helpers.Location {
 	panic("unreachable")
+}
+
+func (t *Text) SetParent(p Statement) {
+	t.Parent = p
 }
 
 type Statement interface {
@@ -38,14 +53,21 @@ type Statement interface {
 	String() string
 	ChangeProgramCount(int)
 	Location() helpers.Location
+	SetParent(Statement)
 }
 
 // ---------------------- Print Statement ----------------------
 
 type PrintStatement struct {
-	Program  *expression.VM
-	tag      *tokenizer.Mustache
-	noStatic bool
+	Program      *expression.VM
+	tag          *tokenizer.Mustache
+	noStatic     bool
+	Parent       Statement
+	Dependencies []string
+}
+
+func (vs *PrintStatement) SetParent(p Statement) {
+	vs.Parent = p
 }
 
 func (vs *PrintStatement) Location() helpers.Location {
@@ -53,7 +75,9 @@ func (vs *PrintStatement) Location() helpers.Location {
 }
 
 func (vs *PrintStatement) ChangeProgramCount(i int) {
-	return
+	if vs.Parent != nil {
+		vs.Parent.ChangeProgramCount(i)
+	}
 }
 
 func (vs *PrintStatement) String() string {
@@ -75,12 +99,17 @@ func (vs *PrintStatement) Tag() *tokenizer.Mustache {
 // ---------------------- If Statement ----------------------
 
 type IfStatement struct {
-	Program   *expression.VM
-	bodyStart int
-	Programs  int
-	noStatic  bool
-	Parent    Statement
-	location  helpers.Location
+	Program      *expression.VM
+	bodyStart    int
+	Programs     int
+	noStatic     bool
+	Parent       Statement
+	location     helpers.Location
+	Dependencies []string
+}
+
+func (vs *IfStatement) SetParent(p Statement) {
+	vs.Parent = p
 }
 
 func (vs *IfStatement) Location() helpers.Location {
@@ -109,14 +138,19 @@ func (vs *IfStatement) Kind() string {
 // ---------------------- For Statement ----------------------
 
 type ForStatement struct {
-	Iterable  *expression.VM
-	KeyName   string
-	ValueName string
-	Programs  int
-	bodyStart int
-	noStatic  bool
-	Parent    Statement
-	location  helpers.Location
+	Iterable     *expression.VM
+	KeyName      string
+	ValueName    string
+	Programs     int
+	bodyStart    int
+	noStatic     bool
+	Parent       Statement
+	location     helpers.Location
+	Dependencies []string
+}
+
+func (es *ForStatement) SetParent(p Statement) {
+	es.Parent = p
 }
 
 func (es *ForStatement) Location() helpers.Location {
@@ -152,6 +186,10 @@ type ExtendStatement struct {
 	location helpers.Location
 }
 
+func (es *ExtendStatement) SetParent(p Statement) {
+	return
+}
+
 func (es *ExtendStatement) Location() helpers.Location {
 	return es.location
 }
@@ -181,6 +219,10 @@ type TemplateStatement struct {
 	BodyStart int
 	Depth     int
 	Parent    Statement
+}
+
+func (es *TemplateStatement) SetParent(p Statement) {
+	es.Parent = p
 }
 
 func (es *TemplateStatement) Location() helpers.Location {
@@ -217,6 +259,10 @@ type SlotStatement struct {
 	location  helpers.Location
 }
 
+func (ss *SlotStatement) SetParent(p Statement) {
+	ss.Parent = p
+}
+
 func (ss *SlotStatement) Location() helpers.Location {
 	return ss.location
 }
@@ -249,6 +295,10 @@ type DefineStatement struct {
 	bodyStart int
 	Parent    Statement
 	Depth     int
+}
+
+func (es *DefineStatement) SetParent(p Statement) {
+	es.Parent = p
 }
 
 func (es *DefineStatement) Location() helpers.Location {

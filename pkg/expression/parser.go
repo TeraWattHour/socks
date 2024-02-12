@@ -17,6 +17,8 @@ type _parser struct {
 	prefixParseFns map[string]func() (Expression, error)
 	infixParseFns  map[string]func(Expression) (Expression, error)
 	cursor         int
+	requiredIdents []string
+	chain          bool
 }
 
 type Precedence int
@@ -79,7 +81,7 @@ var precedences = map[string]Precedence{
 	"bang": PrecPrefix,
 }
 
-func Parse(tokens []tokenizer.Token) (Expression, error) {
+func Parse(tokens []tokenizer.Token) (*WrappedExpression, error) {
 	p := newParser(tokens)
 	return p.parser()
 }
@@ -90,6 +92,8 @@ func newParser(tokens []tokenizer.Token) *_parser {
 		tokens:         tokens,
 		prefixParseFns: make(map[string]func() (Expression, error)),
 		infixParseFns:  make(map[string]func(Expression) (Expression, error)),
+		requiredIdents: make([]string, 0),
+		chain:          false,
 	}
 
 	p.registerPrefix(tokenizer.TokIdent, p.parseIdentifier)
@@ -132,10 +136,10 @@ func newParser(tokens []tokenizer.Token) *_parser {
 	return p
 }
 
-func (p *_parser) parser() (expr Expression, err error) {
+func (p *_parser) parser() (*WrappedExpression, error) {
 	p.advanceToken()
 
-	expr, err = p.parseExpression(PrecLowest)
+	expr, err := p.parseExpression(PrecLowest)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +151,10 @@ func (p *_parser) parser() (expr Expression, err error) {
 		)
 	}
 
-	return expr, nil
+	return &WrappedExpression{
+		Expr:           expr,
+		RequiredIdents: p.requiredIdents,
+	}, nil
 }
 
 func (p *_parser) parseExpression(precedence Precedence) (Expression, error) {
@@ -260,6 +267,7 @@ func (p *_parser) parseRangeExpression(left Expression) (Expression, error) {
 }
 
 func (p *_parser) parseVariableAccessExpression(left Expression) (Expression, error) {
+	p.chain = true
 	var err error
 	expr := &VariableAccess{
 		Token:      p.currentToken,
@@ -285,6 +293,8 @@ func (p *_parser) parseVariableAccessExpression(left Expression) (Expression, er
 			return nil, err
 		}
 	}
+
+	p.chain = false
 
 	return expr, nil
 }
@@ -346,6 +356,9 @@ func (p *_parser) parseExpressionList(end string) ([]Expression, error) {
 }
 
 func (p *_parser) parseIdentifier() (Expression, error) {
+	if !p.chain && !slices.Contains(builtinNames, p.currentToken.Literal) {
+		p.requiredIdents = append(p.requiredIdents, p.currentToken.Literal)
+	}
 	return &Identifier{Token: p.currentToken, Value: p.currentToken.Literal}, nil
 }
 

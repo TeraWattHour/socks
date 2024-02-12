@@ -57,6 +57,7 @@ func (s *socks) LoadTemplateFromString(filename string, content string) {
 }
 
 func (s *socks) Compile(staticContext map[string]interface{}) error {
+	s.globals = helpers.CombineMaps(s.globals, staticContext)
 	return s.fs.preprocessTemplates(staticContext)
 }
 

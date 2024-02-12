@@ -1,6 +1,7 @@
 package socks
 
 import (
+	"github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/evaluator"
 	"github.com/terawatthour/socks/pkg/preprocessor"
 	"os"
@@ -27,6 +28,9 @@ func (fs *fileSystem) loadTemplates(patterns ...string) error {
 		entryNames, err := filepath.Glob(pattern)
 		if err != nil {
 			return err
+		}
+		if len(entryNames) == 0 {
+			return errors.NewError("no files found")
 		}
 
 		for _, entryName := range entryNames {
@@ -55,7 +59,7 @@ func (fs *fileSystem) loadTemplateFromString(filename string, content string) {
 }
 
 func (fs *fileSystem) preprocessTemplates(staticContext map[string]interface{}) error {
-	proc := preprocessor.New(fs.files, staticContext)
+	proc := preprocessor.New(fs.files, staticContext, fs.options.Sanitizer)
 	for filename := range fs.files {
 		if content, err := proc.Preprocess(filename, false); err != nil {
 			return err

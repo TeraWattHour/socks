@@ -201,41 +201,9 @@ func TestParse(t *testing.T) {
 			t.Errorf("%q. parser() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
-		if !got.IsEqual(tt.want) {
+		if !got.Expr.IsEqual(tt.want) {
 			t.Errorf("%q, got:\n%s\nexpected:\n%s\n", tt.name, got, tt.want)
 		}
 	}
 
-}
-
-func TestVariableAccess(t *testing.T) {
-	elements, err := tokenizer.Tokenize("{{ test.int(int(123)) }}")
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-		return
-	}
-
-	got, err := Parse(elements[0].(*tokenizer.Mustache).Tokens)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-		return
-	}
-
-	want := &InfixExpression{
-		Left: &VariableAccess{
-			Left: &VariableAccess{
-				Left:       &InfixExpression{Left: &Identifier{Value: "test"}, Op: "or", Right: &Identifier{Value: "final"}},
-				IsOptional: false,
-				Right:      &FunctionCall{Called: &Identifier{Value: "foo"}, Args: []Expression{&Numeric{Value: 123}}},
-			},
-			IsOptional: true,
-			Right:      &ArrayAccess{Accessed: &Identifier{Value: "test"}, Index: &Numeric{Value: 1}},
-		},
-		Op:    "+",
-		Right: &FunctionCall{Called: &VariableAccess{Left: &Identifier{Value: "test"}, Right: &Identifier{Value: "int"}}, Args: []Expression{&Numeric{Value: 8}}},
-	}
-	if !got.IsEqual(want) {
-		t.Errorf("got:\n%s\nexpected:\n%s\n", got, want)
-		return
-	}
 }

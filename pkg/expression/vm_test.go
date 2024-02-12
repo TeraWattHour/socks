@@ -11,24 +11,25 @@ type tescik struct {
 }
 
 func TestVM_Run(t *testing.T) {
-	elements, err := tokenizer.Tokenize("{{ 1 in range(1, 4) }}")
+	elements, err := tokenizer.Tokenize("{{ i < 1 }}")
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 		return
 	}
-	expr, err := Parse(elements[0].(*tokenizer.Mustache).Tokens)
+	expr, err := Parse(elements[1].(*tokenizer.Mustache).Tokens)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 		return
 	}
 
-	compiler := NewCompiler(expr)
+	compiler := NewCompiler(expr.Expr)
 	compiler.Compile()
 
 	printChunk(compiler.chunk)
 
 	vm := NewVM(compiler.chunk)
 	result, err := vm.Run(map[string]any{
+		"i":      0,
 		"idx":    1,
 		"number": int(123),
 		"test":   []string{"pirwszy", "drugi"},
