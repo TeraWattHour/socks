@@ -47,18 +47,9 @@ func (t *Text) SetParent(p Statement) {
 	t.Parent = p
 }
 
-type Statement interface {
-	Kind() string
-	NoStatic() bool
-	String() string
-	ChangeProgramCount(int)
-	Location() helpers.Location
-	SetParent(Statement)
-}
+// ---------------------- Expression (Mustache) ----------------------
 
-// ---------------------- Print Statement ----------------------
-
-type PrintStatement struct {
+type Expression struct {
 	Program      *expression.VM
 	tag          *tokenizer.Mustache
 	noStatic     bool
@@ -66,34 +57,43 @@ type PrintStatement struct {
 	Dependencies []string
 }
 
-func (vs *PrintStatement) SetParent(p Statement) {
+func (vs *Expression) SetParent(p Statement) {
 	vs.Parent = p
 }
 
-func (vs *PrintStatement) Location() helpers.Location {
+func (vs *Expression) Location() helpers.Location {
 	return vs.tag.Location
 }
 
-func (vs *PrintStatement) ChangeProgramCount(i int) {
+func (vs *Expression) ChangeProgramCount(i int) {
 	if vs.Parent != nil {
 		vs.Parent.ChangeProgramCount(i)
 	}
 }
 
-func (vs *PrintStatement) String() string {
-	return "print"
+func (vs *Expression) String() string {
+	return "expression"
 }
 
-func (vs *PrintStatement) NoStatic() bool {
+func (vs *Expression) NoStatic() bool {
 	return vs.noStatic
 }
 
-func (vs *PrintStatement) Kind() string {
-	return "variable"
+func (vs *Expression) Kind() string {
+	return "expression"
 }
 
-func (vs *PrintStatement) Tag() *tokenizer.Mustache {
+func (vs *Expression) Tag() *tokenizer.Mustache {
 	return vs.tag
+}
+
+type Statement interface {
+	Kind() string
+	NoStatic() bool
+	String() string
+	ChangeProgramCount(int)
+	Location() helpers.Location
+	SetParent(Statement)
 }
 
 // ---------------------- If Statement ----------------------

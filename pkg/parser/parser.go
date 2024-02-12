@@ -5,7 +5,6 @@ import (
 	"github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/expression"
 	"github.com/terawatthour/socks/pkg/tokenizer"
-	"reflect"
 	"slices"
 	"strings"
 )
@@ -57,7 +56,7 @@ func (p *_parser) Parse() ([]Program, error) {
 
 			if expr != nil {
 				p.addDependencies(expr.RequiredIdents...)
-				p.programs = append(p.programs, &PrintStatement{
+				p.programs = append(p.programs, &Expression{
 					Program:      vm,
 					tag:          piece,
 					noStatic:     p.checkNoStatic(),
@@ -78,7 +77,7 @@ func (p *_parser) Parse() ([]Program, error) {
 	}
 
 	if len(p.unclosed) > 0 {
-		return nil, errors.NewError("unclosed tag")
+		return nil, errors.NewErrorWithLocation("unclosed tag", p.unclosed[len(p.unclosed)-1].Location())
 	}
 
 	return p.programs, nil
@@ -293,7 +292,7 @@ func (p *_parser) parseEndStatement() (Statement, error) {
 
 	last := p.unclosed[depth-1]
 	if last.(Statement).Kind() != target {
-		return nil, errors.NewError(fmt.Sprintf("unexpected end tag, no '%s' statement to close", target))
+		return nil, errors.NewErrorWithLocation(fmt.Sprintf("unexpected `@end%s`, expected `@end%s`", target, last.Kind()), piece.Location)
 	}
 
 	switch last.Kind() {
@@ -380,31 +379,4 @@ func (p *_parser) parent() Statement {
 		return nil
 	}
 	return p.unclosed[len(p.unclosed)-1]
-}
-
-func PrintPrograms(label string, programs []Program) {
-	fmt.Printf("programs (%s):\n", label)
-	indents := make([]int, 0)
-	for _, program := range programs {
-		if len(indents) > 0 {
-			fmt.Print(strings.Repeat(" ", 2*len(indents)+2*(len(indents)-1)), "└─–")
-			for i := len(indents) - 1; i >= 0; i-- {
-				indents[i] -= 1
-				if indents[i] == 0 {
-					indents = indents[:i]
-				}
-			}
-		}
-		fmt.Print(program)
-		if reflect.TypeOf(program).Kind() == reflect.String {
-			fmt.Println()
-			continue
-		}
-		programsField := reflect.Indirect(reflect.ValueOf(program)).FieldByName("Programs")
-		if programsField.IsValid() {
-			indents = append(indents, int(programsField.Int()))
-		}
-		fmt.Println()
-	}
-	fmt.Println("End programs")
 }

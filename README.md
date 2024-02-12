@@ -48,7 +48,7 @@ func main() {
         panic(err)
     }
 
-    if err := s.PreprocessTemplates(map[string]interface{}{
+    if err := s.Compile(map[string]any{
         "Server": "localhost",
     }); err != nil {
         panic(err)
@@ -60,7 +60,7 @@ func main() {
         return time.Now().Format("2006-01-02 15:04:05")
     })
 	
-    result, err := s.Run("templates/index.html", map[string]interface{}{
+    result, err := s.ExecuteToString("templates/index.html", map[string]any{
         "name": "World",
         "currentTime": func() string {
             return time.Now().Format("01-02-2006 15:04:05")

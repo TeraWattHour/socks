@@ -50,7 +50,7 @@ func (e *Evaluator) evaluateProgram(program parser.Program, context map[string]a
 
 func (e *Evaluator) evaluateStatement(statement parser.Statement, context map[string]any) error {
 	switch statement.(type) {
-	case *parser.PrintStatement:
+	case *parser.Expression:
 		return e.evaluatePrintStatement(statement, context)
 	case *parser.ForStatement:
 		return e.evaluateForStatement(statement, context)
@@ -126,7 +126,7 @@ func (e *Evaluator) evaluateForStatement(statement parser.Statement, context map
 }
 
 func (e *Evaluator) evaluatePrintStatement(statement parser.Statement, context map[string]any) error {
-	printStatement := statement.(*parser.PrintStatement)
+	printStatement := statement.(*parser.Expression)
 
 	result, err := printStatement.Program.Run(context)
 	if err != nil {

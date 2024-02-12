@@ -8,7 +8,7 @@
 
     <p>Hello from the {{ Server }} server</p>
 
-    @for[nostatic](phrase, i in Phrases)
+    @for(phrase, i in Phrases)
     <div>
         @if(i > 0)
         <p>Previous {{ i }}: {{ Phrases[i-1].Content }}</p>

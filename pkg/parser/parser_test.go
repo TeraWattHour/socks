@@ -1,6 +1,7 @@
 package parser
 
 import (
+	"github.com/terawatthour/socks/internal/debug"
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/pkg/tokenizer"
 	"testing"
@@ -30,7 +31,7 @@ func TestParserSimple(t *testing.T) {
 		return
 	}
 
-	PrintPrograms("TestParserSimple", programs)
+	debug.PrintPrograms("TestParserSimple", programs)
 }
 
 func TestDependencies(t *testing.T) {
@@ -69,6 +70,10 @@ func TestDependencies(t *testing.T) {
 	}
 
 	programs, err := Parse(elements)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
+	}
 
 	i := 0
 	for _, program := range programs {
@@ -84,9 +89,9 @@ func TestDependencies(t *testing.T) {
 			if !helpers.SlicesEqual(program.(*IfStatement).Dependencies, expect[i]) {
 				t.Errorf("unexpected result: %v, expected: %v", program.(*IfStatement).Dependencies, expect[i])
 			}
-		case "print":
-			if !helpers.SlicesEqual(program.(*PrintStatement).Dependencies, expect[i]) {
-				t.Errorf("unexpected result: %v, expected: %v", program.(*PrintStatement).Dependencies, expect[i])
+		case "expression":
+			if !helpers.SlicesEqual(program.(*Expression).Dependencies, expect[i]) {
+				t.Errorf("unexpected result: %v, expected: %v", program.(*Expression).Dependencies, expect[i])
 			}
 		}
 		i++

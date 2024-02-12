@@ -63,7 +63,7 @@ func (e *staticEvaluator) evaluateProgram(program parser.Program, context map[st
 
 func (e *staticEvaluator) evaluateStatement(statement parser.Statement, context map[string]any) error {
 	switch statement.(type) {
-	case *parser.PrintStatement:
+	case *parser.Expression:
 		return e.evaluatePrintStatement(statement, context)
 	case *parser.ForStatement:
 		return e.evaluateForStatement(statement, context)
@@ -158,7 +158,7 @@ func (e *staticEvaluator) evaluateForStatement(statement parser.Statement, conte
 }
 
 func (e *staticEvaluator) evaluatePrintStatement(statement parser.Statement, context map[string]any) error {
-	printStatement := statement.(*parser.PrintStatement)
+	printStatement := statement.(*parser.Expression)
 	if printStatement.NoStatic() || !helpers.Subset(printStatement.Dependencies, availableInContext(context)) {
 		e.result = append(e.result, printStatement)
 		e.i += 1

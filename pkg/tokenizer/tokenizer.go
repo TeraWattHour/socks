@@ -63,9 +63,9 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 
 		// open an instruction tag
 		if t.char == '@' && t.prevChar != '\\' {
+			loc := helpers.Location{t.line, t.column}
 			t.next()
 			if isAsciiLetter(t.nextChar) {
-
 				start := t.cursor
 				for isAsciiLetter(t.char) {
 					t.next()
@@ -80,7 +80,7 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 				statement := Statement{
 					Instruction: literal,
 					Tokens:      make([]Token, 0),
-					Location:    helpers.Location{t.line, t.column},
+					Location:    loc,
 				}
 				t.skipWhitespace()
 				if t.char == '[' {
