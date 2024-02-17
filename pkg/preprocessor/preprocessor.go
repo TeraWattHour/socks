@@ -12,6 +12,7 @@ import (
 
 type Preprocessor struct {
 	files         map[string]string
+	nativeMap     map[string]string
 	processed     map[string]string
 	staticContext map[string]interface{}
 	sanitizer     func(string) string
@@ -25,11 +26,12 @@ type filePreprocessor struct {
 	i            int
 }
 
-func New(files map[string]string, staticContext map[string]interface{}, sanitizer func(string) string) *Preprocessor {
+func New(files map[string]string, nativeMap map[string]string, staticContext map[string]interface{}, sanitizer func(string) string) *Preprocessor {
 	return &Preprocessor{
 		files:         files,
 		staticContext: staticContext,
 		sanitizer:     sanitizer,
+		nativeMap:     nativeMap,
 	}
 }
 
@@ -47,14 +49,16 @@ func (p *Preprocessor) Preprocess(filename string, keepSlots bool) ([]parser.Pro
 func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, err error) {
 	content, ok := fp.preprocessor.files[fp.filename]
 	if !ok {
-		return nil, errors2.NewError(fmt.Sprintf("template `%s` not found", fp.filename))
+		return nil, fmt.Errorf("template `%s` not found", fp.filename)
 	}
+
+	nativeName := fp.preprocessor.nativeMap[fp.filename]
 
 	elements, err := tokenizer.Tokenize(content)
 	if err != nil {
 		var tokenizerError *errors2.Error
 		errors.As(err, &tokenizerError)
-		tokenizerError.File = fp.filename
+		tokenizerError.File = nativeName
 
 		return nil, tokenizerError
 	}
@@ -63,7 +67,7 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 	if err != nil {
 		var parserError *errors2.Error
 		errors.As(err, &parserError)
-		parserError.File = fp.filename
+		parserError.File = nativeName
 
 		return nil, parserError
 	}
@@ -78,7 +82,7 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 		case "extend":
 			extends = program.(*parser.ExtendStatement).Template
 			if extends == "" {
-				return nil, errors2.NewErrorWithLocation("extend statement must have a valid file name", program.Location())
+				return nil, errors2.New("extend statement must have a valid file name", program.Location())
 			}
 		case "template":
 			if err := fp.evaluateTemplateStatement(); err != nil {
@@ -104,41 +108,38 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 
 	evaluationResult, err := evaluate(fp.result, fp.preprocessor.staticContext, fp.preprocessor.sanitizer)
 	if err != nil {
-		updateParents(fp.result)
 		fp.foldText()
 		return fp.result, nil
 	}
 
 	fp.result = evaluationResult
-
-	updateParents(fp.result)
 	fp.foldText()
 
 	return fp.result, nil
 }
 
 func (fp *filePreprocessor) foldText() {
+	fp.updateParents()
+
 	for i := 1; i < len(fp.result); i++ {
 		if fp.result[i].Kind() == "text" && fp.result[i-1].Kind() == "text" {
-			text1 := fp.result[i-1].(*parser.Text)
-			text2 := fp.result[i].(*parser.Text)
-			if text1.Parent != text2.Parent {
+			textLeft := fp.result[i-1].(*parser.Text)
+			textRight := fp.result[i].(*parser.Text)
+			if textLeft.Parent != textRight.Parent {
 				continue
 			}
-			text1.Content += text2.Content
-			text1.ChangeProgramCount(-1)
+			textLeft.Content += textRight.Content
+			textLeft.ChangeProgramCount(-1)
 			fp.result = append(fp.result[:i], fp.result[i+1:]...)
 			i--
 		}
 	}
 }
 
-// TODO: this shouldn't be required, but the preprocessor doesn't set the parent for nested programs
-// that were inserted in @template or @extend
-func updateParents(programs []parser.Program) {
+func (fp *filePreprocessor) updateParents() {
 	parents := make([]parser.Statement, 0)
 	indents := make([]int, 0)
-	for _, program := range programs {
+	for _, program := range fp.result {
 		var parent parser.Statement
 		if len(indents) > 0 {
 			parent = parents[len(parents)-1]
@@ -150,7 +151,7 @@ func updateParents(programs []parser.Program) {
 				}
 			}
 		}
-		program := reflect.ValueOf(program).Interface().(parser.Program)
+
 		program.SetParent(parent)
 
 		programsField := reflect.Indirect(reflect.ValueOf(program)).FieldByName("Programs")

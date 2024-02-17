@@ -14,179 +14,70 @@ func TestParse(t *testing.T) {
 		wantErr bool
 	}{
 		{
-			name: "simple expression",
-			expr: "true and false",
-			want: &InfixExpression{
-				Left:  &Boolean{Value: true},
-				Op:    "and",
-				Right: &Boolean{Value: false},
-			},
-			wantErr: false,
-		},
-		{
-			name: "simple expression",
-			expr: "true or false",
-			want: &InfixExpression{
-				Left:  &Boolean{Value: true},
-				Op:    "or",
-				Right: &Boolean{Value: false},
-			},
-			wantErr: false,
-		},
-		{
-			name: "simple expression",
-			expr: "true or false and true",
-			want: &InfixExpression{
-				Left: &Boolean{Value: true},
-				Op:   "or",
-				Right: &InfixExpression{
-					Left:  &Boolean{Value: false},
-					Op:    "and",
-					Right: &Boolean{Value: true},
+			name: "chaining (just identifiers)",
+			expr: "a.b.c",
+			want: &VariableAccess{
+				Left: &VariableAccess{
+					Left:  &Identifier{Value: "a"},
+					Right: &Identifier{Value: "b"},
 				},
+				Right: &Identifier{Value: "c"},
 			},
 			wantErr: false,
 		},
 		{
-			name: "simple expression",
-			expr: "true and false or 7 // 2 == 1",
-			want: &InfixExpression{
-				Left: &InfixExpression{
-					Left:  &Boolean{Value: true},
-					Op:    "and",
-					Right: &Boolean{Value: false},
-				},
-				Op: "or",
-				Right: &InfixExpression{
-					Left: &InfixExpression{
-						Left:  &Numeric{Value: 7},
-						Op:    "//",
-						Right: &Numeric{Value: 2},
+			name: "chaining (combined with array access)",
+			expr: "a.b[1].c.d",
+			want: &VariableAccess{
+				Left: &VariableAccess{
+					Left: &ArrayAccess{
+						Accessed: &VariableAccess{
+							Left:  &Identifier{Value: "a"},
+							Right: &Identifier{Value: "b"},
+						},
+						Index: &Integer{Value: 1},
 					},
-					Op:    "==",
-					Right: &Numeric{Value: 1},
+					Right: &Identifier{Value: "c"},
 				},
+				Right: &Identifier{Value: "d"},
 			},
 			wantErr: false,
 		},
 		{
-			name: "simple expression",
-			expr: "true and false or true and false",
-			want: &InfixExpression{
-				Left: &InfixExpression{
-					Left:  &Boolean{Value: true},
-					Op:    "and",
-					Right: &Boolean{Value: false},
+			name: "chaining (combined with method calls)",
+			expr: "a.b().c[2]",
+			want: &ArrayAccess{
+				Accessed: &VariableAccess{
+					Left: &FunctionCall{
+						Called: &VariableAccess{
+							Left:  &Identifier{Value: "a"},
+							Right: &Identifier{Value: "b"},
+						},
+					},
+					Right: &Identifier{Value: "c"},
 				},
-				Op: "or",
-				Right: &InfixExpression{
-					Left:  &Boolean{Value: true},
-					Op:    "and",
-					Right: &Boolean{Value: false},
-				},
-			},
-			wantErr: false,
-		},
-		{
-			"string literals",
-			`"hello" + "world"`,
-			&InfixExpression{
-				Left:  &StringLiteral{Value: "hello"},
-				Op:    "+",
-				Right: &StringLiteral{Value: "world"},
-			},
-			false,
-		},
-		{
-			name: "algebraic expression",
-			expr: "1 ** 123 / 2",
-			want: &InfixExpression{
-				Left: &InfixExpression{
-					Left:  &Numeric{Value: 1},
-					Op:    "**",
-					Right: &Numeric{Value: 123},
-				},
-				Op:    "/",
-				Right: &Numeric{Value: 2},
+				Index: &Integer{Value: 2},
 			},
 		},
 		{
-			name: "algebraic expression with idents",
-			expr: "1 + 123 / 2 + 1.23 * constant",
-			want: &InfixExpression{
-				Left: &InfixExpression{
-					Left: &Numeric{Value: 1},
-					Op:   "+",
-					Right: &InfixExpression{
-						Left: &Numeric{Value: 123},
-						Op:   "/",
-						Right: &Numeric{
-							Value: 2,
+			name: "recognize builtins",
+			expr: "functionCall().int(int(123))",
+			want: &FunctionCall{
+				Called: &VariableAccess{
+					Left: &FunctionCall{
+						Called: &Identifier{Value: "functionCall"},
+					},
+					Right: &Identifier{Value: "int"},
+				},
+				Args: []Expression{
+					&Builtin{
+						Name: "int",
+						Args: []Expression{
+							&Integer{Value: 123},
 						},
 					},
 				},
-				Op: "+",
-				Right: &InfixExpression{
-					Left: &Numeric{Value: 1.23},
-					Op:   "*",
-					Right: &Identifier{
-						Value: "constant",
-					},
-				},
 			},
-			wantErr: false,
-		},
-		{
-			name: "negation",
-			expr: "not(1 not in [2] and 1 in [2])",
-			want: &PrefixExpression{
-				Op: "not",
-				Right: &InfixExpression{
-					Left: &PrefixExpression{
-						Op: "not",
-						Right: &InfixExpression{
-							Left: &Numeric{Value: 1},
-							Op:   "in",
-							Right: &Array{Items: []Expression{
-								&Numeric{Value: 2},
-							}},
-						},
-					},
-					Op: "and",
-					Right: &InfixExpression{
-						Left: &Numeric{Value: 1},
-						Op:   "in",
-						Right: &Array{
-							Items: []Expression{
-								&Numeric{Value: 2},
-							}},
-					},
-				},
-			},
-		},
-		{
-			"negation",
-			"not(1 not in [2] and 1 in [2])",
-			&PrefixExpression{
-				Op: "not",
-				Right: &InfixExpression{
-					Left: &PrefixExpression{
-						Op: "not",
-						Right: &InfixExpression{
-							Left:  &Numeric{Value: 1},
-							Op:    "in",
-							Right: &Array{Items: []Expression{&Numeric{Value: 2}}},
-						},
-					},
-					Op: "and",
-					Right: &InfixExpression{
-						Left:  &Numeric{Value: 1},
-						Op:    "in",
-						Right: &Array{Items: []Expression{&Numeric{Value: 2}}},
-					},
-				},
-			},
-			false,
 		},
 	}
 	for _, tt := range tests {
@@ -205,5 +96,4 @@ func TestParse(t *testing.T) {
 			t.Errorf("%q, got:\n%s\nexpected:\n%s\n", tt.name, got, tt.want)
 		}
 	}
-
 }

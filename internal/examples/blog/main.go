@@ -19,7 +19,7 @@ func main() {
 		},
 	})
 
-	if err := s.LoadTemplates("examples/blog/templates/*.html"); err != nil {
+	if err := s.LoadTemplates("internal/examples/blog/templates/*.html", "internal/examples/blog/templates"); err != nil {
 		panic(err)
 	}
 
@@ -36,7 +36,7 @@ func main() {
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if _, err := s.Execute(w, "examples/blog/templates/index.html", map[string]interface{}{
+		if _, err := s.Execute(w, "index.html", map[string]interface{}{
 			"currentDate": time.Now(),
 		}); err != nil {
 			w.WriteHeader(500)

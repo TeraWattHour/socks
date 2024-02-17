@@ -11,13 +11,7 @@ type Error struct {
 	Location helpers.Location
 }
 
-func NewError(message string) *Error {
-	return &Error{
-		Message: message,
-	}
-}
-
-func NewErrorWithLocation(message string, location helpers.Location) *Error {
+func New(message string, location helpers.Location) *Error {
 	return &Error{
 		Location: location,
 		Message:  message,
@@ -26,7 +20,7 @@ func NewErrorWithLocation(message string, location helpers.Location) *Error {
 
 func (pe *Error) Error() string {
 	if pe.File == "" {
-		return fmt.Sprintf("%s: %s", helpers.Colorize("ERROR", "red"), helpers.Bold(pe.Message))
+		return pe.Message
 	}
-	return fmt.Sprintf("%s %s: %s", fmt.Sprintf("%s:%d:%d", pe.File, pe.Location.Line, pe.Location.Column), helpers.Colorize("ERROR", "red"), helpers.Bold(pe.Message))
+	return fmt.Sprintf("%s: %s", fmt.Sprintf("%s:%d:%d", pe.File, pe.Location.Line, pe.Location.Column), pe.Message)
 }

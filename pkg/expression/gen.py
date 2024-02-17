@@ -87,15 +87,16 @@ def generate_equality_ops():
 
 
 def generate_compiler_debug():
-    with open('pkg/expression/compiler.go') as f:
-        lines: List[str] = f.readlines()
-        lines = lines[lines.index("// OPCODES\n")+2:]
-        codes = []
-        i = 0
-        while lines[i][0] != ')':
-            line: str = lines[i].strip()
-            if line.endswith(' = iota'):
-                line = line[:-len(' = iota')]
-            codes.append(line)
-            i += 1
-        print(codes)
+    with open('./opcodes.go') as f:
+        original: List[str] = f.readlines()
+        lines = original[original.index("// BEGIN OPCODES\n")+2:original.index("// END OPCODES\n")-2]
+        lines = list(map(lambda x: x.strip().replace(" = iota", "")[2:], filter(lambda x: len(x)>2, lines)))
+        lookup_map = 'var opcodesLookup = map[int]string {\n'
+        for (idx, opcode) in enumerate(lines):
+            lookup_map += f'	Op{opcode}: "{opcode.upper()}",\n'
+        lookup_map += '}\n'
+        result = original[:original.index("// BEGIN LOOKUP\n")+1] + [lookup_map] + original[original.index("// END LOOKUP\n"):]
+    with open("./opcodes.go", 'w') as f:
+        f.write("".join(result))
+
+generate_compiler_debug()

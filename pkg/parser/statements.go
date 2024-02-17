@@ -32,7 +32,7 @@ func (t *Text) Kind() string {
 }
 
 func (t *Text) String() string {
-	return fmt.Sprintf("%s: `%s`", helpers.FixedWidth("TEXT", 8), strings.ReplaceAll(t.Content, "\n", "\\n"))
+	return fmt.Sprintf("%-8s: `%s`", "TEXT", strings.ReplaceAll(t.Content, "\n", "\\n"))
 }
 
 func (t *Text) Tag() *tokenizer.Mustache {
@@ -72,7 +72,7 @@ func (vs *Expression) ChangeProgramCount(i int) {
 }
 
 func (vs *Expression) String() string {
-	return "expression"
+	return fmt.Sprintf("%-8s: %s", "MUSTACHE", vs.tag.Literal)
 }
 
 func (vs *Expression) NoStatic() bool {
@@ -128,7 +128,7 @@ func (vs *IfStatement) NoStatic() bool {
 }
 
 func (vs *IfStatement) String() string {
-	return "if"
+	return fmt.Sprintf("%-8s", "IF")
 }
 
 func (vs *IfStatement) Kind() string {
@@ -166,9 +166,9 @@ func (es *ForStatement) ChangeProgramCount(i int) {
 
 func (es *ForStatement) String() string {
 	if es.KeyName != "" {
-		return fmt.Sprintf("%s: %s, %s in [%p]", helpers.FixedWidth("FOR", 8), es.KeyName, es.ValueName, es)
+		return fmt.Sprintf("%-8s: %s, %s in [%p]", "FOR", es.KeyName, es.ValueName, es)
 	}
-	return fmt.Sprintf("%s: %s in [%p]", helpers.FixedWidth("FOR", 8), es.ValueName, es)
+	return fmt.Sprintf("%-8s: %s in [%p]", "FOR", es.ValueName, es)
 }
 
 func (es *ForStatement) NoStatic() bool {
@@ -186,7 +186,7 @@ type ExtendStatement struct {
 	location helpers.Location
 }
 
-func (es *ExtendStatement) SetParent(p Statement) {
+func (es *ExtendStatement) SetParent(_ Statement) {
 	return
 }
 
@@ -194,12 +194,12 @@ func (es *ExtendStatement) Location() helpers.Location {
 	return es.location
 }
 
-func (es *ExtendStatement) ChangeProgramCount(i int) {
+func (es *ExtendStatement) ChangeProgramCount(int) {
 	return
 }
 
 func (es *ExtendStatement) String() string {
-	return fmt.Sprintf("extend: %s", es.Template)
+	return fmt.Sprintf("%-8s: %s", "EXTEND", es.Template)
 }
 
 func (es *ExtendStatement) NoStatic() bool {
@@ -237,7 +237,7 @@ func (es *TemplateStatement) ChangeProgramCount(i int) {
 }
 
 func (es *TemplateStatement) String() string {
-	return fmt.Sprintf("%s: %s", helpers.FixedWidth("TEMPLATE", 8), es.Template)
+	return fmt.Sprintf("%-8s: %s", "TEMPLATE", es.Template)
 }
 
 func (es *TemplateStatement) NoStatic() bool {
@@ -275,7 +275,7 @@ func (ss *SlotStatement) ChangeProgramCount(i int) {
 }
 
 func (ss *SlotStatement) String() string {
-	return fmt.Sprintf("slot: %s", ss.Name)
+	return fmt.Sprintf("%-8s: %s", "SLOT", ss.Name)
 }
 
 func (ss *SlotStatement) NoStatic() bool {
@@ -317,7 +317,7 @@ func (es *DefineStatement) Kind() string {
 }
 
 func (es *DefineStatement) String() string {
-	return fmt.Sprintf("%s: %s", helpers.FixedWidth("DEFINE", 8), es.Name)
+	return fmt.Sprintf("%-8s: %s", "DEFINE", es.Name)
 }
 
 func (es *DefineStatement) NoStatic() bool {

@@ -427,156 +427,6 @@ func binaryExponentiation(a, b any) any {
 // END BINARY
 
 // BEGIN EQUALITY
-func binaryEqual(a, b any) any {
-	switch a := a.(type) {
-	case string:
-		switch b := b.(type) {
-		case string:
-			return a == b
-		}
-	case int:
-		switch b := b.(type) {
-		case int:
-			return a == b
-		}
-	case int8:
-		switch b := b.(type) {
-		case int8:
-			return a == b
-		}
-	case int16:
-		switch b := b.(type) {
-		case int16:
-			return a == b
-		}
-	case int32:
-		switch b := b.(type) {
-		case int32:
-			return a == b
-		}
-	case int64:
-		switch b := b.(type) {
-		case int64:
-			return a == b
-		}
-	case uint:
-		switch b := b.(type) {
-		case uint:
-			return a == b
-		}
-	case uint8:
-		switch b := b.(type) {
-		case uint8:
-			return a == b
-		}
-	case uint16:
-		switch b := b.(type) {
-		case uint16:
-			return a == b
-		}
-	case uint32:
-		switch b := b.(type) {
-		case uint32:
-			return a == b
-		}
-	case uint64:
-		switch b := b.(type) {
-		case uint64:
-			return a == b
-		}
-	case uintptr:
-		switch b := b.(type) {
-		case uintptr:
-			return a == b
-		}
-	case float32:
-		switch b := b.(type) {
-		case float32:
-			return a == b
-		}
-	case float64:
-		switch b := b.(type) {
-		case float64:
-			return a == b
-		}
-	}
-	return reflect.DeepEqual(a, b)
-}
-func binaryNotEqual(a, b any) any {
-	switch a := a.(type) {
-	case string:
-		switch b := b.(type) {
-		case string:
-			return a != b
-		}
-	case int:
-		switch b := b.(type) {
-		case int:
-			return a != b
-		}
-	case int8:
-		switch b := b.(type) {
-		case int8:
-			return a != b
-		}
-	case int16:
-		switch b := b.(type) {
-		case int16:
-			return a != b
-		}
-	case int32:
-		switch b := b.(type) {
-		case int32:
-			return a != b
-		}
-	case int64:
-		switch b := b.(type) {
-		case int64:
-			return a != b
-		}
-	case uint:
-		switch b := b.(type) {
-		case uint:
-			return a != b
-		}
-	case uint8:
-		switch b := b.(type) {
-		case uint8:
-			return a != b
-		}
-	case uint16:
-		switch b := b.(type) {
-		case uint16:
-			return a != b
-		}
-	case uint32:
-		switch b := b.(type) {
-		case uint32:
-			return a != b
-		}
-	case uint64:
-		switch b := b.(type) {
-		case uint64:
-			return a != b
-		}
-	case uintptr:
-		switch b := b.(type) {
-		case uintptr:
-			return a != b
-		}
-	case float32:
-		switch b := b.(type) {
-		case float32:
-			return a != b
-		}
-	case float64:
-		switch b := b.(type) {
-		case float64:
-			return a != b
-		}
-	}
-	return reflect.DeepEqual(a, b)
-}
 func binaryLessThan(a, b any) any {
 	switch a := a.(type) {
 	case string:
@@ -879,3 +729,74 @@ func binaryGreaterThanEqual(a, b any) any {
 }
 
 // END EQUALITY
+
+func CastToBool(a any) bool {
+	if a == nil {
+		return false
+	}
+
+	switch a := a.(type) {
+	case int:
+		return a != 0
+	case int8:
+		return a != 0
+	case int16:
+		return a != 0
+	case int32:
+		return a != 0
+	case int64:
+		return a != 0
+	case uint:
+		return a != 0
+	case uint8:
+		return a != 0
+	case uint16:
+		return a != 0
+	case uint32:
+		return a != 0
+	case uint64:
+		return a != 0
+	case uintptr:
+		return a != 0
+	case float32:
+		return a != 0
+	case float64:
+		return a != 0
+	case string:
+		return a != ""
+	case bool:
+		return a
+	default:
+		kind := reflect.TypeOf(a).Kind()
+		if kind == reflect.Slice || kind == reflect.Array || kind == reflect.Map {
+			return reflect.ValueOf(a).Len() > 0
+		}
+	}
+	return true
+}
+
+func and(a, b any) any {
+	switch a := a.(type) {
+	case bool:
+		switch b := b.(type) {
+		case bool:
+			return a && b
+		}
+	}
+	aBool := CastToBool(a)
+	bBool := CastToBool(b)
+	return aBool && bBool
+}
+
+func or(a, b any) any {
+	switch a := a.(type) {
+	case bool:
+		switch b := b.(type) {
+		case bool:
+			return a || b
+		}
+	}
+	aBool := CastToBool(a)
+	bBool := CastToBool(b)
+	return aBool || bBool
+}

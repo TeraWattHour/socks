@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/pkg/errors"
+	"github.com/terawatthour/socks/pkg/expression"
 	"github.com/terawatthour/socks/pkg/parser"
 	"reflect"
 )
@@ -58,20 +59,17 @@ func (e *Evaluator) evaluateStatement(statement parser.Statement, context map[st
 		return e.evaluateIfStatement(statement, context)
 	}
 
-	return errors.NewError("unexpected statement")
+	return fmt.Errorf("unexpected statement")
 }
 
 func (e *Evaluator) evaluateIfStatement(statement parser.Statement, context map[string]any) error {
 	ifStatement := statement.(*parser.IfStatement)
 	result, err := ifStatement.Program.Run(context)
 	if err != nil {
-		return errors.NewErrorWithLocation("unable to evaluate: "+err.Error(), ifStatement.Location())
+		return err
 	}
 
-	resultBool, ok := result.(bool)
-	if !ok {
-		return errors.NewErrorWithLocation("expression doesn't return a boolean", ifStatement.Location())
-	}
+	resultBool := expression.CastToBool(result)
 
 	// Discard the first tag program (if statement)
 	e.i += 1
@@ -102,7 +100,7 @@ func (e *Evaluator) evaluateForStatement(statement parser.Statement, context map
 
 	values := helpers.ConvertInterfaceToSlice(obj)
 	if values == nil {
-		return errors.NewErrorWithLocation(fmt.Sprintf("for loop iterable must be either a slice, array or map, received %s", reflect.TypeOf(obj)), forStatement.Location())
+		return errors.New(fmt.Sprintf("for loop iterable must be either a slice, array or map, received %s", reflect.TypeOf(obj)), forStatement.Location())
 	}
 
 	before := e.i
@@ -130,7 +128,7 @@ func (e *Evaluator) evaluatePrintStatement(statement parser.Statement, context m
 
 	result, err := printStatement.Program.Run(context)
 	if err != nil {
-		return errors.NewErrorWithLocation("unable to evaluate expression: "+err.Error(), printStatement.Location())
+		return err
 	}
 
 	stringified := fmt.Sprintf("%v", result)

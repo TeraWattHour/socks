@@ -11,7 +11,7 @@ type tescik struct {
 }
 
 func TestVM_Run(t *testing.T) {
-	elements, err := tokenizer.Tokenize("{{ i < 1 }}")
+	elements, err := tokenizer.Tokenize("{{ parent?.oggncie(123).Aha[0] }}")
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 		return
@@ -24,8 +24,6 @@ func TestVM_Run(t *testing.T) {
 
 	compiler := NewCompiler(expr.Expr)
 	compiler.Compile()
-
-	printChunk(compiler.chunk)
 
 	vm := NewVM(compiler.chunk)
 	result, err := vm.Run(map[string]any{

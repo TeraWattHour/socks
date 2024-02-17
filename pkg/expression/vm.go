@@ -2,6 +2,8 @@ package expression
 
 import (
 	"fmt"
+	"github.com/terawatthour/socks/internal/helpers"
+	errors2 "github.com/terawatthour/socks/pkg/errors"
 	"reflect"
 )
 
@@ -31,12 +33,19 @@ func NewVM(chunk Chunk) *VM {
 }
 
 func (vm *VM) Run(env map[string]any) (any, error) {
-	chain := false
 outerLoop:
 	for ip := 0; ip < len(vm.chunk.Instructions); ip++ {
 		switch vm.chunk.Instructions[ip] {
 		case OpChain:
-			chain = true
+			left := vm.stack.pop()
+			field := vm.chunk.Constants[vm.chunk.Instructions[ip+1]].(string)
+			vm.stack.push(accessVariable(left, field))
+			ip++
+		case OpOptionalChain:
+			left := vm.stack.pop()
+			field := vm.chunk.Constants[vm.chunk.Instructions[ip+1]].(string)
+			vm.stack.push(accessVariable(left, field))
+
 		case OpArrayAccess:
 			_index := vm.stack.pop()
 			_value := vm.stack.pop()
@@ -44,7 +53,7 @@ outerLoop:
 			switch val.Kind() {
 			case reflect.Array, reflect.Slice:
 				if !reflect.ValueOf(_index).CanConvert(reflect.TypeOf(0)) {
-					return nil, fmt.Errorf("expected int, got %v", reflect.TypeOf(_index))
+					return nil, errors2.New(fmt.Sprintf("expected int, got %v", reflect.TypeOf(_index)), vm.chunk.Lookups[ip].(*ArrayAccess).Token.LocationEnd)
 				}
 				index := reflect.ValueOf(_index).Convert(reflect.TypeOf(0)).Int()
 
@@ -52,34 +61,51 @@ outerLoop:
 			case reflect.Map:
 				vm.stack.push(val.MapIndex(reflect.ValueOf(_index)).Interface())
 			default:
-				panic(fmt.Sprintf("expected array or object, got %v", reflect.TypeOf(_value)))
+				return nil, errors2.New(fmt.Sprintf("expected array or object, got %v", reflect.TypeOf(_value)), vm.chunk.Lookups[ip].(*ArrayAccess).Token.LocationEnd)
 			}
 		case OpBuiltin1:
-			function := builtinsOne[builtinNames[vm.chunk.Instructions[ip+1]]]
+			function := builtinsOne[vm.chunk.Instructions[ip+1]]
 			arg := vm.stack.pop()
-			vm.stack.push(function(arg))
+			result := function(arg)
+
+			if general, ok := result.(error); ok {
+				message := general.Error()
+				return nil, errors2.New(message, vm.chunk.Lookups[ip].(*Builtin).Location)
+			}
+
+			vm.stack.push(result)
 			ip++
 		case OpBuiltin2:
-			function := builtinsTwo[builtinNames[vm.chunk.Instructions[ip+1]]]
+			function := builtinsTwo[vm.chunk.Instructions[ip+1]]
 			arg2 := vm.stack.pop()
 			arg1 := vm.stack.pop()
-			vm.stack.push(function(arg1, arg2))
+			result := function(arg1, arg2)
+			if general, ok := result.(error); ok {
+				message := general.Error()
+				return nil, errors2.New(message, vm.chunk.Lookups[ip].(*Builtin).Location)
+			}
+			vm.stack.push(result)
 			ip++
 		case OpBuiltin3:
-			function := builtinsThree[builtinNames[vm.chunk.Instructions[ip+1]]]
+			function := builtinsThree[vm.chunk.Instructions[ip+1]]
 			arg3 := vm.stack.pop()
 			arg2 := vm.stack.pop()
 			arg1 := vm.stack.pop()
-			vm.stack.push(function(arg1, arg2, arg3))
+			result := function(arg1, arg2, arg3)
+			if general, ok := result.(error); ok {
+				message := general.Error()
+				return nil, errors2.New(message, vm.chunk.Lookups[ip].(*Builtin).Location)
+			}
+			vm.stack.push(result)
 			ip++
 		case OpArray:
 			count := vm.chunk.Instructions[ip+1]
-			ip++
 			items := make([]any, count)
 			for j := 0; j < count; j++ {
 				items[count-j-1] = vm.stack.pop()
 			}
 			vm.stack.push(items)
+			ip++
 
 		case OpCall:
 			argumentCount := vm.chunk.Instructions[ip+1]
@@ -98,15 +124,8 @@ outerLoop:
 				vm.stack.push(reflectedSliceToInterfaceSlice(results))
 			}
 		case OpGet:
-			if chain {
-				value := vm.stack.pop()
-				ident := vm.chunk.Constants[vm.chunk.Instructions[ip+1]]
-				vm.stack.push(accessVariable(value, ident))
-				chain = false
-			} else {
-				ident := vm.chunk.Constants[vm.chunk.Instructions[ip+1]].(string)
-				vm.stack.push(env[ident])
-			}
+			ident := vm.chunk.Constants[vm.chunk.Instructions[ip+1]].(string)
+			vm.stack.push(env[ident])
 			ip++
 		case OpConstant:
 			constant := vm.chunk.Constants[vm.chunk.Instructions[ip+1]]
@@ -123,34 +142,36 @@ outerLoop:
 				}
 			}
 			vm.stack.push(false)
-		case OpEqual:
+		case OpEq:
 			left := vm.stack.pop()
 			right := vm.stack.pop()
 			vm.stack.push(left == right)
-		case OpNotEqual:
+		case OpNegate:
+			vm.stack.push(negate(vm.stack.pop()))
+		case OpNeq:
 			right := vm.stack.pop()
 			left := vm.stack.pop()
 			vm.stack.push(left != right)
 		case OpNot:
-			last := vm.stack.pop().(bool)
+			last := CastToBool(vm.stack.pop())
 			vm.stack.push(!last)
 		case OpAdd:
 			right := vm.stack.pop()
 			left := vm.stack.pop()
 			vm.stack.push(binaryAddition(left, right))
-		case OpLessThan:
+		case OpLt:
 			right := vm.stack.pop()
 			left := vm.stack.pop()
 			vm.stack.push(binaryLessThan(left, right))
-		case OpGreaterThan:
+		case OpGt:
 			right := vm.stack.pop()
 			left := vm.stack.pop()
 			vm.stack.push(binaryGreaterThan(left, right))
-		case OpGreaterThanOrEqual:
+		case OpGte:
 			right := vm.stack.pop()
 			left := vm.stack.pop()
 			vm.stack.push(binaryGreaterThanEqual(left, right))
-		case OpLessThanOrEqual:
+		case OpLte:
 			right := vm.stack.pop()
 			left := vm.stack.pop()
 			vm.stack.push(binaryLessThanEqual(left, right))
@@ -166,15 +187,31 @@ outerLoop:
 			right := vm.stack.pop()
 			left := vm.stack.pop()
 			vm.stack.push(binaryDivision(left, right))
+		case OpModulo:
+			right := vm.stack.pop()
+			left := vm.stack.pop()
+			vm.stack.push(binaryModulo(left, right))
+		case OpExponent:
+			right := vm.stack.pop()
+			left := vm.stack.pop()
+			vm.stack.push(binaryExponentiation(left, right))
+		case OpAnd:
+			right := vm.stack.pop()
+			left := vm.stack.pop()
+			vm.stack.push(and(left, right))
+
+		case OpOr:
+			right := vm.stack.pop()
+			left := vm.stack.pop()
+			vm.stack.push(or(left, right))
 		}
 	}
 
 	if len(vm.stack) == 0 {
-		return nil, fmt.Errorf("expression doesnt return a value")
+		return nil, errors2.New("expression does not return a value", helpers.Location{-1, -1})
 	}
 
 	if len(vm.stack) != 1 {
-		fmt.Println(vm.stack)
 		return nil, fmt.Errorf("expression returns multiple values")
 	}
 

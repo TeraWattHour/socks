@@ -6,7 +6,9 @@ import (
 	"slices"
 )
 
+// WARNING: Order of builtins is important
 var builtinNames = []string{
+	// One-argument builtins
 	"float32",
 	"float64",
 	"int",
@@ -21,44 +23,82 @@ var builtinNames = []string{
 	"uint64",
 	"uintptr",
 	"len",
+
+	// Two-argument builtins
+
+	// Three-argument builtins
 	"range",
-	"rangeStep",
 }
 
-var builtinsOne = map[string]func(val any) any{
-	"float32": castFloat32,
-	"float64": castFloat64,
-	"int":     castInt,
-	"int8":    castInt8,
-	"int16":   castInt16,
-	"int32":   castInt32,
-	"int64":   castInt64,
-	"uint":    castUint,
-	"uint8":   castUint8,
-	"uint16":  castUint16,
-	"uint32":  castUint32,
-	"uint64":  castUint64,
-	"uintptr": castUintptr,
-	"len":     length,
+var builtinTypes = map[string][]string{
+	"float32": {"Numeric", "float32"},
+	"float64": {"Numeric", "float64"},
+	"int":     {"Numeric", "int"},
+	"int8":    {"Numeric", "int8"},
+	"int16":   {"Numeric", "int16"},
+	"int32":   {"Numeric", "int32"},
+	"int64":   {"Numeric", "int64"},
+	"uint":    {"Numeric", "uint"},
+	"uint8":   {"Numeric", "uint8"},
+	"uint16":  {"Numeric", "uint16"},
+	"uint32":  {"Numeric", "uint32"},
+	"uint64":  {"Numeric", "uint64"},
+	"uintptr": {"Numeric", "uintptr"},
+	"len":     {"Countable", "len"},
+	"range":   {"Integer", "Integer", "Integer", "[]int"},
 }
 
-var builtinsTwo = map[string]func(val1, val2 any) any{
-	"range": rangeArray,
+var builtinsOne = []func(any) any{
+	castFloat32,
+	castFloat64,
+	castInt,
+	castInt8,
+	castInt16,
+	castInt32,
+	castInt64,
+	castUint,
+	castUint8,
+	castUint16,
+	castUint32,
+	castUint64,
+	castUintptr,
+	length,
 }
 
-var builtinsThree = map[string]func(val1, val2, val3 any) any{
-	"rangeStep": rangeArrayStep,
+var builtinsTwo = []func(any, any) any{}
+
+var builtinsThree = []func(any, any, any) any{
+	rangeArray,
 }
 
 var numBuiltinsOne = reflect.ValueOf(builtinsOne).Len()
 var numBuiltinsTwo = reflect.ValueOf(builtinsTwo).Len()
 var numBuiltinsThree = reflect.ValueOf(builtinsThree).Len()
 
+func builtinRelativeIndex(name string) int {
+	idx := slices.Index(builtinNames, name)
+	if idx == -1 {
+		return -1
+	}
+
+	if idx < numBuiltinsOne {
+		return idx
+	} else if idx < numBuiltinsOne+numBuiltinsTwo {
+		return idx - numBuiltinsOne
+	} else if idx < numBuiltinsOne+numBuiltinsTwo+numBuiltinsThree {
+		return idx - numBuiltinsOne - numBuiltinsTwo
+	}
+
+	return -1
+}
+
 func builtinType(name string) int {
 	idx := slices.Index(builtinNames, name)
 	if idx == -1 {
-		panic("not a builtin")
-	} else if idx < numBuiltinsOne {
+		return -1
+	}
+
+	if idx < numBuiltinsOne {
 		return 1
 	} else if idx < numBuiltinsOne+numBuiltinsTwo {
 		return 2
@@ -66,7 +106,7 @@ func builtinType(name string) int {
 		return 3
 	}
 
-	panic("not implemented")
+	return -1
 }
 
 func length(_val any) any {
@@ -81,43 +121,54 @@ func length(_val any) any {
 	return reflect.ValueOf(_val).Len()
 }
 
-func rangeArray(start, end any) any {
-	switch start := start.(type) {
-	case int:
-		switch end := end.(type) {
-		case int:
-			var result []int
-			for i := start; i < end; i++ {
-				result = append(result, i)
-			}
-			return result
-		}
-	}
-	panic(fmt.Sprintf("cannot range %s to %s", reflect.TypeOf(start), reflect.TypeOf(end)))
-}
-
-func rangeArrayStep(_start, _end, _step any) any {
+func rangeArray(_start, _end, _step any) any {
 	start, startOk := _start.(int)
 	end, endOk := _end.(int)
 	step, stepOk := _step.(int)
 	if !startOk || !endOk || !stepOk {
-		panic(fmt.Sprintf("cannot range %s to %s over %s", reflect.TypeOf(_start), reflect.TypeOf(_end), reflect.TypeOf(_step)))
+		return fmt.Errorf("call to rangeStep(%s, %s, %s) -> []int does not match the signature of rangeStep(Integer, Integer, Integer = 1) -> []int", reflect.TypeOf(_start), reflect.TypeOf(_end), reflect.TypeOf(_step))
 	}
 
 	if step == 0 {
-		panic("step cannot be 0")
+		return fmt.Errorf("step cannot be 0")
 	}
 	if start < end && step < 0 {
-		panic("step cannot be negative")
+		return fmt.Errorf("step cannot be negative while start < end")
 	}
 	if start > end && step > 0 {
-		panic("step cannot be positive")
+		return fmt.Errorf("step cannot be positive while start > end")
 	}
 	var result []int
 	for i := start; i < end; i += step {
 		result = append(result, i)
 	}
 	return result
+}
+
+func negate(val any) any {
+	switch val := val.(type) {
+	case int:
+		return -val
+	case int8:
+		return -val
+	case int16:
+		return -val
+	case int32:
+		return -val
+	case int64:
+		return -val
+	case float32:
+		return -val
+	case float64:
+		return -val
+	case string:
+		runes := []rune(val)
+		for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
+			runes[i], runes[j] = runes[j], runes[i]
+		}
+		return string(runes)
+	}
+	return fmt.Errorf("cannot negate %s", reflect.TypeOf(val))
 }
 
 // BEGIN CASTS
@@ -150,7 +201,8 @@ func castInt(val any) any {
 	case float64:
 		return int(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to int", reflect.TypeOf(val)))
+
+	return fmt.Errorf("cannot cast %s to int", reflect.TypeOf(val))
 }
 
 func castInt8(val any) any {
@@ -182,7 +234,7 @@ func castInt8(val any) any {
 	case float64:
 		return int8(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to int8", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to int8", reflect.TypeOf(val))
 }
 
 func castInt16(val any) any {
@@ -214,7 +266,7 @@ func castInt16(val any) any {
 	case float64:
 		return int16(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to int16", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to int16", reflect.TypeOf(val))
 }
 
 func castInt32(val any) any {
@@ -246,7 +298,7 @@ func castInt32(val any) any {
 	case float64:
 		return int32(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to int32", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to int32", reflect.TypeOf(val))
 }
 
 func castInt64(val any) any {
@@ -278,7 +330,7 @@ func castInt64(val any) any {
 	case float64:
 		return int64(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to int64", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to int64", reflect.TypeOf(val))
 }
 
 func castUint(val any) any {
@@ -310,7 +362,7 @@ func castUint(val any) any {
 	case float64:
 		return uint(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to uint", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to uint", reflect.TypeOf(val))
 }
 
 func castUint8(val any) any {
@@ -342,7 +394,7 @@ func castUint8(val any) any {
 	case float64:
 		return uint8(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to uint8", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to uint8", reflect.TypeOf(val))
 }
 
 func castUint16(val any) any {
@@ -374,7 +426,7 @@ func castUint16(val any) any {
 	case float64:
 		return uint16(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to uint16", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to uint16", reflect.TypeOf(val))
 }
 
 func castUint32(val any) any {
@@ -406,7 +458,7 @@ func castUint32(val any) any {
 	case float64:
 		return uint32(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to uint32", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to uint32", reflect.TypeOf(val))
 }
 
 func castUint64(val any) any {
@@ -438,7 +490,7 @@ func castUint64(val any) any {
 	case float64:
 		return uint64(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to uint64", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to uint64", reflect.TypeOf(val))
 }
 
 func castUintptr(val any) any {
@@ -470,7 +522,7 @@ func castUintptr(val any) any {
 	case float64:
 		return uintptr(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to uintptr", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to uintptr", reflect.TypeOf(val))
 }
 
 func castFloat32(val any) any {
@@ -502,7 +554,7 @@ func castFloat32(val any) any {
 	case float64:
 		return float32(val)
 	}
-	panic(fmt.Sprintf("cannot cast %s to float32", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to float32", reflect.TypeOf(val))
 }
 
 func castFloat64(val any) any {
@@ -534,7 +586,7 @@ func castFloat64(val any) any {
 	case float64:
 		return val
 	}
-	panic(fmt.Sprintf("cannot cast %s to float64", reflect.TypeOf(val)))
+	return fmt.Errorf("cannot cast %s to float64", reflect.TypeOf(val))
 }
 
 // END CASTS

@@ -71,7 +71,7 @@ func (e *staticEvaluator) evaluateStatement(statement parser.Statement, context 
 		return e.evaluateIfStatement(statement, context)
 	}
 
-	return errors.NewError("unexpected statement")
+	return fmt.Errorf("unexpected statement")
 }
 
 func (e *staticEvaluator) evaluateIfStatement(statement parser.Statement, context map[string]any) error {
@@ -84,12 +84,12 @@ func (e *staticEvaluator) evaluateIfStatement(statement parser.Statement, contex
 
 	result, err := ifStatement.Program.Run(context)
 	if err != nil {
-		return errors.NewErrorWithLocation("unable to evaluate: "+err.Error(), ifStatement.Location())
+		return errors.New("unable to evaluate: "+err.Error(), ifStatement.Location())
 	}
 
 	resultBool, ok := result.(bool)
 	if !ok {
-		return errors.NewErrorWithLocation("expression doesn't return a boolean", ifStatement.Location())
+		return errors.New("expression doesn't return a boolean", ifStatement.Location())
 	}
 
 	// Discard the first tag program (if statement)
@@ -131,7 +131,7 @@ func (e *staticEvaluator) evaluateForStatement(statement parser.Statement, conte
 
 	values := helpers.ConvertInterfaceToSlice(obj)
 	if values == nil {
-		return errors.NewErrorWithLocation("for loop iterable must be either a slice, array or map", forStatement.Location())
+		return errors.New("for loop iterable must be either a slice, array or map", forStatement.Location())
 	}
 
 	before := e.i
@@ -167,7 +167,7 @@ func (e *staticEvaluator) evaluatePrintStatement(statement parser.Statement, con
 
 	result, err := printStatement.Program.Run(context)
 	if err != nil {
-		return errors.NewErrorWithLocation("unable to evaluate expression: "+err.Error(), printStatement.Location())
+		return errors.New("unable to evaluate expression: "+err.Error(), printStatement.Location())
 	}
 
 	stringified := fmt.Sprintf("%v", result)

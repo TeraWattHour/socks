@@ -1,8 +1,6 @@
 package tokenizer
 
 const (
-	TokUnknown = "unknown" // TokUnknown is used for tokens that needn't be recognised by the templating engine but may be used in evaluation
-
 	TokIdent  = "ident"
 	TokNumber = "number"
 	TokString = "string"
@@ -24,7 +22,6 @@ const (
 	TokLte = "lte"
 	TokGte = "gte"
 
-	TokAmpersand     = "ampersand"
 	TokBang          = "bang"
 	TokPlus          = "plus"
 	TokMinus         = "minus"

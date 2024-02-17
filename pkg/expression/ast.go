@@ -2,13 +2,14 @@ package expression
 
 import (
 	"fmt"
+	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/pkg/tokenizer"
 	"strings"
 )
 
 type WrappedExpression struct {
-	Expr           Expression
-	RequiredIdents []string
+	Expr         Expression
+	Dependencies []string
 }
 
 type Node interface {
@@ -47,9 +48,10 @@ func (s *Identifier) String() string {
 }
 
 type Builtin struct {
-	Name  string
-	Token *tokenizer.Token
-	Args  []Expression
+	Name     string
+	Token    *tokenizer.Token
+	Args     []Expression
+	Location helpers.Location
 }
 
 func (s *Builtin) IsEqual(node Node) bool {
@@ -96,18 +98,11 @@ func (s *Boolean) Type() string {
 }
 
 func (s *Boolean) String() string {
-	if s.Value {
-		return fmt.Sprintf("[bool: true]")
-	}
-	return fmt.Sprintf("[bool: false]")
+	return fmt.Sprintf("[bool: %v]", s.Value)
 }
 
 func (s *Boolean) Literal() string {
-	if s.Value {
-		return "true"
-	} else {
-		return "false"
-	}
+	return fmt.Sprintf("%v", s.Value)
 }
 
 type Integer struct {
@@ -134,27 +129,27 @@ func (s *Integer) Literal() string {
 	return s.Token.Literal
 }
 
-type Numeric struct {
+type Float struct {
 	Value float64
 	Token *tokenizer.Token
 }
 
-func (s *Numeric) IsEqual(node Node) bool {
-	if node, ok := node.(*Numeric); ok {
+func (s *Float) IsEqual(node Node) bool {
+	if node, ok := node.(*Float); ok {
 		return s.Value == node.Value
 	}
 	return false
 }
 
-func (s *Numeric) Type() string {
-	return "numeric"
+func (s *Float) Type() string {
+	return "float"
 }
 
-func (s *Numeric) String() string {
-	return fmt.Sprintf("[numeric: %v]", s.Value)
+func (s *Float) String() string {
+	return fmt.Sprintf("[float: %v]", s.Value)
 }
 
-func (s *Numeric) Literal() string {
+func (s *Float) Literal() string {
 	return s.Token.Literal
 }
 
@@ -350,7 +345,7 @@ type VariableAccess struct {
 	Token      *tokenizer.Token
 	Left       Expression
 	IsOptional bool
-	Right      Expression
+	Right      *Identifier
 }
 
 func (s *VariableAccess) IsEqual(node Node) bool {
@@ -378,29 +373,4 @@ func (s *VariableAccess) String() string {
 		accessor = "?."
 	}
 	return fmt.Sprintf("[variable: %s%s%s]", s.Left.String(), accessor, s.Right.String())
-}
-
-type Range struct {
-	Start Expression
-	End   Expression
-	Token *tokenizer.Token
-}
-
-func (s *Range) IsEqual(node Node) bool {
-	if node, ok := node.(*Range); ok {
-		return s.Start.IsEqual(node.Start) && s.End.IsEqual(node.End)
-	}
-	return false
-}
-
-func (s *Range) Type() string {
-	return "range"
-}
-
-func (s *Range) Literal() string {
-	return fmt.Sprintf("%s..%s", s.Start.Literal(), s.End.Literal())
-}
-
-func (s *Range) String() string {
-	return fmt.Sprintf("[range: %s..%s]", s.Start.String(), s.End.String())
 }

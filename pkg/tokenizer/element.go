@@ -26,11 +26,7 @@ func (t Text) Kind() ElementKind {
 }
 
 func (t Text) String() string {
-	return fmt.Sprintf("TEXT: `%s`", strings.ReplaceAll(string(t), "\n", "\\n"))
-}
-
-func (t Text) Tokens() []Token {
-	return nil
+	return fmt.Sprintf("TEXT      : `%s`", strings.ReplaceAll(string(t), "\n", "\\n"))
 }
 
 type Mustache struct {
@@ -47,10 +43,11 @@ func (t *Mustache) Kind() ElementKind {
 }
 
 func (t *Mustache) String() string {
-	return t.Literal
+	return fmt.Sprintf("MUSTACHE  : `%s`", t.Literal)
 }
 
 type Statement struct {
+	Literal     string
 	Instruction string
 	Tokens      []Token
 	Flags       []string
@@ -62,5 +59,8 @@ func (s *Statement) Kind() ElementKind {
 }
 
 func (s *Statement) String() string {
-	return s.Instruction
+	if s.Literal == "" {
+		return fmt.Sprintf("STATEMENT : `@%s`", s.Instruction)
+	}
+	return fmt.Sprintf("STATEMENT : `@%s%s`", s.Instruction, s.Literal)
 }

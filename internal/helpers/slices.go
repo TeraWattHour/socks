@@ -26,15 +26,6 @@ func ConvertInterfaceToSlice(obj any) []any {
 	return nil
 }
 
-func Filter[T any](ss []T, test func(T) bool) (ret []T) {
-	for _, s := range ss {
-		if test(s) {
-			ret = append(ret, s)
-		}
-	}
-	return
-}
-
 func SlicesEqual[T comparable](a, b []T) bool {
 	if len(a) != len(b) {
 		return false

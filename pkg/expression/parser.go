@@ -17,7 +17,7 @@ type _parser struct {
 	prefixParseFns map[string]func() (Expression, error)
 	infixParseFns  map[string]func(Expression) (Expression, error)
 	cursor         int
-	requiredIdents []string
+	dependencies   []string
 	chain          bool
 }
 
@@ -31,7 +31,6 @@ const (
 	PrecEqual
 	PrecLessGreater
 	PrecInclusion
-	PrecSets
 	PrecInfix
 	PrecMultiply
 	PrecPower
@@ -41,44 +40,39 @@ const (
 )
 
 var precedences = map[string]Precedence{
-	"ident": PrecLowest,
+	tokenizer.TokIdent: PrecLowest,
 
-	"or":  PrecOr,
-	"and": PrecAnd,
+	tokenizer.TokOr:  PrecOr,
+	tokenizer.TokAnd: PrecAnd,
 
-	"eq":  PrecEqual,
-	"neq": PrecEqual,
+	tokenizer.TokEq:  PrecEqual,
+	tokenizer.TokNeq: PrecEqual,
 
-	"lt":  PrecLessGreater,
-	"lte": PrecLessGreater,
-	"gt":  PrecLessGreater,
-	"gte": PrecLessGreater,
+	tokenizer.TokLt:  PrecLessGreater,
+	tokenizer.TokLte: PrecLessGreater,
+	tokenizer.TokGt:  PrecLessGreater,
+	tokenizer.TokGte: PrecLessGreater,
 
-	"in": PrecInclusion,
+	tokenizer.TokIn: PrecInclusion,
 
-	"subset":       PrecSets,
-	"propersubset": PrecSets,
+	tokenizer.TokNot:   PrecInfix,
+	tokenizer.TokPlus:  PrecInfix,
+	tokenizer.TokMinus: PrecInfix,
 
-	"not":        PrecInfix,
-	"plus":       PrecInfix,
-	"minus":      PrecInfix,
-	"ampersand":  PrecInfix,
-	"circumflex": PrecInfix,
-
-	"dot":                      PrecChain,
+	tokenizer.TokDot:           PrecChain,
 	tokenizer.TokOptionalChain: PrecChain,
 
 	tokenizer.TokLparen: PrecCall,
 	tokenizer.TokLbrack: PrecCall,
 
-	"asterisk":  PrecMultiply,
-	"slash":     PrecMultiply,
-	"mod":       PrecMultiply,
-	"floor_div": PrecMultiply,
+	tokenizer.TokAsterisk: PrecMultiply,
+	tokenizer.TokSlash:    PrecMultiply,
+	tokenizer.TokModulo:   PrecMultiply,
+	tokenizer.TokFloorDiv: PrecMultiply,
 
-	"power": PrecPower,
+	tokenizer.TokPower: PrecPower,
 
-	"bang": PrecPrefix,
+	tokenizer.TokBang: PrecPrefix,
 }
 
 func Parse(tokens []tokenizer.Token) (*WrappedExpression, error) {
@@ -92,7 +86,7 @@ func newParser(tokens []tokenizer.Token) *_parser {
 		tokens:         tokens,
 		prefixParseFns: make(map[string]func() (Expression, error)),
 		infixParseFns:  make(map[string]func(Expression) (Expression, error)),
-		requiredIdents: make([]string, 0),
+		dependencies:   make([]string, 0),
 		chain:          false,
 	}
 
@@ -106,6 +100,7 @@ func newParser(tokens []tokenizer.Token) *_parser {
 	p.registerPrefix(tokenizer.TokBang, p.parsePrefixExpression)
 	p.registerPrefix(tokenizer.TokLparen, p.parseGroupExpression)
 	p.registerPrefix(tokenizer.TokLbrack, p.parseArrayExpression)
+	p.registerPrefix(tokenizer.TokMinus, p.parsePrefixExpression)
 
 	p.registerStdInfix(
 		tokenizer.TokAnd,
@@ -124,7 +119,6 @@ func newParser(tokens []tokenizer.Token) *_parser {
 		tokenizer.TokPower,
 		tokenizer.TokModulo,
 		tokenizer.TokNot,
-		tokenizer.TokAmpersand,
 		tokenizer.TokOr,
 	)
 
@@ -145,26 +139,26 @@ func (p *_parser) parser() (*WrappedExpression, error) {
 	}
 
 	if p.nextToken != nil {
-		return nil, errors2.NewErrorWithLocation(
+		return nil, errors2.New(
 			fmt.Sprintf("unexpected token %s", p.nextToken.Literal),
 			p.nextToken.LocationStart,
 		)
 	}
 
 	return &WrappedExpression{
-		Expr:           expr,
-		RequiredIdents: p.requiredIdents,
+		Expr:         expr,
+		Dependencies: p.dependencies,
 	}, nil
 }
 
 func (p *_parser) parseExpression(precedence Precedence) (Expression, error) {
 	if p.currentToken == nil {
-		return nil, errors2.NewErrorWithLocation("unexpected end of expression", p.previousToken.LocationEnd)
+		return nil, errors2.New("unexpected end of expression", p.previousToken.LocationEnd)
 	}
 
 	prefix := p.prefixParseFns[p.currentToken.Kind]
 	if prefix == nil {
-		return nil, errors2.NewErrorWithLocation("unexpected token "+p.currentToken.Literal, p.currentToken.LocationStart)
+		return nil, errors2.New("unexpected token "+p.currentToken.Literal, p.currentToken.LocationStart)
 	}
 
 	leftExp, err := prefix()
@@ -195,7 +189,7 @@ func (p *_parser) parseGroupExpression() (Expression, error) {
 		return nil, err
 	}
 	if !p.expectNext(tokenizer.TokRparen) {
-		return nil, errors2.NewErrorWithLocation("unclosed parenthesis", p.nextToken.LocationStart)
+		return nil, errors2.New("unclosed parenthesis", p.nextToken.LocationStart)
 	}
 
 	return exp, nil
@@ -204,7 +198,7 @@ func (p *_parser) parseGroupExpression() (Expression, error) {
 func (p *_parser) parsePrefixExpression() (Expression, error) {
 	expr := &PrefixExpression{
 		Token: p.currentToken,
-		Op:    p.currentToken.Literal,
+		Op:    p.currentToken.Kind,
 	}
 	p.advanceToken()
 	var err error
@@ -222,7 +216,7 @@ func (p *_parser) parseInfixExpression(left Expression) (Expression, error) {
 	if currentOperand == "not" {
 		nextKind := p.nextToken.Kind
 		if nextKind != tokenizer.TokIn {
-			return nil, errors2.NewErrorWithLocation("unexpected negation `not "+p.nextToken.Literal+"`", p.nextToken.LocationStart)
+			return nil, errors2.New(fmt.Sprintf("unexpected infix negation `not %s`, expected `not in`", p.nextToken.Literal), p.nextToken.LocationStart)
 		}
 	}
 
@@ -254,18 +248,6 @@ func (p *_parser) parseInfixExpression(left Expression) (Expression, error) {
 	}
 }
 
-func (p *_parser) parseRangeExpression(left Expression) (Expression, error) {
-	var err error
-
-	expr := &Range{
-		Token: p.currentToken,
-		Start: left,
-	}
-	p.advanceToken()
-	expr.End, err = p.parseExpression(PrecLowest)
-	return expr, err
-}
-
 func (p *_parser) parseVariableAccessExpression(left Expression) (Expression, error) {
 	p.chain = true
 	var err error
@@ -275,24 +257,16 @@ func (p *_parser) parseVariableAccessExpression(left Expression) (Expression, er
 		IsOptional: p.currentToken.Kind == tokenizer.TokOptionalChain,
 	}
 
-	p.advanceToken()
+	if !p.expectNext(tokenizer.TokIdent) {
+		return nil, errors2.New(fmt.Sprintf("unexpected `%s`, expected `identifier`", p.nextToken.Kind), p.nextToken.LocationStart)
+	}
 
-	expr.Right, err = p.parseExpression(PrecChain)
+	rightIdent, err := p.parseIdentifier()
 	if err != nil {
 		return nil, err
 	}
-	for p.nextIs("dot") || p.nextIs(tokenizer.TokOptionalChain) || p.nextIs(tokenizer.TokLbrack) {
-		p.advanceToken()
 
-		if p.currentIs(tokenizer.TokLbrack) {
-			return p.parseArrayAccessExpression(expr)
-		}
-
-		expr.Right, err = p.parseVariableAccessExpression(expr)
-		if err != nil {
-			return nil, err
-		}
-	}
+	expr.Right = rightIdent.(*Identifier)
 
 	p.chain = false
 
@@ -318,7 +292,7 @@ func (p *_parser) parseArrayAccessExpression(left Expression) (Expression, error
 		return nil, err
 	}
 	if !p.nextIs(tokenizer.TokRbrack) {
-		return nil, errors2.NewErrorWithLocation("unclosed array access", p.nextToken.LocationStart)
+		return nil, errors2.New("unclosed array access", p.nextToken.LocationStart)
 	}
 	p.advanceToken()
 	return arr, nil
@@ -349,7 +323,7 @@ func (p *_parser) parseExpressionList(end string) ([]Expression, error) {
 	}
 
 	if !p.expectNext(end) {
-		return nil, errors2.NewErrorWithLocation("unclosed list", p.nextToken.LocationStart)
+		return nil, errors2.New("unclosed list", p.nextToken.LocationStart)
 	}
 
 	return list, nil
@@ -357,7 +331,7 @@ func (p *_parser) parseExpressionList(end string) ([]Expression, error) {
 
 func (p *_parser) parseIdentifier() (Expression, error) {
 	if !p.chain && !slices.Contains(builtinNames, p.currentToken.Literal) {
-		p.requiredIdents = append(p.requiredIdents, p.currentToken.Literal)
+		p.dependencies = append(p.dependencies, p.currentToken.Literal)
 	}
 	return &Identifier{Token: p.currentToken, Value: p.currentToken.Literal}, nil
 }
@@ -366,15 +340,16 @@ func (p *_parser) parseFunctionCall(left Expression) (Expression, error) {
 	if left.Type() == "identifier" {
 		functionName := left.(*Identifier).Value
 		if slices.Index(builtinNames, functionName) != -1 {
+			callToken := p.currentToken
 			arguments, err := p.parseExpressionList(tokenizer.TokRparen)
 			if err != nil {
 				return nil, err
 			}
-
 			return &Builtin{
-				Token: p.currentToken,
-				Name:  functionName,
-				Args:  arguments,
+				Location: callToken.LocationStart,
+				Token:    callToken,
+				Name:     functionName,
+				Args:     arguments,
 			}, nil
 		}
 	}
@@ -383,13 +358,11 @@ func (p *_parser) parseFunctionCall(left Expression) (Expression, error) {
 		return nil, err
 	}
 
-	call := &FunctionCall{
+	return &FunctionCall{
 		Token:  p.currentToken,
 		Called: left,
 		Args:   arguments,
-	}
-
-	return call, nil
+	}, nil
 }
 
 func (p *_parser) parseStringLiteral() (Expression, error) {
@@ -400,14 +373,14 @@ func (p *_parser) parseNumeric() (Expression, error) {
 	if strings.Contains(p.currentToken.Literal, ".") {
 		res, err := strconv.ParseFloat(p.currentToken.Literal, 64)
 		if err != nil {
-			return nil, errors2.NewErrorWithLocation("could not parse "+p.currentToken.Literal+" as numeric", p.nextToken.LocationStart)
+			return nil, errors2.New("could not parse `"+p.currentToken.Literal+"` as floating point", p.nextToken.LocationStart)
 		}
-		return &Numeric{Token: p.currentToken, Value: res}, nil
+		return &Float{Token: p.currentToken, Value: res}, nil
 	}
 
 	res, err := strconv.ParseInt(p.currentToken.Literal, 10, 64)
 	if err != nil {
-		return nil, errors2.NewErrorWithLocation("could not parse "+p.currentToken.Literal+" as numeric", p.nextToken.LocationStart)
+		return nil, errors2.New("could not parse `"+p.currentToken.Literal+"` as integer", p.nextToken.LocationStart)
 	}
 
 	return &Integer{Token: p.currentToken, Value: int(res)}, nil
@@ -453,11 +426,18 @@ func (p *_parser) currentIs(t string) bool {
 	return p.currentToken.Kind == t
 }
 
-func (p *_parser) nextIs(t string) bool {
+func (p *_parser) nextIs(kinds ...string) bool {
 	if p.nextToken == nil {
 		return false
 	}
-	return p.nextToken.Kind == t
+	found := false
+	for _, kind := range kinds {
+		if kind == p.nextToken.Kind {
+			found = true
+			break
+		}
+	}
+	return found
 }
 
 func (p *_parser) nextIsEnd() bool {

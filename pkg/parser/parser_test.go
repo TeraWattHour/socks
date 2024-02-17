@@ -15,6 +15,12 @@ func TestParserSimple(t *testing.T) {
         @enddefine
 
         @define("message")
+			@if(some != nil)
+				@for(idx in some)
+					{{ idx }}
+				@endfor	
+			@endif
+
             Hello from the nested page
         @enddefine
     @endtemplate
@@ -43,7 +49,7 @@ func TestDependencies(t *testing.T) {
 
 	@for(jdx in otherSlice)
 		{{ jdx }}
-	@endfor 
+	@endfor
 	
 	{{ idx }}
 @endfor

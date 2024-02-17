@@ -11,8 +11,11 @@ func TestBasicEvaluation(t *testing.T) {
 			return s
 		},
 	})
-	err := s.LoadTemplates("test_data/*.html", "test_data/**/*.html")
-	if err != nil {
+
+	if err := s.LoadTemplates("test_data/**/*.html", "test_data/"); err != nil {
+		t.Errorf("Expected no error, got %s", err)
+	}
+	if err := s.LoadTemplates("test_data/*.html", "test_data/"); err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}
 
@@ -30,8 +33,26 @@ func TestBasicEvaluation(t *testing.T) {
 		Language string
 	}
 
-	res, err := s.ExecuteToString("test_data/nested.html", map[string]interface{}{
+	res, err := s.ExecuteToString("nested.html", map[string]interface{}{
 		"Phrases": []Phrase{{Content: "Hello", Language: "en"}, {Content: "Hallo", Language: "de"}},
+		"first": []any{
+			"first",
+			func(num int) func(num2 int) []string {
+				return func(num2 int) []string {
+					return []string{fmt.Sprintf("sum is %d", num+num2)}
+				}
+			},
+		},
+		"resolveLanguage": func(abbreviation string) string {
+			switch abbreviation {
+			case "en":
+				return "English"
+			case "de":
+				return "German"
+			default:
+				return "unknown language"
+			}
+		},
 	})
 	if err != nil {
 		fmt.Println(err)
