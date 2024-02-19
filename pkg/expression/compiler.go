@@ -92,12 +92,6 @@ func (c *Compiler) compile(expr Expression) error {
 			return errors.New(fmt.Sprintf("call to %s(%s) -> any does not match the signature of %s(%s) -> %s", expr.Name, strings.TrimSuffix(strings.Repeat("any, ", len(expr.Args)), ", "), expr.Name, strings.Join(inputTypes, ", "), returnType), expr.Location)
 		}
 
-		for _, arg := range expr.Args {
-			if err := c.compile(arg); err != nil {
-				return err
-			}
-		}
-
 		switch builtinType {
 		case 1:
 			c.emit(OpBuiltin1)
