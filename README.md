@@ -78,8 +78,8 @@ func main() {
 ## Tags
 
 > [!CAUTION]
-> Nothing is escaped by default, so make sure to escape everything that comes from the user.
-> This may change in the future.
+> Nothing is escaped by default, so make sure to set the 
+> `Sanitizer` option to a function that escapes your output.
 
 ### Expression tag
 Expression tag, the result of the expression will be printed to the template.
@@ -132,5 +132,7 @@ Execution tag, used for executing statements like `for` or `if` at runtime.
 
 ## Roadmap
 - [ ] Runtime error handling
+- [ ] Static type checking
+- [ ] Inline functions like `map`, `filter`, `reduce`, etc.
 - [ ] Constant folding 
 - [ ] Add more tests

@@ -11,6 +11,7 @@ type VM struct {
 	chunk Chunk
 	stack Stack
 	funcs map[string]any
+	ip    int
 }
 
 type Stack []any
@@ -34,16 +35,17 @@ func NewVM(chunk Chunk) *VM {
 
 func (vm *VM) Run(env map[string]any) (any, error) {
 outerLoop:
-	for ip := 0; ip < len(vm.chunk.Instructions); ip++ {
-		switch vm.chunk.Instructions[ip] {
+	for vm.ip = 0; vm.ip < len(vm.chunk.Instructions); vm.ip++ {
+		var currentError error
+		switch vm.chunk.Instructions[vm.ip] {
 		case OpChain:
 			left := vm.stack.pop()
-			field := vm.chunk.Constants[vm.chunk.Instructions[ip+1]].(string)
+			field := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]].(string)
 			vm.stack.push(accessVariable(left, field))
-			ip++
+			vm.ip++
 		case OpOptionalChain:
 			left := vm.stack.pop()
-			field := vm.chunk.Constants[vm.chunk.Instructions[ip+1]].(string)
+			field := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]].(string)
 			vm.stack.push(accessVariable(left, field))
 
 		case OpArrayAccess:
@@ -53,7 +55,7 @@ outerLoop:
 			switch val.Kind() {
 			case reflect.Array, reflect.Slice:
 				if !reflect.ValueOf(_index).CanConvert(reflect.TypeOf(0)) {
-					return nil, errors2.New(fmt.Sprintf("expected int, got %v", reflect.TypeOf(_index)), vm.chunk.Lookups[ip].(*ArrayAccess).Token.LocationEnd)
+					return nil, errors2.New(fmt.Sprintf("expected int, got %v", reflect.TypeOf(_index)), vm.chunk.Lookups[vm.ip].(*ArrayAccess).Token.LocationEnd)
 				}
 				index := reflect.ValueOf(_index).Convert(reflect.TypeOf(0)).Int()
 
@@ -61,55 +63,58 @@ outerLoop:
 			case reflect.Map:
 				vm.stack.push(val.MapIndex(reflect.ValueOf(_index)).Interface())
 			default:
-				return nil, errors2.New(fmt.Sprintf("expected array or object, got %v", reflect.TypeOf(_value)), vm.chunk.Lookups[ip].(*ArrayAccess).Token.LocationEnd)
+				return nil, errors2.New(fmt.Sprintf("expected array or object, got %v", reflect.TypeOf(_value)), vm.chunk.Lookups[vm.ip].(*ArrayAccess).Token.LocationEnd)
 			}
 		case OpBuiltin1:
-			function := builtinsOne[vm.chunk.Instructions[ip+1]]
+			fmt.Println("before call", vm.stack)
+
+			function := builtinsOne[vm.chunk.Instructions[vm.ip+1]]
 			arg := vm.stack.pop()
 			result := function(arg)
 
 			if general, ok := result.(error); ok {
 				message := general.Error()
-				return nil, errors2.New(message, vm.chunk.Lookups[ip].(*Builtin).Location)
+				return nil, errors2.New(message, vm.chunk.Lookups[vm.ip].(*Builtin).Location)
 			}
 
 			vm.stack.push(result)
-			ip++
+			fmt.Println("after call", vm.stack)
+			vm.ip++
 		case OpBuiltin2:
-			function := builtinsTwo[vm.chunk.Instructions[ip+1]]
+			function := builtinsTwo[vm.chunk.Instructions[vm.ip+1]]
 			arg2 := vm.stack.pop()
 			arg1 := vm.stack.pop()
 			result := function(arg1, arg2)
 			if general, ok := result.(error); ok {
 				message := general.Error()
-				return nil, errors2.New(message, vm.chunk.Lookups[ip].(*Builtin).Location)
+				return nil, errors2.New(message, vm.chunk.Lookups[vm.ip].(*Builtin).Location)
 			}
 			vm.stack.push(result)
-			ip++
+			vm.ip++
 		case OpBuiltin3:
-			function := builtinsThree[vm.chunk.Instructions[ip+1]]
+			function := builtinsThree[vm.chunk.Instructions[vm.ip+1]]
 			arg3 := vm.stack.pop()
 			arg2 := vm.stack.pop()
 			arg1 := vm.stack.pop()
 			result := function(arg1, arg2, arg3)
 			if general, ok := result.(error); ok {
 				message := general.Error()
-				return nil, errors2.New(message, vm.chunk.Lookups[ip].(*Builtin).Location)
+				return nil, errors2.New(message, vm.chunk.Lookups[vm.ip].(*Builtin).Location)
 			}
 			vm.stack.push(result)
-			ip++
+			vm.ip++
 		case OpArray:
-			count := vm.chunk.Instructions[ip+1]
+			count := vm.chunk.Instructions[vm.ip+1]
 			items := make([]any, count)
 			for j := 0; j < count; j++ {
 				items[count-j-1] = vm.stack.pop()
 			}
 			vm.stack.push(items)
-			ip++
+			vm.ip++
 
 		case OpCall:
-			argumentCount := vm.chunk.Instructions[ip+1]
-			ip++
+			argumentCount := vm.chunk.Instructions[vm.ip+1]
+			vm.ip++
 			args := make([]reflect.Value, argumentCount)
 			for j := 0; j < argumentCount; j++ {
 				args[j] = reflect.ValueOf(vm.stack.pop())
@@ -124,12 +129,12 @@ outerLoop:
 				vm.stack.push(reflectedSliceToInterfaceSlice(results))
 			}
 		case OpGet:
-			ident := vm.chunk.Constants[vm.chunk.Instructions[ip+1]].(string)
+			ident := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]].(string)
 			vm.stack.push(env[ident])
-			ip++
+			vm.ip++
 		case OpConstant:
-			constant := vm.chunk.Constants[vm.chunk.Instructions[ip+1]]
-			ip++
+			constant := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]]
+			vm.ip++
 			vm.stack.push(constant)
 		case OpIn:
 			right := vm.stack.pop()
@@ -153,57 +158,36 @@ outerLoop:
 			left := vm.stack.pop()
 			vm.stack.push(left != right)
 		case OpNot:
-			last := CastToBool(vm.stack.pop())
-			vm.stack.push(!last)
+			vm.stack.push(!CastToBool(vm.stack.pop()))
 		case OpAdd:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(binaryAddition(left, right))
+			currentError = vm.executeInfixExpression(binaryAddition)
 		case OpLt:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(binaryLessThan(left, right))
+			currentError = vm.executeInfixExpression(binaryLessThan)
 		case OpGt:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(binaryGreaterThan(left, right))
+			currentError = vm.executeInfixExpression(binaryGreaterThan)
 		case OpGte:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(binaryGreaterThanEqual(left, right))
+			currentError = vm.executeInfixExpression(binaryGreaterThanEqual)
 		case OpLte:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(binaryLessThanEqual(left, right))
+			currentError = vm.executeInfixExpression(binaryLessThanEqual)
 		case OpSubtract:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(binarySubtraction(left, right))
+			currentError = vm.executeInfixExpression(binarySubtraction)
 		case OpMultiply:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(binaryMultiplication(left, right))
+			currentError = vm.executeInfixExpression(binaryMultiplication)
 		case OpDivide:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(binaryDivision(left, right))
+			currentError = vm.executeInfixExpression(binaryDivision)
 		case OpModulo:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(binaryModulo(left, right))
+			currentError = vm.executeInfixExpression(binaryModulo)
 		case OpExponent:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(binaryExponentiation(left, right))
+			currentError = vm.executeInfixExpression(binaryExponentiation)
 		case OpAnd:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(and(left, right))
-
+			currentError = vm.executeInfixExpression(and)
 		case OpOr:
-			right := vm.stack.pop()
-			left := vm.stack.pop()
-			vm.stack.push(or(left, right))
+			currentError = vm.executeInfixExpression(or)
+		case OpCodeCount:
+			panic("unexpected end of program")
+		}
+		if currentError != nil {
+			return nil, currentError
 		}
 	}
 
@@ -212,10 +196,24 @@ outerLoop:
 	}
 
 	if len(vm.stack) != 1 {
+		fmt.Println(vm.stack)
 		return nil, fmt.Errorf("expression returns multiple values")
 	}
 
 	return vm.stack.pop(), nil
+}
+
+func (vm *VM) executeInfixExpression(fn func(any, any) any) error {
+	right := vm.stack.pop()
+	left := vm.stack.pop()
+	res := fn(left, right)
+	if general, ok := res.(error); ok {
+		message := general.Error()
+		return errors2.New(message, vm.chunk.Lookups[vm.ip].(*InfixExpression).Token.LocationStart)
+	}
+	vm.stack.push(res)
+
+	return nil
 }
 
 func accessVariable(base any, field any) any {

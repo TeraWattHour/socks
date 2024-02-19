@@ -80,7 +80,7 @@ func binaryAddition(a, b any) any {
 			return a + b
 		}
 	}
-	panic(fmt.Sprintf("invalid operation: %v + %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b)))
+	return fmt.Errorf("invalid operation: %v + %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
 }
 func binarySubtraction(a, b any) any {
 	switch a := a.(type) {
@@ -150,7 +150,7 @@ func binarySubtraction(a, b any) any {
 			return a - b
 		}
 	}
-	panic(fmt.Sprintf("invalid operation: %v - %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b)))
+	return fmt.Errorf("invalid operation: %v - %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
 }
 func binaryMultiplication(a, b any) any {
 	switch a := a.(type) {
@@ -220,7 +220,7 @@ func binaryMultiplication(a, b any) any {
 			return a * b
 		}
 	}
-	panic(fmt.Sprintf("invalid operation: %v * %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b)))
+	return fmt.Errorf("invalid operation: %v * %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
 }
 func binaryDivision(a, b any) any {
 	switch a := a.(type) {
@@ -290,7 +290,7 @@ func binaryDivision(a, b any) any {
 			return a / b
 		}
 	}
-	panic(fmt.Sprintf("invalid operation: %v / %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b)))
+	return fmt.Errorf("invalid operation: %v / %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
 }
 func binaryModulo(a, b any) any {
 	switch a := a.(type) {
@@ -350,7 +350,7 @@ func binaryModulo(a, b any) any {
 			return a % b
 		}
 	}
-	panic(fmt.Sprintf("invalid operation: %v %% %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b)))
+	return fmt.Errorf("invalid operation: %v %% %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
 }
 
 func binaryExponentiation(a, b any) any {
@@ -421,7 +421,7 @@ func binaryExponentiation(a, b any) any {
 			return math.Pow(a, b)
 		}
 	}
-	panic(fmt.Sprintf("invalid operation: %v == %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b)))
+	return fmt.Errorf("invalid operation: %v == %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
 }
 
 // END BINARY
