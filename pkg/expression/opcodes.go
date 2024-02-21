@@ -3,6 +3,7 @@ package expression
 // BEGIN OPCODES
 const (
 	OpConstant = iota
+	OpNil
 	OpEq
 	OpNeq
 	OpGt
@@ -13,9 +14,10 @@ const (
 	OpSubtract
 	OpMultiply
 	OpDivide
-	OpExponent
+	OpPower
 	OpAnd
 	OpOr
+	OpElvis
 	OpModulo
 	OpNot
 	OpNegate
@@ -37,31 +39,34 @@ const (
 
 // BEGIN LOOKUP
 var opcodesLookup = map[int]string{
-	OpConstant:    "CONSTANT",
-	OpEq:          "EQ",
-	OpNeq:         "NEQ",
-	OpGt:          "GT",
-	OpGte:         "GTE",
-	OpLt:          "LT",
-	OpLte:         "LTE",
-	OpAdd:         "ADD",
-	OpSubtract:    "SUBTRACT",
-	OpMultiply:    "MULTIPLY",
-	OpDivide:      "DIVIDE",
-	OpExponent:    "EXPONENT",
-	OpAnd:         "AND",
-	OpOr:          "OR",
-	OpNot:         "NOT",
-	OpNegate:      "NEGATE",
-	OpArrayAccess: "ARRAYACCESS",
-	OpChain:       "CHAIN",
-	OpArray:       "ARRAY",
-	OpIn:          "IN",
-	OpGet:         "GET",
-	OpCall:        "CALL",
-	OpBuiltin1:    "BUILTIN1",
-	OpBuiltin2:    "BUILTIN2",
-	OpBuiltin3:    "BUILTIN3",
+	OpConstant:      "Constant",
+	OpEq:            "Eq",
+	OpNeq:           "Neq",
+	OpGt:            "Gt",
+	OpGte:           "Gte",
+	OpLt:            "Lt",
+	OpLte:           "Lte",
+	OpAdd:           "Add",
+	OpSubtract:      "Subtract",
+	OpMultiply:      "Multiply",
+	OpDivide:        "Divide",
+	OpPower:         "Exponent",
+	OpElvis:         "Elvis",
+	OpAnd:           "And",
+	OpOr:            "Or",
+	OpNot:           "Not",
+	OpNegate:        "Negate",
+	OpArrayAccess:   "FieldAccess",
+	OpChain:         "Chain",
+	OpOptionalChain: "OptionalChain",
+	OpArray:         "Array",
+	OpIn:            "In",
+	OpGet:           "Get",
+	OpCall:          "Call",
+	OpBuiltin1:      "Builtin1",
+	OpBuiltin2:      "Builtin2",
+	OpBuiltin3:      "Builtin3",
+	OpNil:           "Nil",
 }
 
 // END LOOKUP

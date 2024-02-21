@@ -165,6 +165,10 @@ func (t *_tokenizer) tokenizeExpression() ([]Token, error) {
 				token.Kind = TokOptionalChain
 				token.Literal = "?."
 				t.next()
+			} else if t.nextChar == ':' {
+				token.Kind = TokElvis
+				token.Literal = "?:"
+				t.next()
 			} else {
 				token.Kind = TokQuestion
 			}

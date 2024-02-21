@@ -28,6 +28,7 @@ const (
 	PrecLowest
 	PrecOr
 	PrecAnd
+	PrecElvis
 	PrecEqual
 	PrecLessGreater
 	PrecInclusion
@@ -42,8 +43,11 @@ const (
 var precedences = map[string]Precedence{
 	tokenizer.TokIdent: PrecLowest,
 
-	tokenizer.TokOr:  PrecOr,
+	tokenizer.TokOr: PrecOr,
+
 	tokenizer.TokAnd: PrecAnd,
+
+	tokenizer.TokElvis: PrecElvis,
 
 	tokenizer.TokEq:  PrecEqual,
 	tokenizer.TokNeq: PrecEqual,
@@ -91,6 +95,7 @@ func newParser(tokens []tokenizer.Token) *_parser {
 	}
 
 	p.registerPrefix(tokenizer.TokIdent, p.parseIdentifier)
+	p.registerPrefix(tokenizer.TokNil, p.parseNil)
 	p.registerPrefix(tokenizer.TokTrue, p.parseBoolean)
 	p.registerPrefix(tokenizer.TokFalse, p.parseBoolean)
 	p.registerPrefix(tokenizer.TokNumber, p.parseNumeric)
@@ -120,12 +125,13 @@ func newParser(tokens []tokenizer.Token) *_parser {
 		tokenizer.TokModulo,
 		tokenizer.TokNot,
 		tokenizer.TokOr,
+		tokenizer.TokElvis,
 	)
 
-	p.registerInfix(tokenizer.TokDot, p.parseVariableAccessExpression)
-	p.registerInfix(tokenizer.TokOptionalChain, p.parseVariableAccessExpression)
+	p.registerInfix(tokenizer.TokDot, p.parseChain)
+	p.registerInfix(tokenizer.TokOptionalChain, p.parseChain)
 	p.registerInfix(tokenizer.TokLparen, p.parseFunctionCall)
-	p.registerInfix(tokenizer.TokLbrack, p.parseArrayAccessExpression)
+	p.registerInfix(tokenizer.TokLbrack, p.parsePropertyAccess)
 
 	return p
 }
@@ -248,10 +254,10 @@ func (p *_parser) parseInfixExpression(left Expression) (Expression, error) {
 	}
 }
 
-func (p *_parser) parseVariableAccessExpression(left Expression) (Expression, error) {
+func (p *_parser) parseChain(left Expression) (Expression, error) {
 	p.chain = true
 	var err error
-	expr := &VariableAccess{
+	expr := &Chain{
 		Token:      p.currentToken,
 		Left:       left,
 		IsOptional: p.currentToken.Kind == tokenizer.TokOptionalChain,
@@ -280,9 +286,9 @@ func (p *_parser) parseArrayExpression() (Expression, error) {
 	return array, err
 }
 
-func (p *_parser) parseArrayAccessExpression(left Expression) (Expression, error) {
+func (p *_parser) parsePropertyAccess(left Expression) (Expression, error) {
 	var err error
-	arr := &ArrayAccess{
+	arr := &FieldAccess{
 		Token:    p.currentToken,
 		Accessed: left,
 	}
@@ -292,7 +298,7 @@ func (p *_parser) parseArrayAccessExpression(left Expression) (Expression, error
 		return nil, err
 	}
 	if !p.nextIs(tokenizer.TokRbrack) {
-		return nil, errors2.New("unclosed array access", p.nextToken.LocationStart)
+		return nil, errors2.New("unclosed property access", p.nextToken.LocationStart)
 	}
 	p.advanceToken()
 	return arr, nil
@@ -323,7 +329,11 @@ func (p *_parser) parseExpressionList(end string) ([]Expression, error) {
 	}
 
 	if !p.expectNext(end) {
-		return nil, errors2.New("unclosed list", p.nextToken.LocationStart)
+		location := p.currentToken.LocationEnd
+		if p.nextToken != nil {
+			location = p.nextToken.LocationStart
+		}
+		return nil, errors2.New("unclosed list", location)
 	}
 
 	return list, nil
@@ -346,7 +356,7 @@ func (p *_parser) parseFunctionCall(left Expression) (Expression, error) {
 				return nil, err
 			}
 			return &Builtin{
-				Location: callToken.LocationStart,
+				location: callToken.LocationStart,
 				Token:    callToken,
 				Name:     functionName,
 				Args:     arguments,
@@ -388,6 +398,10 @@ func (p *_parser) parseNumeric() (Expression, error) {
 
 func (p *_parser) parseBoolean() (Expression, error) {
 	return &Boolean{Token: p.currentToken, Value: p.currentToken.Kind == tokenizer.TokTrue}, nil
+}
+
+func (p *_parser) parseNil() (Expression, error) {
+	return &Nil{Token: p.currentToken}, nil
 }
 
 func (p *_parser) registerPrefix(forKind string, fn func() (Expression, error)) {

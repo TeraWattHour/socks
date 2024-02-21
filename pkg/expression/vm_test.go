@@ -6,41 +6,69 @@ import (
 	"testing"
 )
 
-type tescik struct {
-	Aha []string
+type Structure struct {
+}
+
+func (s *Structure) Method(ratio float64) string {
+	return fmt.Sprintf("the ratio is %v", ratio)
 }
 
 func TestVM_Run(t *testing.T) {
-	elements, err := tokenizer.Tokenize("{{ parent?.oggncie(123).Aha[0] }}")
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-		return
-	}
-	expr, err := Parse(elements[1].(*tokenizer.Mustache).Tokens)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-		return
-	}
+	sets := []struct {
+		expr   string
+		expect any
+	}{{
+		"ordinals[nil ?: 1]",
+		"2nd",
+	}, {
+		"voidMember?.method() ?: 1 != 1 ?: 420",
+		false,
+	}, {
+		"voidMember?.property",
+		nil,
+	}, {
+		"2 ** 3 / 4",
+		2,
+	}, {
+		`not "str" in [true]`,
+		false,
+	}, {
+		`base.structure.Method(123.4)`,
+		`the ratio is 123.4`,
+	}}
 
-	compiler := NewCompiler(expr.Expr)
-	compiler.Compile()
+	for i, set := range sets {
+		elements, err := tokenizer.Tokenize(fmt.Sprintf("{{ %s }}", set.expr))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+		expr, err := Parse(elements[0].(*tokenizer.Mustache).Tokens)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
 
-	vm := NewVM(compiler.chunk)
-	result, err := vm.Run(map[string]any{
-		"i":      0,
-		"idx":    1,
-		"number": int(123),
-		"test":   []string{"pirwszy", "drugi"},
-		"parent": map[string]any{
-			"test": func(number int) tescik {
-				return tescik{Aha: []string{fmt.Sprintf("num: %d", number), "num: drugi"}}
+		compiler := NewCompiler(expr.Expr)
+		chunk, err := compiler.Compile()
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+
+		vm := NewVM(chunk)
+		result, err := vm.Run(map[string]any{
+			"ordinals": []string{"1st", "2nd"},
+			"base": map[string]any{
+				"structure": &Structure{},
 			},
-		},
-	})
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-		return
+		})
+		if err != nil {
+			t.Errorf("unexpected error for set %d: %v", i, err)
+			return
+		}
+		if result != set.expect {
+			t.Errorf("expected %v, got %v", set.expect, result)
+		}
 	}
-	fmt.Println("result", result)
-	// Output: true
 }

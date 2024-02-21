@@ -1,5 +1,12 @@
 # Socks embedded expression language
 
+## Literals
+- `"string"` String
+- `123` Integer
+- `0.123` Float
+- `true`, `false` Boolean
+- `nil` Nil
+
 ## Operators
 
 ### Infix
@@ -25,6 +32,9 @@
 - `and` Logical and
 - `or` Logical or
 - `not` Negation
+
+#### Conditional
+- `a ?: b` If _a_ is nil then _b_
 
 #### Sets
 - `[...]` Array (always constant)

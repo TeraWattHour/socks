@@ -16,8 +16,8 @@ func TestParse(t *testing.T) {
 		{
 			name: "chaining (just identifiers)",
 			expr: "a.b.c",
-			want: &VariableAccess{
-				Left: &VariableAccess{
+			want: &Chain{
+				Left: &Chain{
 					Left:  &Identifier{Value: "a"},
 					Right: &Identifier{Value: "b"},
 				},
@@ -28,10 +28,10 @@ func TestParse(t *testing.T) {
 		{
 			name: "chaining (combined with array access)",
 			expr: "a.b[1].c.d",
-			want: &VariableAccess{
-				Left: &VariableAccess{
-					Left: &ArrayAccess{
-						Accessed: &VariableAccess{
+			want: &Chain{
+				Left: &Chain{
+					Left: &FieldAccess{
+						Accessed: &Chain{
 							Left:  &Identifier{Value: "a"},
 							Right: &Identifier{Value: "b"},
 						},
@@ -46,10 +46,10 @@ func TestParse(t *testing.T) {
 		{
 			name: "chaining (combined with method calls)",
 			expr: "a.b().c[2]",
-			want: &ArrayAccess{
-				Accessed: &VariableAccess{
+			want: &FieldAccess{
+				Accessed: &Chain{
 					Left: &FunctionCall{
-						Called: &VariableAccess{
+						Called: &Chain{
 							Left:  &Identifier{Value: "a"},
 							Right: &Identifier{Value: "b"},
 						},
@@ -63,7 +63,7 @@ func TestParse(t *testing.T) {
 			name: "recognize builtins",
 			expr: "functionCall().int(int(123))",
 			want: &FunctionCall{
-				Called: &VariableAccess{
+				Called: &Chain{
 					Left: &FunctionCall{
 						Called: &Identifier{Value: "functionCall"},
 					},
@@ -78,6 +78,32 @@ func TestParse(t *testing.T) {
 					},
 				},
 			},
+		},
+		{
+			name: "elvis operator",
+			expr: "a ?: b * 2 ?: c + 1",
+			want: &InfixExpression{
+				Left: &InfixExpression{Left: &Identifier{Value: "a"}, Op: tokenizer.TokElvis, Right: &InfixExpression{
+					Left:  &Identifier{Value: "b"},
+					Op:    tokenizer.TokAsterisk,
+					Right: &Integer{Value: 2},
+				}},
+				Op:    tokenizer.TokElvis,
+				Right: &InfixExpression{Left: &Identifier{Value: "c"}, Op: tokenizer.TokPlus, Right: &Integer{Value: 1}},
+			},
+		},
+		{
+			"not precedence",
+			"not (a in b)",
+			&PrefixExpression{
+				Op: tokenizer.TokNot,
+				Right: &InfixExpression{
+					Left:  &Identifier{Value: "a"},
+					Op:    tokenizer.TokIn,
+					Right: &Identifier{Value: "b"},
+				},
+			},
+			false,
 		},
 	}
 	for _, tt := range tests {

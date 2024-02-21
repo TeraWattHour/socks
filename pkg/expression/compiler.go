@@ -3,6 +3,8 @@ package expression
 import (
 	"fmt"
 	"github.com/terawatthour/socks/pkg/errors"
+	"github.com/terawatthour/socks/pkg/tokenizer"
+	"slices"
 	"strings"
 )
 
@@ -13,13 +15,15 @@ type Chunk struct {
 }
 
 type Compiler struct {
-	expr  Expression
-	chunk Chunk
+	expr           Expression
+	chunk          Chunk
+	optionalChains map[Expression][]int
 }
 
 func NewCompiler(expr Expression) *Compiler {
 	return &Compiler{
-		expr: expr,
+		expr:           expr,
+		optionalChains: map[Expression][]int{},
 		chunk: Chunk{
 			Instructions: make([]int, 0),
 			Constants:    make([]any, 0),
@@ -29,17 +33,17 @@ func NewCompiler(expr Expression) *Compiler {
 }
 
 func (c *Compiler) Compile() (Chunk, error) {
-	if err := c.compile(c.expr); err != nil {
+	if err := c.compile(c.expr, c.expr); err != nil {
 		return Chunk{}, err
 	}
 	return c.chunk, nil
 }
 
-func (c *Compiler) compile(expr Expression) error {
+func (c *Compiler) compile(expr Expression, scope Expression) error {
 	switch expr := expr.(type) {
 	case *Array:
 		for _, item := range expr.Items {
-			if err := c.compile(item); err != nil {
+			if err := c.compile(item, item); err != nil {
 				return err
 			}
 		}
@@ -61,10 +65,13 @@ func (c *Compiler) compile(expr Expression) error {
 	case *Identifier:
 		c.emit(OpGet)
 		c.addLookup(expr)
-		c.emit(c.addConstant(expr.Value))
+		c.emit(c.createConstant(expr.Value))
+	case *Nil:
+		c.emit(OpNil)
+		c.addLookup(expr)
 	case *Builtin:
 		for _, arg := range expr.Args {
-			if err := c.compile(arg); err != nil {
+			if err := c.compile(arg, arg); err != nil {
 				return err
 			}
 		}
@@ -89,7 +96,7 @@ func (c *Compiler) compile(expr Expression) error {
 			types := builtinTypes[expr.Name]
 			inputTypes := types[:len(types)-1]
 			returnType := types[len(types)-1]
-			return errors.New(fmt.Sprintf("call to %s(%s) -> any does not match the signature of %s(%s) -> %s", expr.Name, strings.TrimSuffix(strings.Repeat("any, ", len(expr.Args)), ", "), expr.Name, strings.Join(inputTypes, ", "), returnType), expr.Location)
+			return errors.New(fmt.Sprintf("call to %s(%s) -> any does not match the signature of %s(%s) -> %s", expr.Name, strings.TrimSuffix(strings.Repeat("any, ", len(expr.Args)), ", "), expr.Name, strings.Join(inputTypes, ", "), returnType), expr.location)
 		}
 
 		switch builtinType {
@@ -104,105 +111,137 @@ func (c *Compiler) compile(expr Expression) error {
 		c.addLookup(expr)
 		c.emit(builtinRelativeIndex(expr.Name))
 	case *FunctionCall:
-		if err := c.compile(expr.Called); err != nil {
+		if err := c.compile(expr.Called, scope); err != nil {
 			return err
 		}
 		for _, arg := range expr.Args {
-			if err := c.compile(arg); err != nil {
+			if err := c.compile(arg, arg); err != nil {
 				return err
 			}
 		}
 		c.emit(OpCall)
 		c.addLookup(expr)
 		c.emit(len(expr.Args))
-	case *ArrayAccess:
-		if err := c.compile(expr.Accessed); err != nil {
+	case *FieldAccess:
+		if err := c.compile(expr.Accessed, scope); err != nil {
 			return err
 		}
-		if err := c.compile(expr.Index); err != nil {
+		if err := c.compile(expr.Index, expr.Index); err != nil {
 			return err
 		}
+
 		c.emit(OpArrayAccess)
 		c.addLookup(expr)
-	case *VariableAccess:
-		if err := c.compile(expr.Left); err != nil {
+	case *Chain:
+		if err := c.compile(expr.Left, scope); err != nil {
 			return err
 		}
 		if expr.IsOptional {
 			c.emit(OpOptionalChain)
+			c.addLookup(expr)
+			c.emit(-1)
+			c.optionalChains[scope] = append(c.optionalChains[scope], len(c.chunk.Instructions)-1)
 		} else {
 			c.emit(OpChain)
+			c.addLookup(expr)
 		}
-		c.addLookup(expr)
-		c.emit(c.addConstant(expr.Right.Value))
+		c.emit(c.createConstant(expr.Right.Value))
 	case *InfixExpression:
-		if err := c.compile(expr.Left); err != nil {
+		if err := c.compile(expr.Left, expr.Left); err != nil {
 			return err
 		}
-		if err := c.compile(expr.Right); err != nil {
-			return err
+		if expr.Op != tokenizer.TokElvis {
+			if err := c.compile(expr.Right, expr.Right); err != nil {
+				return err
+			}
 		}
 		switch expr.Op {
-		case "and":
+		case tokenizer.TokAnd:
 			c.emit(OpAnd)
-		case "or":
+		case tokenizer.TokOr:
 			c.emit(OpOr)
-		case "eq":
+		case tokenizer.TokEq:
 			c.emit(OpEq)
-		case "neq":
+		case tokenizer.TokNeq:
 			c.emit(OpNeq)
-		case "lt":
+		case tokenizer.TokLt:
 			c.emit(OpLt)
-		case "lte":
+		case tokenizer.TokLte:
 			c.emit(OpLte)
-		case "gt":
+		case tokenizer.TokGt:
 			c.emit(OpGt)
-		case "gte":
+		case tokenizer.TokGte:
 			c.emit(OpGte)
-		case "plus":
+		case tokenizer.TokPlus:
 			c.emit(OpAdd)
-		case "minus":
+		case tokenizer.TokMinus:
 			c.emit(OpSubtract)
-		case "multiply":
+		case tokenizer.TokAsterisk:
 			c.emit(OpMultiply)
-		case "divide":
+		case tokenizer.TokSlash:
 			c.emit(OpDivide)
-		case "in":
+		case tokenizer.TokIn:
 			c.emit(OpIn)
-		case "exponent":
-			c.emit(OpExponent)
-		case "modulo":
+		case tokenizer.TokPower:
+			c.emit(OpPower)
+		case tokenizer.TokModulo:
 			c.emit(OpModulo)
+		case "elvis":
+			c.emit(OpElvis)
+			start := len(c.chunk.Instructions)
+			c.emit(-1)
+			if err := c.compile(expr.Right, expr.Right); err != nil {
+				return err
+			}
+			c.chunk.Instructions[start] = len(c.chunk.Instructions) - start
 		}
 		c.addLookup(expr)
 	case *PrefixExpression:
-		if err := c.compile(expr.Right); err != nil {
+		if err := c.compile(expr.Right, expr.Right); err != nil {
 			return err
 		}
+
 		switch expr.Op {
-		case "not":
+		case tokenizer.TokNot:
 			c.emit(OpNot)
-		case "minus":
+		case tokenizer.TokMinus:
 			c.emit(OpNegate)
 		}
 		c.addLookup(expr)
 	}
+
+	if expr == scope {
+		c.updateChainJumps(scope)
+	}
+
 	return nil
+}
+
+func (c *Compiler) updateChainJumps(expr Expression) {
+	if c.optionalChains[expr] == nil {
+		return
+	}
+	for _, ip := range c.optionalChains[expr] {
+		c.chunk.Instructions[ip] = len(c.chunk.Instructions)
+	}
 }
 
 func (c *Compiler) emit(op int) {
 	c.chunk.Instructions = append(c.chunk.Instructions, op)
 }
 
-func (c *Compiler) emitConstant(value any) {
-	c.chunk.Constants = append(c.chunk.Constants, value)
-	c.emit(OpConstant)
-	c.emit(len(c.chunk.Constants) - 1)
-}
-
-func (c *Compiler) addConstant(value any) int {
+func (c *Compiler) createConstant(value any) int {
+	found := slices.Index(c.chunk.Constants, value)
+	if found != -1 {
+		return found
+	}
 	c.chunk.Constants = append(c.chunk.Constants, value)
 	return len(c.chunk.Constants) - 1
+}
+
+func (c *Compiler) emitConstant(value any) {
+	c.emit(OpConstant)
+	c.emit(c.createConstant(value))
 }
 
 func (c *Compiler) addLookup(expression Expression) {

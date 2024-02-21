@@ -34,6 +34,7 @@ const (
 	TokQuestion      = "question"
 	TokDot           = "dot"
 	TokOptionalChain = "optional_chain"
+	TokElvis         = "elvis"
 
 	TokFor   = "for"
 	TokIn    = "in"
@@ -43,6 +44,7 @@ const (
 	TokFalse = "false"
 	TokAnd   = "and"
 	TokOr    = "or"
+	TokNil
 
 	TokExtend   = "extend"
 	TokSlot     = "slot"
@@ -64,6 +66,7 @@ var Keywords = []string{
 	TokAnd,
 	TokOr,
 	TokNot,
+	TokNil,
 }
 
 var Instructions = []string{
