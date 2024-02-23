@@ -3,6 +3,7 @@ package tokenizer
 import (
 	"fmt"
 	"github.com/terawatthour/socks/internal/helpers"
+	"math"
 	"slices"
 	"unicode"
 
@@ -52,7 +53,7 @@ func Tokenize(template string) ([]Element, error) {
 }
 
 func (t *_tokenizer) tokenize() ([]Element, error) {
-	for t.char != 0 {
+	for t.char != 0 && t.cursor < len(t.template) {
 		t.skipWhitespace()
 
 		if t.openMustache() {
@@ -329,8 +330,9 @@ func (t *_tokenizer) tokenizeExpression() ([]Token, error) {
 }
 
 func (t *_tokenizer) grabText(cursor int) {
-	if t.lastClosing < cursor && cursor <= len(t.template) {
-		t.elements = append(t.elements, Text(t.template[t.lastClosing:cursor]))
+	bounded := int(math.Min(float64(cursor), float64(len(t.template))))
+	if t.lastClosing < bounded {
+		t.elements = append(t.elements, Text(t.template[t.lastClosing:bounded]))
 	}
 }
 
