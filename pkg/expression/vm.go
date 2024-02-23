@@ -66,6 +66,17 @@ outerLoop:
 			} else {
 				vm.ip++
 			}
+		case OpTernary:
+			condition := vm.stack.pop()
+			if CastToBool(condition) {
+				vm.ip++
+			} else {
+				jumpToFalse := vm.chunk.Instructions[vm.ip+1]
+				vm.ip += jumpToFalse
+			}
+		case OpJmp:
+			jump := vm.chunk.Instructions[vm.ip+1]
+			vm.ip += jump
 		case OpArrayAccess:
 			_index := vm.stack.pop()
 			_value := vm.stack.pop()
@@ -220,6 +231,7 @@ outerLoop:
 	}
 
 	if len(vm.stack) != 1 {
+		fmt.Println("stack", vm.stack)
 		return nil, fmt.Errorf("expression returns multiple values")
 	}
 
@@ -237,31 +249,43 @@ func (vm *VM) executeInfixExpression(fn func(any, any) any) {
 	vm.stack.push(res)
 }
 
-func (vm *VM) accessProperty(base any, field string) any {
-	val := reflect.ValueOf(base)
+func (vm *VM) accessProperty(base any, property string) any {
+	value := reflect.ValueOf(base)
+	if !value.IsValid() {
+		return nil
+	}
+
 	var reflected reflect.Value
-	switch val.Kind() {
+	switch value.Kind() {
 	case reflect.Map:
-		reflected = val.MapIndex(reflect.ValueOf(field))
+		reflected = value.MapIndex(reflect.ValueOf(property))
 	case reflect.Struct:
-		reflected = val.FieldByName(field)
+		reflected = value.FieldByName(property)
 		if !reflected.IsValid() {
-			reflected = val.MethodByName(field)
+			reflected = value.MethodByName(property)
 		}
 	case reflect.Pointer:
-		if val.Elem().Kind() == reflect.Struct {
-			reflected = val.Elem().FieldByName(field)
+		if value.Elem().Kind() == reflect.Struct {
+			reflected = value.Elem().FieldByName(property)
 			if !reflected.IsValid() {
-				reflected = val.MethodByName(field)
+				reflected = value.MethodByName(property)
 			}
 			if reflected.IsValid() {
 				return reflected.Interface()
 			}
 		}
-		return vm.accessProperty(val.Elem().Interface(), field)
+		return vm.accessProperty(value.Elem().Interface(), property)
 	default:
-		vm.currentError = errors2.New(fmt.Sprintf("expected object, got %v", reflect.TypeOf(base)), vm.chunk.Lookups[vm.ip].Location())
-		return nil
+		reflected = value.MethodByName(property)
+		if reflected.IsValid() {
+			return reflected.Interface()
+		}
+		ptrBaseValue := reflect.New(value.Type())
+		ptrBaseValue.Elem().Set(value)
+		methodValue := ptrBaseValue.MethodByName(property)
+		if methodValue.IsValid() {
+			return methodValue.Interface()
+		}
 	}
 	if !reflected.IsValid() {
 		return nil

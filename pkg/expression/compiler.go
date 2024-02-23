@@ -146,6 +146,24 @@ func (c *Compiler) compile(expr Expression, scope Expression) error {
 			c.addLookup(expr)
 		}
 		c.emit(c.createConstant(expr.Right.Value))
+	case *Ternary:
+		if err := c.compile(expr.Condition, expr.Condition); err != nil {
+			return err
+		}
+		c.emit(OpTernary)
+		start := len(c.chunk.Instructions)
+		c.emit(-1)
+		if err := c.compile(expr.Consequence, expr.Consequence); err != nil {
+			return err
+		}
+		c.emit(OpJmp)
+		c.emit(-1)
+		c.chunk.Instructions[start] = len(c.chunk.Instructions) - start
+		start = len(c.chunk.Instructions) - 1
+		if err := c.compile(expr.Alternative, expr.Alternative); err != nil {
+			return err
+		}
+		c.chunk.Instructions[start] = len(c.chunk.Instructions) - start
 	case *InfixExpression:
 		if err := c.compile(expr.Left, expr.Left); err != nil {
 			return err
@@ -224,6 +242,7 @@ func (c *Compiler) updateChainJumps(expr Expression) {
 	for _, ip := range c.optionalChains[expr] {
 		c.chunk.Instructions[ip] = len(c.chunk.Instructions)
 	}
+	delete(c.optionalChains, expr)
 }
 
 func (c *Compiler) emit(op int) {

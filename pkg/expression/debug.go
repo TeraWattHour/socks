@@ -10,6 +10,12 @@ func dumpChunk(chunk Chunk) {
 		case OpConstant:
 			fmt.Printf(" | %v\n", chunk.Constants[chunk.Instructions[i+1]])
 			i++
+		case OpJmp:
+			fmt.Printf(" | jump: %v\n", chunk.Instructions[i+1])
+			i++
+		case OpTernary:
+			fmt.Printf(" | jumpIfFalse: %v\n", chunk.Instructions[i+1])
+			i++
 		case OpChain:
 			fmt.Printf(" | %v\n", chunk.Constants[chunk.Instructions[i+1]])
 			i++

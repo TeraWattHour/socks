@@ -47,7 +47,8 @@ var precedences = map[string]Precedence{
 
 	tokenizer.TokAnd: PrecAnd,
 
-	tokenizer.TokElvis: PrecElvis,
+	tokenizer.TokElvis:    PrecElvis,
+	tokenizer.TokQuestion: PrecElvis,
 
 	tokenizer.TokEq:  PrecEqual,
 	tokenizer.TokNeq: PrecEqual,
@@ -132,6 +133,7 @@ func newParser(tokens []tokenizer.Token) *_parser {
 	p.registerInfix(tokenizer.TokOptionalChain, p.parseChain)
 	p.registerInfix(tokenizer.TokLparen, p.parseFunctionCall)
 	p.registerInfix(tokenizer.TokLbrack, p.parsePropertyAccess)
+	p.registerInfix(tokenizer.TokQuestion, p.parseTernary)
 
 	return p
 }
@@ -252,6 +254,28 @@ func (p *_parser) parseInfixExpression(left Expression) (Expression, error) {
 		expr.Right, err = p.parseExpression(precedence)
 		return expr, err
 	}
+}
+
+func (p *_parser) parseTernary(left Expression) (Expression, error) {
+	var err error
+	expr := &Ternary{
+		Token:     p.currentToken,
+		Condition: left,
+	}
+	p.advanceToken()
+	expr.Consequence, err = p.parseExpression(PrecLowest)
+	if err != nil {
+		return nil, err
+	}
+	if !p.expectNext(tokenizer.TokColon) {
+		return nil, errors2.New("expected `:`", p.nextToken.LocationStart)
+	}
+	p.advanceToken()
+	expr.Alternative, err = p.parseExpression(PrecLowest)
+	if err != nil {
+		return nil, err
+	}
+	return expr, nil
 }
 
 func (p *_parser) parseChain(left Expression) (Expression, error) {

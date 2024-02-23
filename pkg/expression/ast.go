@@ -448,3 +448,33 @@ func (s *Chain) String() string {
 	}
 	return fmt.Sprintf("[variable: %s%s%s]", s.Left.String(), accessor, s.Right.String())
 }
+
+type Ternary struct {
+	Token       *tokenizer.Token
+	Condition   Expression
+	Consequence Expression
+	Alternative Expression
+}
+
+func (s *Ternary) Location() helpers.Location {
+	return s.Token.LocationStart
+}
+
+func (s *Ternary) IsEqual(node Node) bool {
+	if node, ok := node.(*Ternary); ok {
+		return s.Condition.IsEqual(node.Condition) && s.Consequence.IsEqual(node.Consequence) && s.Alternative.IsEqual(node.Alternative)
+	}
+	return false
+}
+
+func (s *Ternary) Type() string {
+	return "ternary"
+}
+
+func (s *Ternary) Literal() string {
+	return fmt.Sprintf("%s ? %s : %s", s.Condition.Literal(), s.Consequence.Literal(), s.Alternative.Literal())
+}
+
+func (s *Ternary) String() string {
+	return fmt.Sprintf("[ternary: %s ? %s : %s]", s.Condition.String(), s.Consequence.String(), s.Alternative.String())
+}

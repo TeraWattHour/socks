@@ -3,6 +3,7 @@ package expression
 // BEGIN OPCODES
 const (
 	OpConstant = iota
+	OpJmp
 	OpNil
 	OpEq
 	OpNeq
@@ -18,6 +19,7 @@ const (
 	OpAnd
 	OpOr
 	OpElvis
+	OpTernary
 	OpModulo
 	OpNot
 	OpNegate
@@ -40,6 +42,7 @@ const (
 // BEGIN LOOKUP
 var opcodesLookup = map[int]string{
 	OpConstant:      "Constant",
+	OpJmp:           "Jmp",
 	OpEq:            "Eq",
 	OpNeq:           "Neq",
 	OpGt:            "Gt",
@@ -52,6 +55,7 @@ var opcodesLookup = map[int]string{
 	OpDivide:        "Divide",
 	OpPower:         "Exponent",
 	OpElvis:         "Elvis",
+	OpTernary:       "Ternary",
 	OpAnd:           "And",
 	OpOr:            "Or",
 	OpNot:           "Not",

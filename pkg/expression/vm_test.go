@@ -13,6 +13,16 @@ func (s *Structure) Method(ratio float64) string {
 	return fmt.Sprintf("the ratio is %v", ratio)
 }
 
+type SomeInt int
+
+func (s *SomeInt) Method() string {
+	return " value of SomeInt is " + fmt.Sprintf("%d", *s)
+}
+
+func (s Structure) ReceiverMethod() string {
+	return " non-pointer method"
+}
+
 func TestVM_Run(t *testing.T) {
 	sets := []struct {
 		expr   string
@@ -33,8 +43,11 @@ func TestVM_Run(t *testing.T) {
 		`not "str" in [true]`,
 		false,
 	}, {
-		`base.structure.Method(123.4)`,
-		`the ratio is 123.4`,
+		`base.structure.Method(123.4) + base.structure.ReceiverMethod() + someInt.Method()`,
+		`the ratio is 123.4 non-pointer method value of SomeInt is 123`,
+	}, {
+		`12 ? 12 + 123 ** 2 : false`,
+		12 + 123*123,
 	}}
 
 	for i, set := range sets {
@@ -62,6 +75,7 @@ func TestVM_Run(t *testing.T) {
 			"base": map[string]any{
 				"structure": &Structure{},
 			},
+			"someInt": SomeInt(123),
 		})
 		if err != nil {
 			t.Errorf("unexpected error for set %d: %v", i, err)

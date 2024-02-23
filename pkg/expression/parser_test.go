@@ -93,7 +93,7 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
-			"not precedence",
+			"not precedence 1",
 			"not (a in b)",
 			&PrefixExpression{
 				Op: tokenizer.TokNot,
@@ -102,6 +102,29 @@ func TestParse(t *testing.T) {
 					Op:    tokenizer.TokIn,
 					Right: &Identifier{Value: "b"},
 				},
+			},
+			false,
+		},
+		{
+			"not precedence 2",
+			"not a in b",
+			&InfixExpression{
+				Left: &PrefixExpression{
+					Op:    tokenizer.TokNot,
+					Right: &Identifier{Value: "a"},
+				},
+				Op:    tokenizer.TokIn,
+				Right: &Identifier{Value: "b"},
+			},
+			false,
+		},
+		{
+			"ternary",
+			"a ? b ** 2 : c",
+			&Ternary{
+				Condition:   &Identifier{Value: "a"},
+				Consequence: &InfixExpression{Left: &Identifier{Value: "b"}, Op: tokenizer.TokPower, Right: &Integer{Value: 2}},
+				Alternative: &Identifier{Value: "c"},
 			},
 			false,
 		},

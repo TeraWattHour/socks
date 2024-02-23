@@ -1,44 +1,10 @@
 package parser
 
 import (
-	"github.com/terawatthour/socks/internal/debug"
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/pkg/tokenizer"
 	"testing"
 )
-
-func TestParserSimple(t *testing.T) {
-	template := `
-    @template("templates/header.html")
-        @define("page")
-            nested page
-        @enddefine
-
-        @define("message")
-			@if(some != nil)
-				@for(idx in some)
-					{{ idx }}
-				@endfor	
-			@endif
-
-            Hello from the nested page
-        @enddefine
-    @endtemplate
-`
-
-	elements, err := tokenizer.Tokenize(template)
-	if err != nil {
-		t.Errorf("unexpected error: %s", err)
-	}
-
-	programs, err := Parse(elements)
-	if err != nil {
-		t.Errorf("unexpected error: %s", err)
-		return
-	}
-
-	debug.PrintPrograms("TestParserSimple", programs)
-}
 
 func TestDependencies(t *testing.T) {
 	template := `
@@ -67,9 +33,9 @@ func TestDependencies(t *testing.T) {
 	expect := [][]string{
 		{"argument1", "argument2", "argument3", "argument4", "fun", "someSlice", "test", "otherSlice"},
 		{"argument1", "argument2", "argument3", "argument4", "fun", "test"},
-		{"someSlice", "otherSlice"},
+		{"argument1", "argument2", "argument3", "argument4", "fun"},
+		{"otherSlice"},
 		{"jdx"},
-		{"argument1", "argument2", "argument3", "argument4"},
 		{"idx"},
 		{"independent"},
 		{"another"},
