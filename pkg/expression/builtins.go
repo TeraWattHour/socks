@@ -6,7 +6,7 @@ import (
 	"slices"
 )
 
-// WARNING: Order of builtins is important
+// Order of builtins is important
 var builtinNames = []string{
 	// One-argument builtins
 	"float32",
