@@ -41,8 +41,7 @@ outerLoop:
 		case OpChain:
 			object := vm.stack.pop()
 			if object == nil {
-				vm.currentError = errors2.New("cannot access properties of <nil>", vm.chunk.Lookups[vm.ip].Location())
-				break
+				return nil, errors2.New("cannot access properties of <nil>", vm.chunk.Lookups[vm.ip].Location())
 			}
 			property := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]].(string)
 			vm.stack.push(vm.accessProperty(object, property))
@@ -144,7 +143,7 @@ outerLoop:
 			argumentCount := vm.chunk.Instructions[vm.ip+1]
 			vm.ip++
 			args := make([]reflect.Value, argumentCount)
-			for j := 0; j < argumentCount; j++ {
+			for j := argumentCount - 1; j >= 0; j-- {
 				args[j] = reflect.ValueOf(vm.stack.pop())
 			}
 
@@ -154,7 +153,6 @@ outerLoop:
 				vm.currentError = errors2.New(fmt.Sprintf("expected function, got %v", reflect.TypeOf(fn)), vm.chunk.Lookups[vm.ip-1].Location())
 				break
 			}
-
 			results := reflectedFunction.Call(args)
 			if len(results) == 1 {
 				vm.stack.push(results[0].Interface())
@@ -231,7 +229,6 @@ outerLoop:
 	}
 
 	if len(vm.stack) != 1 {
-		fmt.Println("stack", vm.stack)
 		return nil, fmt.Errorf("expression returns multiple values")
 	}
 

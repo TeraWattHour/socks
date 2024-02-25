@@ -46,8 +46,8 @@ func TestVM_Run(t *testing.T) {
 		`base.structure.Method(123.4) + base.structure.ReceiverMethod() + someInt.Method()`,
 		`the ratio is 123.4 non-pointer method value of SomeInt is 123`,
 	}, {
-		`12 ? 12 + 123 ** 2 : false`,
-		12 + 123*123,
+		`sprintf("%.2f", 12 ? 12 + 123 ** 2.5 : 0.123)`,
+		167800.73,
 	}}
 
 	for i, set := range sets {
@@ -76,6 +76,7 @@ func TestVM_Run(t *testing.T) {
 				"structure": &Structure{},
 			},
 			"someInt": SomeInt(123),
+			"sprintf": fmt.Sprintf,
 		})
 		if err != nil {
 			t.Errorf("unexpected error for set %d: %v", i, err)
