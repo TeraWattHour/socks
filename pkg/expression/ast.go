@@ -30,7 +30,7 @@ type Identifier struct {
 }
 
 func (s *Identifier) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *Identifier) IsEqual(node Node) bool {
@@ -95,7 +95,7 @@ type Nil struct {
 }
 
 func (s *Nil) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *Nil) IsEqual(node Node) bool {
@@ -121,7 +121,7 @@ type Boolean struct {
 }
 
 func (s *Boolean) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *Boolean) IsEqual(node Node) bool {
@@ -149,7 +149,7 @@ type Integer struct {
 }
 
 func (s *Integer) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *Integer) IsEqual(node Node) bool {
@@ -177,7 +177,7 @@ type Float struct {
 }
 
 func (s *Float) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *Float) IsEqual(node Node) bool {
@@ -205,7 +205,7 @@ type Array struct {
 }
 
 func (s *Array) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *Array) IsEqual(node Node) bool {
@@ -253,7 +253,7 @@ type PrefixExpression struct {
 }
 
 func (s *PrefixExpression) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *PrefixExpression) IsEqual(node Node) bool {
@@ -284,7 +284,7 @@ type InfixExpression struct {
 }
 
 func (s *InfixExpression) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *InfixExpression) IsEqual(node Node) bool {
@@ -312,7 +312,7 @@ type StringLiteral struct {
 }
 
 func (s *StringLiteral) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *StringLiteral) IsEqual(node Node) bool {
@@ -341,7 +341,7 @@ type FunctionCall struct {
 }
 
 func (s *FunctionCall) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *FunctionCall) IsEqual(node Node) bool {
@@ -389,7 +389,7 @@ type FieldAccess struct {
 }
 
 func (s *FieldAccess) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *FieldAccess) IsEqual(node Node) bool {
@@ -419,7 +419,7 @@ type Chain struct {
 }
 
 func (s *Chain) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *Chain) IsEqual(node Node) bool {
@@ -457,7 +457,7 @@ type Ternary struct {
 }
 
 func (s *Ternary) Location() helpers.Location {
-	return s.Token.LocationStart
+	return s.Token.Location
 }
 
 func (s *Ternary) IsEqual(node Node) bool {

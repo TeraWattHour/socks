@@ -4,7 +4,7 @@ import (
 	"path/filepath"
 )
 
-// Location represents a location in a file. Line starts at 1, Column – at 0.
+// Location represents a location in a file. Line starts at 1, Column - at 0.
 type Location struct {
 	Line   int
 	Column int

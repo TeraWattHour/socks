@@ -1,10 +1,11 @@
 package main
 
 import (
-	"github.com/terawatthour/socks"
 	"log"
 	"net/http"
 	"time"
+
+	"github.com/terawatthour/socks"
 )
 
 type Post struct {
@@ -30,13 +31,14 @@ func main() {
 			{"Hello Wordl", []string{"Nice post!", "I like it!"}},
 			{"Goodbye World", []string{"Sad to see you go.", "Good luck!"}},
 		},
-		"Metas": []string{"author: TeraWattHour", time.Now().String()},
+		"Metas":       []string{"author: TeraWattHour", time.Now().String()},
+		"currentDate": time.Now(),
 	}); err != nil {
 		panic(err)
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		if _, err := s.Execute(w, "index.html", map[string]interface{}{
+		if err := s.Execute(w, "index.html", map[string]interface{}{
 			"currentDate": time.Now(),
 		}); err != nil {
 			w.WriteHeader(500)

@@ -8,7 +8,7 @@ import (
 
 func TestCompiler(t *testing.T) {
 	t.Run("simple expression", func(t *testing.T) {
-		elements, err := tokenizer.Tokenize("{{ test ? 1 : 2}}")
+		elements, err := tokenizer.Tokenize("{{ 2 + [1, 2, 3] }}")
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 			return

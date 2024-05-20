@@ -16,7 +16,6 @@ const (
 
 type Element interface {
 	Kind() ElementKind
-	String() string
 }
 
 type Text string
@@ -26,16 +25,22 @@ func (t Text) Kind() ElementKind {
 }
 
 func (t Text) String() string {
-	return fmt.Sprintf("TEXT      : `%s`", strings.ReplaceAll(string(t), "\n", "\\n"))
+	if len(t) > 80 {
+		return fmt.Sprintf(
+			"TEXT(%s [...] %s)",
+			strings.ReplaceAll(string(t[:40]), "\n", "\\n"),
+			strings.ReplaceAll(string(t[len(t)-40:]), "\n", "\\n"),
+		)
+	}
+
+	return fmt.Sprintf("TEXT(%s)", strings.ReplaceAll(string(t), "\n", "\\n"))
 }
 
 type Mustache struct {
-	start     int
-	Literal   string
-	Sanitize  bool
-	IsComment bool
-	Tokens    []Token
-	Location  helpers.Location
+	Literal  string
+	Sanitize bool
+	Tokens   []Token
+	Location helpers.Location
 }
 
 func (t *Mustache) Kind() ElementKind {
@@ -43,14 +48,13 @@ func (t *Mustache) Kind() ElementKind {
 }
 
 func (t *Mustache) String() string {
-	return fmt.Sprintf("MUSTACHE  : `%s`", t.Literal)
+	return fmt.Sprintf("MUSTACHE(%s)", t.Literal)
 }
 
 type Statement struct {
 	Literal     string
 	Instruction string
 	Tokens      []Token
-	Flags       []string
 	Location    helpers.Location
 }
 
@@ -59,8 +63,5 @@ func (s *Statement) Kind() ElementKind {
 }
 
 func (s *Statement) String() string {
-	if s.Literal == "" {
-		return fmt.Sprintf("STATEMENT : `@%s`", s.Instruction)
-	}
-	return fmt.Sprintf("STATEMENT : `@%s%s`", s.Instruction, s.Literal)
+	return fmt.Sprintf("STATEMENT(%s)", s.Literal)
 }

@@ -7,14 +7,14 @@ import (
 	errors2 "github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/parser"
 	"github.com/terawatthour/socks/pkg/tokenizer"
-	"reflect"
+	"slices"
 )
 
 type Preprocessor struct {
 	files         map[string]string
 	nativeMap     map[string]string
 	processed     map[string]string
-	staticContext map[string]interface{}
+	staticContext map[string]any
 	sanitizer     func(string) string
 }
 
@@ -82,22 +82,30 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 		case "extend":
 			extends = program.(*parser.ExtendStatement).Template
 			if extends == "" {
-				return nil, errors2.New("extend statement must have a valid file name", program.Location())
+				return nil, errors2.New("extend statement must take a valid file name as an argument", program.Location())
 			}
+			fp.i++
 		case "template":
 			if err := fp.evaluateTemplateStatement(); err != nil {
 				return nil, err
 			}
-		case "slot":
-			if keepSlots {
-				fp.result = append(fp.result, program)
-			} else if program.(*parser.SlotStatement).Parent != nil {
-				program.(*parser.SlotStatement).Parent.ChangeProgramCount(-1)
+		case "end":
+			end := program.(*parser.EndStatement)
+			fp.i++
+			if !keepSlots && end.ClosedStatement.Kind() == "slot" {
+				continue
 			}
+			fp.result = append(fp.result, program)
+		case "slot":
+			if !keepSlots {
+				fp.i++
+				continue
+			}
+			fallthrough
 		default:
 			fp.result = append(fp.result, program)
+			fp.i++
 		}
-		fp.i++
 	}
 
 	if extends != "" {
@@ -111,7 +119,6 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 		fp.foldText()
 		return fp.result, nil
 	}
-
 	fp.result = evaluationResult
 	fp.foldText()
 
@@ -119,45 +126,13 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 }
 
 func (fp *filePreprocessor) foldText() {
-	fp.updateParents()
-
 	for i := 1; i < len(fp.result); i++ {
 		if fp.result[i].Kind() == "text" && fp.result[i-1].Kind() == "text" {
 			textLeft := fp.result[i-1].(*parser.Text)
 			textRight := fp.result[i].(*parser.Text)
-			if textLeft.Parent != textRight.Parent {
-				continue
-			}
 			textLeft.Content += textRight.Content
-			textLeft.ChangeProgramCount(-1)
 			fp.result = append(fp.result[:i], fp.result[i+1:]...)
 			i--
-		}
-	}
-}
-
-func (fp *filePreprocessor) updateParents() {
-	parents := make([]parser.Statement, 0)
-	indents := make([]int, 0)
-	for _, program := range fp.result {
-		var parent parser.Statement
-		if len(indents) > 0 {
-			parent = parents[len(parents)-1]
-			for i := len(indents) - 1; i >= 0; i-- {
-				indents[i] -= 1
-				if indents[i] == 0 {
-					indents = indents[:i]
-					parents = parents[:i]
-				}
-			}
-		}
-
-		program.SetParent(parent)
-
-		programsField := reflect.Indirect(reflect.ValueOf(program)).FieldByName("Programs")
-		if programsField.IsValid() {
-			indents = append(indents, int(programsField.Int()))
-			parents = append(parents, program.(parser.Statement))
 		}
 	}
 }
@@ -173,53 +148,44 @@ func (fp *filePreprocessor) evaluateTemplateStatement() error {
 		return err
 	}
 
-	// find all defines within the nested template block
+	fp.i++
+
 	defines := map[string][]parser.Program{}
-	for i := 0; i < templateStatement.Programs; i++ {
-		program := fp.programs[fp.i+1+i]
-		if program.Kind() != "define" {
+	for ; fp.program() != templateStatement.EndStatement; fp.i++ {
+		defineStatement, ok := fp.program().(*parser.DefineStatement)
+		if !ok || defineStatement.Parent != templateStatement {
 			continue
 		}
-		defineStatement := program.(*parser.DefineStatement)
-		if defineStatement.Depth-1 != templateStatement.Depth {
-			continue
+		fp.i++
+		for ; fp.program() != defineStatement.EndStatement; fp.i++ {
+			defines[defineStatement.Name] = append(defines[defineStatement.Name], fp.program())
 		}
-		defines[defineStatement.Name] = fp.programs[fp.i+2+i : fp.i+2+i+defineStatement.Programs]
-		i += defineStatement.Programs
 	}
 
-	fp.i += templateStatement.Programs
-
-	beforeCount := len(fp.result)
+	fp.i++
 
 	for i := 0; i < len(includedPrograms); i++ {
 		includedProgram := includedPrograms[i]
-		if includedProgram.Kind() != "slot" {
-			fp.result = append(fp.result, includedProgram)
-			continue
-		}
-		slotStatement := includedProgram.(*parser.SlotStatement)
-
-		// slot is nested within something else
-		if slotStatement.Depth != 0 {
+		slotStatement, ok := includedProgram.(*parser.SlotStatement)
+		if !ok || slotStatement.Depth != 0 {
 			fp.result = append(fp.result, includedProgram)
 			continue
 		}
 
 		definedPrograms := defines[slotStatement.Name]
-		if definedPrograms == nil {
-			continue
+
+		i++
+		for includedPrograms[i] != slotStatement.EndStatement {
+			if definedPrograms == nil {
+				fp.result = append(fp.result, includedPrograms[i])
+			}
+			i++
 		}
 
-		// swap the contents of the slot with the contents of the define statement
-		fp.result = append(fp.result, definedPrograms...)
-
-		// skipping fallback content of the slot if it is overwritten
-		i += slotStatement.Programs
+		if definedPrograms != nil {
+			fp.result = append(fp.result, definedPrograms...)
+		}
 	}
-
-	delta := len(fp.result) - beforeCount - templateStatement.Programs - 1
-	templateStatement.ChangeProgramCount(delta)
 
 	return nil
 }
@@ -235,44 +201,47 @@ func (fp *filePreprocessor) extendTemplate(parentTemplate string) error {
 	merged := make([]parser.Program, 0)
 
 	for i := 0; i < len(parentPrograms); i++ {
-		// accept only slots the top level
-		parentProgram := parentPrograms[i]
-		if parentProgram.Kind() != "slot" {
-			merged = append(merged, parentProgram)
-			continue
-		}
-		slotStatement := parentProgram.(*parser.SlotStatement)
-		if slotStatement.Depth != 0 && slotStatement.Parent != nil && slotStatement.Parent.Kind() != "define" {
-			merged = append(merged, parentProgram)
+		// find all parent's slots that can be filled by the child template
+		slotStatement, ok := parentPrograms[i].(*parser.SlotStatement)
+		if !ok || slices.Contains(merged, parser.Program(slotStatement.Parent)) {
+			merged = append(merged, parentPrograms[i])
 			continue
 		}
 
+		i++
 		defineFound := false
 
 		// swap the contents of the slot with the contents of the define statement
 		for j := 0; j < len(fp.result); j++ {
-			program := fp.result[j]
-			if program.Kind() != "define" {
-				continue
-			}
-			defineStatement := program.(*parser.DefineStatement)
-			if defineStatement.Name != slotStatement.Name || defineStatement.Depth != 0 {
+			defineStatement, ok := fp.result[j].(*parser.DefineStatement)
+			if !ok || defineStatement.Name != slotStatement.Name || slices.Contains(merged, parser.Program(defineStatement.Parent)) {
 				continue
 			}
 
 			defineFound = true
-			for k := 0; k < defineStatement.Programs; k++ {
-				merged = append(merged, fp.result[j+1+k])
+
+			j++
+			for fp.result[j] != defineStatement.EndStatement {
+				merged = append(merged, fp.result[j])
+				j++
 			}
+
+			break
 		}
 
-		// skipping fallback content of the slot if it is overwritten
-		if defineFound {
-			i += slotStatement.Programs
+		for parentPrograms[i] != slotStatement.EndStatement {
+			if !defineFound {
+				merged = append(merged, parentPrograms[i])
+			}
+			i++
 		}
 	}
 
 	fp.result = merged
 
 	return nil
+}
+
+func (fp *filePreprocessor) program() parser.Program {
+	return fp.programs[fp.i]
 }

@@ -15,14 +15,12 @@ type _parser struct {
 	cursor   int
 	piece    tokenizer.Element
 	unclosed []Statement
-	noStatic []bool
 }
 
 func Parse(elements []tokenizer.Element) ([]Program, error) {
 	parser := &_parser{
 		elements: elements,
 		cursor:   -1,
-		noStatic: []bool{},
 		programs: make([]Program, 0),
 		unclosed: make([]Statement, 0),
 	}
@@ -35,13 +33,9 @@ func (p *_parser) Parse() ([]Program, error) {
 	for p.piece != nil {
 		switch p.piece.Kind() {
 		case tokenizer.TextKind:
-			p.programs = append(p.programs, &Text{string(p.piece.(tokenizer.Text)), p.parent()})
+			p.programs = append(p.programs, &Text{string(p.piece.(tokenizer.Text))})
 		case tokenizer.MustacheKind:
 			piece := p.piece.(*tokenizer.Mustache)
-			if piece.IsComment {
-				p.next()
-				continue
-			}
 
 			expr, err := expression.Parse(piece.Tokens)
 			if err != nil {
@@ -54,16 +48,12 @@ func (p *_parser) Parse() ([]Program, error) {
 
 			vm := expression.NewVM(compiled)
 
-			if expr != nil {
-				p.addDependencies(expr.Dependencies...)
-				p.programs = append(p.programs, &Expression{
-					Program:      vm,
-					tag:          piece,
-					noStatic:     p.checkNoStatic(),
-					Parent:       p.parent(),
-					Dependencies: expr.Dependencies,
-				})
-			}
+			p.addDependencies(expr.Dependencies...)
+			p.programs = append(p.programs, &Expression{
+				Program:      vm,
+				tag:          piece,
+				Dependencies: expr.Dependencies,
+			})
 		case tokenizer.StatementKind:
 			statement, err := p.parseStatement()
 			if err != nil {
@@ -122,17 +112,11 @@ func (p *_parser) parseIfStatement() (Statement, error) {
 
 	vm := expression.NewVM(compiled)
 
-	noStatic := slices.Index(piece.Flags, "nostatic") != -1
-
 	statement := &IfStatement{
-		Program:   vm,
-		noStatic:  noStatic || p.checkNoStatic(),
-		bodyStart: len(p.programs) + 1,
-		Parent:    p.parent(),
-		location:  piece.Location,
+		Program:  vm,
+		location: piece.Location,
 	}
 
-	p.noStatic = append(p.noStatic, noStatic)
 	p.unclosed = append(p.unclosed, statement)
 	p.addDependencies(expr.Dependencies...)
 
@@ -143,35 +127,34 @@ func (p *_parser) parseForStatement() (Statement, error) {
 	piece := p.piece.(*tokenizer.Statement)
 
 	tokens := piece.Tokens
-	tokens = tokens[1 : len(tokens)-1]
 
 	if len(tokens) < 3 {
-		return nil, errors.New("unexpected end of statement", tokens[len(tokens)-1].LocationEnd)
+		return nil, errors.New("unexpected end of statement", tokens[len(tokens)-1].Location)
 	}
 
 	var keyName string
 	if tokens[0].Kind != tokenizer.TokIdent {
-		return nil, errors.New(fmt.Sprintf("unexpected token %s, expected identifier", tokens[0].Kind), tokens[0].LocationStart)
+		return nil, errors.New(fmt.Sprintf("unexpected token %s, expected identifier", tokens[0].Kind), tokens[0].Location)
 	}
 	valueName := tokens[0].Literal
 	locals := []string{valueName}
 
 	if tokens[1].Kind == tokenizer.TokComma {
 		if len(tokens) < 4 {
-			return nil, errors.New("unexpected end of statement", tokens[len(tokens)-1].LocationEnd)
+			return nil, errors.New("unexpected end of statement", tokens[len(tokens)-1].Location)
 		}
 		if tokens[2].Kind != tokenizer.TokIdent {
-			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected identifier", tokens[2].Kind), tokens[2].LocationStart)
+			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected identifier", tokens[2].Kind), tokens[2].Location)
 		}
 		keyName = tokens[2].Literal
 		locals = append(locals, keyName)
 		if tokens[3].Kind != tokenizer.TokIn {
-			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected `in`", tokens[3].Kind), tokens[3].LocationStart)
+			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected `in`", tokens[3].Kind), tokens[3].Location)
 		}
 		tokens = tokens[4:]
 	} else {
 		if tokens[1].Kind != tokenizer.TokIn {
-			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected `in`", tokens[1].Kind), tokens[1].LocationStart)
+			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected `in`", tokens[1].Kind), tokens[1].Location)
 		}
 		tokens = tokens[2:]
 	}
@@ -188,20 +171,14 @@ func (p *_parser) parseForStatement() (Statement, error) {
 
 	vm := expression.NewVM(compiled)
 
-	noStatic := slices.Index(piece.Flags, "nostatic") != -1
-
 	statement := &ForStatement{
 		KeyName:   keyName,
 		ValueName: valueName,
 		Iterable:  vm,
-		noStatic:  noStatic || p.checkNoStatic(),
-		bodyStart: len(p.programs) + 1,
-		Parent:    p.parent(),
 		location:  piece.Location,
 	}
 
 	p.unclosed = append(p.unclosed, statement)
-	p.noStatic = append(p.noStatic, noStatic)
 	p.addDependencies(expr.Dependencies...)
 
 	return statement, nil
@@ -211,12 +188,12 @@ func (p *_parser) parseForStatement() (Statement, error) {
 func (p *_parser) parseExtendStatement() (Statement, error) {
 	piece := p.piece.(*tokenizer.Statement)
 
-	if len(piece.Tokens) != 3 {
+	if len(piece.Tokens) != 1 {
 		return nil, errors.New("extend statement requires one argument", piece.Location)
 	}
 
 	return &ExtendStatement{
-		Template: piece.Tokens[1].Literal,
+		Template: piece.Tokens[0].Literal,
 		location: piece.Location,
 	}, nil
 }
@@ -225,7 +202,7 @@ func (p *_parser) parseExtendStatement() (Statement, error) {
 func (p *_parser) parseDefineStatement() (Statement, error) {
 	piece := p.piece.(*tokenizer.Statement)
 
-	if len(piece.Tokens) != 3 {
+	if len(piece.Tokens) != 1 {
 		return nil, errors.New("define statement requires one argument", piece.Location)
 	}
 
@@ -234,11 +211,9 @@ func (p *_parser) parseDefineStatement() (Statement, error) {
 	}
 
 	statement := &DefineStatement{
-		Name:      piece.Tokens[1].Literal,
-		Parent:    p.parent(),
-		bodyStart: len(p.programs) + 1,
-		Depth:     len(p.unclosed),
-		location:  piece.Location,
+		Name:     piece.Tokens[0].Literal,
+		Depth:    len(p.unclosed),
+		location: piece.Location,
 	}
 
 	p.unclosed = append(p.unclosed, statement)
@@ -249,16 +224,14 @@ func (p *_parser) parseDefineStatement() (Statement, error) {
 func (p *_parser) parseSlotStatement() (Statement, error) {
 	piece := p.piece.(*tokenizer.Statement)
 
-	if len(piece.Tokens) != 3 {
+	if len(piece.Tokens) != 1 {
 		return nil, errors.New("slot statement requires one argument", piece.Location)
 	}
 
 	statement := &SlotStatement{
-		Name:      piece.Tokens[1].Literal,
-		Parent:    p.parent(),
-		bodyStart: len(p.programs) + 1,
-		Depth:     len(p.unclosed),
-		location:  piece.Location,
+		Name:     piece.Tokens[0].Literal,
+		Depth:    len(p.unclosed),
+		location: piece.Location,
 	}
 	p.unclosed = append(p.unclosed, statement)
 	return statement, nil
@@ -268,16 +241,13 @@ func (p *_parser) parseSlotStatement() (Statement, error) {
 func (p *_parser) parseTemplateStatement() (Statement, error) {
 	piece := p.piece.(*tokenizer.Statement)
 
-	if len(piece.Tokens) != 3 {
+	if len(piece.Tokens) != 1 {
 		return nil, errors.New("template statement requires one argument", piece.Location)
 	}
 
 	statement := &TemplateStatement{
-		Template:  piece.Tokens[1].Literal,
-		BodyStart: len(p.programs) + 1,
-		Parent:    p.parent(),
-		Depth:     len(p.unclosed),
-		location:  piece.Location,
+		Template: piece.Tokens[0].Literal,
+		location: piece.Location,
 	}
 	p.unclosed = append(p.unclosed, statement)
 	return statement, nil
@@ -301,40 +271,34 @@ func (p *_parser) parseEndStatement() (Statement, error) {
 		return nil, errors.New(fmt.Sprintf("unexpected @end%s, expected @end%s", target, last.Kind()), piece.Location)
 	}
 
+	endStatement := &EndStatement{
+		ClosedStatement: last,
+	}
+
 	switch last.Kind() {
 	case "if":
 		ifStatement := last.(*IfStatement)
-		ifStatement.Programs = len(p.programs) - ifStatement.bodyStart
-		p.noStatic = p.noStatic[:len(p.noStatic)-1]
+		ifStatement.EndStatement = endStatement
 	case "for":
 		forStatement := last.(*ForStatement)
-		forStatement.Programs = len(p.programs) - forStatement.bodyStart
+		forStatement.EndStatement = endStatement
 		p.removeDependencies(forStatement.KeyName, forStatement.ValueName)
-		p.noStatic = p.noStatic[:len(p.noStatic)-1]
 	case "slot":
 		slotStatement := last.(*SlotStatement)
-		slotStatement.Programs = len(p.programs) - slotStatement.bodyStart
+		slotStatement.EndStatement = endStatement
 	case "define":
 		defineStatement := last.(*DefineStatement)
-		defineStatement.Programs = len(p.programs) - defineStatement.bodyStart
+		defineStatement.EndStatement = endStatement
 	case "template":
 		templateStatement := last.(*TemplateStatement)
-		templateStatement.Programs = len(p.programs) - templateStatement.BodyStart
+		templateStatement.EndStatement = endStatement
 	default:
 		panic("unreachable")
 	}
 
+	p.programs = append(p.programs, endStatement)
 	p.unclosed = p.unclosed[:depth-1]
 	return nil, nil
-}
-
-func (p *_parser) checkNoStatic() bool {
-	for _, noStatic := range p.noStatic {
-		if noStatic {
-			return true
-		}
-	}
-	return false
 }
 
 func (p *_parser) next() {

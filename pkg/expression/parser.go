@@ -149,7 +149,7 @@ func (p *_parser) parser() (*WrappedExpression, error) {
 	if p.nextToken != nil {
 		return nil, errors2.New(
 			fmt.Sprintf("unexpected token %s", p.nextToken.Literal),
-			p.nextToken.LocationStart,
+			p.nextToken.Location,
 		)
 	}
 
@@ -161,12 +161,12 @@ func (p *_parser) parser() (*WrappedExpression, error) {
 
 func (p *_parser) parseExpression(precedence Precedence) (Expression, error) {
 	if p.currentToken == nil {
-		return nil, errors2.New("unexpected end of expression", p.previousToken.LocationEnd)
+		return nil, errors2.New("unexpected end of expression", p.previousToken.Location)
 	}
 
 	prefix := p.prefixParseFns[p.currentToken.Kind]
 	if prefix == nil {
-		return nil, errors2.New("unexpected token "+p.currentToken.Literal, p.currentToken.LocationStart)
+		return nil, errors2.New("unexpected token "+p.currentToken.Literal, p.currentToken.Location)
 	}
 
 	leftExp, err := prefix()
@@ -197,7 +197,7 @@ func (p *_parser) parseGroupExpression() (Expression, error) {
 		return nil, err
 	}
 	if !p.expectNext(tokenizer.TokRparen) {
-		return nil, errors2.New("unclosed parenthesis", p.nextToken.LocationStart)
+		return nil, errors2.New("unclosed parenthesis", p.nextToken.Location)
 	}
 
 	return exp, nil
@@ -224,7 +224,7 @@ func (p *_parser) parseInfixExpression(left Expression) (Expression, error) {
 	if currentOperand == "not" {
 		nextKind := p.nextToken.Kind
 		if nextKind != tokenizer.TokIn {
-			return nil, errors2.New(fmt.Sprintf("unexpected infix negation `not %s`, expected `not in`", p.nextToken.Literal), p.nextToken.LocationStart)
+			return nil, errors2.New(fmt.Sprintf("unexpected infix negation `not %s`, expected `not in`", p.nextToken.Literal), p.nextToken.Location)
 		}
 	}
 
@@ -268,7 +268,7 @@ func (p *_parser) parseTernary(left Expression) (Expression, error) {
 		return nil, err
 	}
 	if !p.expectNext(tokenizer.TokColon) {
-		return nil, errors2.New("expected `:`", p.nextToken.LocationStart)
+		return nil, errors2.New("expected `:`", p.nextToken.Location)
 	}
 	p.advanceToken()
 	expr.Alternative, err = p.parseExpression(PrecLowest)
@@ -288,7 +288,7 @@ func (p *_parser) parseChain(left Expression) (Expression, error) {
 	}
 
 	if !p.expectNext(tokenizer.TokIdent) {
-		return nil, errors2.New(fmt.Sprintf("unexpected `%s`, expected `identifier`", p.nextToken.Kind), p.nextToken.LocationStart)
+		return nil, errors2.New(fmt.Sprintf("unexpected `%s`, expected `identifier`", p.nextToken.Kind), p.nextToken.Location)
 	}
 
 	rightIdent, err := p.parseIdentifier()
@@ -322,7 +322,7 @@ func (p *_parser) parsePropertyAccess(left Expression) (Expression, error) {
 		return nil, err
 	}
 	if !p.nextIs(tokenizer.TokRbrack) {
-		return nil, errors2.New("unclosed property access", p.nextToken.LocationStart)
+		return nil, errors2.New("unclosed property access", p.nextToken.Location)
 	}
 	p.advanceToken()
 	return arr, nil
@@ -353,9 +353,9 @@ func (p *_parser) parseExpressionList(end string) ([]Expression, error) {
 	}
 
 	if !p.expectNext(end) {
-		location := p.currentToken.LocationEnd
+		location := p.currentToken.Location
 		if p.nextToken != nil {
-			location = p.nextToken.LocationStart
+			location = p.nextToken.Location
 		}
 		return nil, errors2.New("unclosed list", location)
 	}
@@ -380,7 +380,7 @@ func (p *_parser) parseFunctionCall(left Expression) (Expression, error) {
 				return nil, err
 			}
 			return &Builtin{
-				location: callToken.LocationStart,
+				location: callToken.Location,
 				Token:    callToken,
 				Name:     functionName,
 				Args:     arguments,
@@ -407,14 +407,14 @@ func (p *_parser) parseNumeric() (Expression, error) {
 	if strings.Contains(p.currentToken.Literal, ".") {
 		res, err := strconv.ParseFloat(p.currentToken.Literal, 64)
 		if err != nil {
-			return nil, errors2.New("could not parse `"+p.currentToken.Literal+"` as floating point", p.nextToken.LocationStart)
+			return nil, errors2.New("could not parse `"+p.currentToken.Literal+"` as floating point", p.nextToken.Location)
 		}
 		return &Float{Token: p.currentToken, Value: res}, nil
 	}
 
 	res, err := strconv.ParseInt(p.currentToken.Literal, 10, 64)
 	if err != nil {
-		return nil, errors2.New("could not parse `"+p.currentToken.Literal+"` as integer", p.nextToken.LocationStart)
+		return nil, errors2.New("could not parse `"+p.currentToken.Literal+"` as integer", p.nextToken.Location)
 	}
 
 	return &Integer{Token: p.currentToken, Value: int(res)}, nil

@@ -6,23 +6,18 @@ import (
 	"github.com/terawatthour/socks/pkg/errors"
 	"github.com/terawatthour/socks/pkg/parser"
 	"reflect"
+	"slices"
 )
 
 type staticEvaluator struct {
 	programs []parser.Program
 	result   []parser.Program
 
-	context      map[string]any
-	available    []string
-	sanitizer    func(string) string
-	balanceQueue []balance
+	context   map[string]any
+	available []string
+	sanitizer func(string) string
 
 	i int
-}
-
-type balance struct {
-	element parser.Statement
-	delta   int
 }
 
 func evaluate(programs []parser.Program, context map[string]any, sanitizer func(string) string) ([]parser.Program, error) {
@@ -43,10 +38,6 @@ func (e *staticEvaluator) evaluate() ([]parser.Program, error) {
 		}
 	}
 
-	for _, balance := range e.balanceQueue {
-		balance.element.ChangeProgramCount(balance.delta)
-	}
-
 	return e.result, nil
 }
 
@@ -54,7 +45,14 @@ func (e *staticEvaluator) evaluateProgram(program parser.Program, context map[st
 	switch program.Kind() {
 	case "text":
 		e.result = append(e.result, program)
-		e.i += 1
+		e.i++
+		return nil
+	case "end":
+		end := program.(*parser.EndStatement)
+		e.i++
+		if slices.Contains(e.result, parser.Program(end.ClosedStatement)) {
+			e.result = append(e.result, program)
+		}
 		return nil
 	default:
 		return e.evaluateStatement(program.(parser.Statement), context)
@@ -64,21 +62,20 @@ func (e *staticEvaluator) evaluateProgram(program parser.Program, context map[st
 func (e *staticEvaluator) evaluateStatement(statement parser.Statement, context map[string]any) error {
 	switch statement.(type) {
 	case *parser.Expression:
-		return e.evaluatePrintStatement(statement, context)
+		return e.evaluateExpression(statement, context)
 	case *parser.ForStatement:
 		return e.evaluateForStatement(statement, context)
 	case *parser.IfStatement:
 		return e.evaluateIfStatement(statement, context)
 	}
-
 	return fmt.Errorf("unexpected statement")
 }
 
 func (e *staticEvaluator) evaluateIfStatement(statement parser.Statement, context map[string]any) error {
 	ifStatement := statement.(*parser.IfStatement)
-	if ifStatement.NoStatic() || !helpers.Subset(ifStatement.Dependencies, availableInContext(context)) {
+	if !helpers.Subset(ifStatement.Dependencies, availableInContext(context)) {
 		e.result = append(e.result, ifStatement)
-		e.i += 1
+		e.i++
 		return nil
 	}
 
@@ -92,32 +89,25 @@ func (e *staticEvaluator) evaluateIfStatement(statement parser.Statement, contex
 		return errors.New("expression doesn't return a boolean", ifStatement.Location())
 	}
 
-	// Discard the first tag program (if statement)
-	e.i += 1
-	beforeCount := len(e.result)
-	programCount := ifStatement.Programs
-	before := e.i
-	if resultBool {
-		for e.i < before+programCount {
-			err := e.evaluateProgram(e.programs[e.i], context)
-			if err != nil {
+	e.i++
+	for e.program() != ifStatement.EndStatement {
+		if resultBool {
+			if err := e.evaluateProgram(e.program(), context); err != nil {
 				return err
 			}
+		} else {
+			e.i++
 		}
-		e.balanceQueue = append(e.balanceQueue, balance{element: ifStatement, delta: len(e.result) - beforeCount - programCount - 1})
-		return nil
 	}
-
-	e.balanceQueue = append(e.balanceQueue, balance{element: ifStatement, delta: -programCount - 1})
-	e.i += ifStatement.Programs
+	e.i++
 	return nil
 }
 
 func (e *staticEvaluator) evaluateForStatement(statement parser.Statement, context map[string]any) error {
 	forStatement := statement.(*parser.ForStatement)
-	if forStatement.NoStatic() || !helpers.Subset(forStatement.Dependencies, availableInContext(context)) {
+	if !helpers.Subset(forStatement.Dependencies, availableInContext(context)) {
 		e.result = append(e.result, forStatement)
-		e.i += 1
+		e.i++
 		return nil
 	}
 
@@ -126,42 +116,41 @@ func (e *staticEvaluator) evaluateForStatement(statement parser.Statement, conte
 		return err
 	}
 
-	// Discard the first program (for statement)
-	e.i += 1
-
 	values := helpers.ConvertInterfaceToSlice(obj)
 	if values == nil {
 		return errors.New("for loop iterable must be either a slice, array or map", forStatement.Location())
 	}
 
+	e.i++
+
 	before := e.i
-	beforeCount := len(e.result)
 	for i, v := range values {
-		for e.i-before < forStatement.Programs {
-			program := e.programs[e.i]
+		for e.program() != forStatement.EndStatement {
 			if forStatement.KeyName != "" {
 				context[forStatement.KeyName] = i
 			}
 			context[forStatement.ValueName] = v
 
-			if err := e.evaluateProgram(program, context); err != nil {
+			if err := e.evaluateProgram(e.program(), context); err != nil {
 				return err
 			}
 		}
-		e.i = before
+		if i != len(values)-1 {
+			e.i = before
+		}
 	}
-
-	e.i = before + forStatement.Programs
-	e.balanceQueue = append(e.balanceQueue, balance{element: forStatement, delta: len(e.result) - beforeCount - forStatement.Programs - 1})
+	delete(context, forStatement.KeyName)
+	delete(context, forStatement.ValueName)
+	e.i++
 
 	return nil
 }
 
-func (e *staticEvaluator) evaluatePrintStatement(statement parser.Statement, context map[string]any) error {
+func (e *staticEvaluator) evaluateExpression(statement parser.Statement, context map[string]any) error {
 	printStatement := statement.(*parser.Expression)
-	if printStatement.NoStatic() || !helpers.Subset(printStatement.Dependencies, availableInContext(context)) {
+	if !helpers.Subset(printStatement.Dependencies, availableInContext(context)) {
 		e.result = append(e.result, printStatement)
-		e.i += 1
+		e.i++
 		return nil
 	}
 
@@ -175,10 +164,14 @@ func (e *staticEvaluator) evaluatePrintStatement(statement parser.Statement, con
 		stringified = e.sanitizer(stringified)
 	}
 
-	e.result = append(e.result, &parser.Text{Content: stringified, Parent: printStatement.Parent})
-	e.i += 1
+	e.result = append(e.result, &parser.Text{stringified})
+	e.i++
 
 	return err
+}
+
+func (e *staticEvaluator) program() parser.Program {
+	return e.programs[e.i]
 }
 
 func availableInContext(context map[string]any) []string {

@@ -8,18 +8,6 @@ import (
 	"strings"
 )
 
-type Type string
-
-const (
-	TInt     Type = "int"
-	TBool    Type = "bool"
-	TFloat   Type = "float"
-	TString  Type = "string"
-	TArray   Type = "array"
-	TNil     Type = "nil"
-	TUnknown Type = "unknown"
-)
-
 type Chunk struct {
 	Instructions []int
 	Constants    []any
@@ -45,59 +33,46 @@ func NewCompiler(expr Expression) *Compiler {
 }
 
 func (c *Compiler) Compile() (Chunk, error) {
-	if err, _ := c.compile(c.expr, c.expr); err != nil {
+	if err := c.compile(c.expr, c.expr); err != nil {
 		return Chunk{}, err
 	}
 	return c.chunk, nil
 }
 
-func (c *Compiler) compile(expr Expression, scope Expression) (error, Type) {
-	var returnedType Type = TUnknown
-
+func (c *Compiler) compile(expr Expression, scope Expression) error {
 	switch expr := expr.(type) {
 	case *Array:
 		for _, item := range expr.Items {
-			if err, _ := c.compile(item, item); err != nil {
-				return err, ""
+			if err := c.compile(item, item); err != nil {
+				return err
 			}
 		}
 		c.emit(OpArray)
 		c.addLookup(expr)
 		c.emit(len(expr.Items))
-		returnedType = TArray
 	case *Boolean:
 		c.emitConstant(expr.Value)
 		c.addLookup(expr)
-		returnedType = TBool
 	case *Float:
 		c.emitConstant(expr.Value)
 		c.addLookup(expr)
-		returnedType = TFloat
 	case *Integer:
 		c.emitConstant(expr.Value)
 		c.addLookup(expr)
-		returnedType = TInt
 	case *StringLiteral:
 		c.emitConstant(expr.Value)
 		c.addLookup(expr)
-		returnedType = TString
 	case *Identifier:
 		c.emit(OpGet)
 		c.addLookup(expr)
 		c.emit(c.createConstant(expr.Value))
-		returnedType = TUnknown
 	case *Nil:
 		c.emit(OpNil)
 		c.addLookup(expr)
-		returnedType = TNil
 	case *Builtin:
-		var argTypes []Type
-
 		for _, arg := range expr.Args {
-			if err, returned := c.compile(arg, arg); err != nil {
-				return err, ""
-			} else {
-				argTypes = append(argTypes, returned)
+			if err := c.compile(arg, arg); err != nil {
+				return err
 			}
 		}
 
@@ -121,7 +96,7 @@ func (c *Compiler) compile(expr Expression, scope Expression) (error, Type) {
 			types := builtinTypes[expr.Name]
 			inputTypes := types[:len(types)-1]
 			returnType := types[len(types)-1]
-			return errors.New(fmt.Sprintf("call to %s(%s) -> any does not match the signature of %s(%s) -> %s", expr.Name, strings.TrimSuffix(strings.Repeat("any, ", len(expr.Args)), ", "), expr.Name, strings.Join(inputTypes, ", "), returnType), expr.location), ""
+			return errors.New(fmt.Sprintf("call to %s(%s) -> any does not match the signature of %s(%s) -> %s", expr.Name, strings.TrimSuffix(strings.Repeat("any, ", len(expr.Args)), ", "), expr.Name, strings.Join(inputTypes, ", "), returnType), expr.location)
 		}
 
 		switch builtinType {
@@ -136,38 +111,32 @@ func (c *Compiler) compile(expr Expression, scope Expression) (error, Type) {
 		c.addLookup(expr)
 		c.emit(builtinRelativeIndex(expr.Name))
 	case *FunctionCall:
-		if err, returned := c.compile(expr.Called, scope); err != nil {
-			return err, ""
-		} else if returned != TUnknown {
-			return errors.New("cannot call a non-function", expr.Location()), ""
+		if err := c.compile(expr.Called, scope); err != nil {
+			return err
 		}
 		for _, arg := range expr.Args {
-			if err, _ := c.compile(arg, arg); err != nil {
-				return err, ""
+			if err := c.compile(arg, arg); err != nil {
+				return err
 			}
 		}
 		c.emit(OpCall)
 		c.addLookup(expr)
 		c.emit(len(expr.Args))
-		returnedType = TUnknown
 	case *FieldAccess:
-		err, accessedType := c.compile(expr.Accessed, scope)
+		err := c.compile(expr.Accessed, scope)
 		if err != nil {
-			return err, ""
+			return err
 		}
 
-		if err, returned := c.compile(expr.Index, expr.Index); err != nil {
-			return err, ""
-		} else if returned != TInt && accessedType == TArray {
-			return errors.New("slice access index must be an integer", expr.Index.Location()), ""
+		if err := c.compile(expr.Index, expr.Index); err != nil {
+			return err
 		}
 
 		c.emit(OpArrayAccess)
 		c.addLookup(expr)
-		returnedType = TUnknown
 	case *Chain:
-		if err, _ := c.compile(expr.Left, scope); err != nil {
-			return err, ""
+		if err := c.compile(expr.Left, scope); err != nil {
+			return err
 		}
 		if expr.IsOptional {
 			c.emit(OpOptionalChain)
@@ -180,49 +149,31 @@ func (c *Compiler) compile(expr Expression, scope Expression) (error, Type) {
 		}
 		c.emit(c.createConstant(expr.Right.Value))
 	case *Ternary:
-		if err, _ := c.compile(expr.Condition, expr.Condition); err != nil {
-			return err, ""
+		if err := c.compile(expr.Condition, expr.Condition); err != nil {
+			return err
 		}
 		c.emit(OpTernary)
 		start := len(c.chunk.Instructions)
 		c.emit(-1)
-		if err, _ := c.compile(expr.Consequence, expr.Consequence); err != nil {
-			return err, ""
+		if err := c.compile(expr.Consequence, expr.Consequence); err != nil {
+			return err
 		}
 		c.emit(OpJmp)
 		c.emit(-1)
 		c.chunk.Instructions[start] = len(c.chunk.Instructions) - start
 		start = len(c.chunk.Instructions) - 1
-		if err, _ := c.compile(expr.Alternative, expr.Alternative); err != nil {
-			return err, ""
+		if err := c.compile(expr.Alternative, expr.Alternative); err != nil {
+			return err
 		}
 		c.chunk.Instructions[start] = len(c.chunk.Instructions) - start
 	case *InfixExpression:
 		var err error
-		var leftType, rightType Type
-		if err, leftType = c.compile(expr.Left, expr.Left); err != nil {
-			return err, ""
+		if err = c.compile(expr.Left, expr.Left); err != nil {
+			return err
 		}
 		if expr.Op != tokenizer.TokElvis {
-			if err, rightType = c.compile(expr.Right, expr.Right); err != nil {
-				return err, ""
-			}
-		}
-
-		known := leftType != TUnknown && rightType != TUnknown
-
-		switch expr.Op {
-		case tokenizer.TokEq, tokenizer.TokNeq:
-			if known && leftType != rightType {
-				return errors.New(fmt.Sprintf("cannot equate %s to %s", leftType, rightType), expr.Location()), ""
-			}
-		case tokenizer.TokLt, tokenizer.TokLte, tokenizer.TokGt, tokenizer.TokGte, tokenizer.TokMinus, tokenizer.TokAsterisk, tokenizer.TokSlash, tokenizer.TokPower:
-			if known && !checkTypes(leftType, rightType, TInt, TFloat) {
-				return errors.New(fmt.Sprintf("invalid operation, mismatched types: %v %v %v", leftType, expr.Token.Literal, rightType), expr.Location()), ""
-			}
-		case tokenizer.TokModulo:
-			if known && !checkTypes(leftType, rightType, TInt) {
-				return errors.New(fmt.Sprintf("invalid operation, mismatched types: %v %% %v", leftType, rightType), expr.Location()), ""
+			if err = c.compile(expr.Right, expr.Right); err != nil {
+				return err
 			}
 		}
 
@@ -244,9 +195,6 @@ func (c *Compiler) compile(expr Expression, scope Expression) (error, Type) {
 		case tokenizer.TokGte:
 			c.emit(OpGte)
 		case tokenizer.TokPlus:
-			if known && !checkTypes(leftType, rightType, TInt, TFloat) && !symmetricCheck(leftType, rightType, TString) {
-				return errors.New(fmt.Sprintf("invalid operation, mismatched types: %v + %v", leftType, rightType), expr.Location()), ""
-			}
 			c.emit(OpAdd)
 		case tokenizer.TokMinus:
 			c.emit(OpSubtract)
@@ -255,9 +203,6 @@ func (c *Compiler) compile(expr Expression, scope Expression) (error, Type) {
 		case tokenizer.TokSlash:
 			c.emit(OpDivide)
 		case tokenizer.TokIn:
-			if known && (rightType != TArray && rightType != TString) {
-				return errors.New(fmt.Sprintf("cannot use 'in' with %s", rightType), expr.Location()), ""
-			}
 			c.emit(OpIn)
 		case tokenizer.TokPower:
 			c.emit(OpPower)
@@ -267,27 +212,22 @@ func (c *Compiler) compile(expr Expression, scope Expression) (error, Type) {
 			c.emit(OpElvis)
 			start := len(c.chunk.Instructions)
 			c.emit(-1)
-			if err, rightType = c.compile(expr.Right, expr.Right); err != nil {
-				return err, ""
+			if err = c.compile(expr.Right, expr.Right); err != nil {
+				return err
 			}
 			c.chunk.Instructions[start] = len(c.chunk.Instructions) - start
-			returnedType = rightType
 		}
 		c.addLookup(expr)
 	case *PrefixExpression:
-		err, returned := c.compile(expr.Right, expr.Right)
-		if err != nil {
-			return err, ""
+		if err := c.compile(expr.Right, expr.Right); err != nil {
+			return err
 		}
 
 		switch expr.Op {
 		case tokenizer.TokNot:
 			c.emit(OpNot)
-			returnedType = TBool
 		case tokenizer.TokMinus:
 			c.emit(OpNegate)
-			returnedType = returned
-
 		}
 		c.addLookup(expr)
 	}
@@ -296,7 +236,7 @@ func (c *Compiler) compile(expr Expression, scope Expression) (error, Type) {
 		c.updateChainJumps(scope)
 	}
 
-	return nil, returnedType
+	return nil
 }
 
 func (c *Compiler) updateChainJumps(expr Expression) {
@@ -334,16 +274,4 @@ func (c *Compiler) addLookup(expression Expression) {
 		c.chunk.Lookups = append(c.chunk.Lookups, make([]Expression, fillSpaces)...)
 	}
 	c.chunk.Lookups[atIndex] = expression
-}
-
-func checkTypes(left Type, right Type, allowed ...Type) bool {
-	return slices.Index(allowed, left) != -1 && slices.Index(allowed, right) != -1
-}
-
-func known(left, right Type) bool {
-	return left != TUnknown && right != TUnknown
-}
-
-func symmetricCheck(left Type, right Type, allowed ...Type) bool {
-	return !(known(left, right) && (left != right || !checkTypes(left, right, allowed...)))
 }

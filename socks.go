@@ -1,16 +1,18 @@
 package socks
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
+	"io"
+
 	"github.com/terawatthour/socks/internal/helpers"
 	errors2 "github.com/terawatthour/socks/pkg/errors"
-	"io"
 )
 
 type Socks interface {
 	ExecuteToString(template string, context map[string]interface{}) (string, error)
-	Execute(w io.Writer, template string, context map[string]interface{}) (int, error)
+	Execute(w io.Writer, template string, context map[string]interface{}) error
 
 	LoadTemplates(pattern string, removePrefix ...string) error
 	LoadTemplateFromString(filename string, content string)
@@ -77,7 +79,8 @@ func (s *socks) ExecuteToString(template string, context map[string]interface{})
 
 	nativeName := s.fs.nativeMap[template]
 
-	result, err := eval.Evaluate(helpers.CombineMaps(s.globals, context))
+	result := bytes.NewBufferString("")
+	err := eval.Evaluate(result, helpers.CombineMaps(s.globals, context))
 	if err != nil {
 		var nativeError *errors2.Error
 		if errors.As(err, &nativeError) {
@@ -86,25 +89,25 @@ func (s *socks) ExecuteToString(template string, context map[string]interface{})
 		}
 		return "", err
 	}
-	return result, nil
+	return result.String(), nil
 }
 
-func (s *socks) Execute(w io.Writer, template string, context map[string]any) (int, error) {
+func (s *socks) Execute(w io.Writer, template string, context map[string]any) error {
 	eval, ok := s.fs.templates[template]
 	if !ok {
-		return 0, fmt.Errorf("template `%s` not found", template)
+		return fmt.Errorf("template `%s` not found", template)
 	}
 
-	result, err := eval.Evaluate(helpers.CombineMaps(s.globals, context))
+	err := eval.Evaluate(w, helpers.CombineMaps(s.globals, context))
 	if err != nil {
 		var nativeError *errors2.Error
 		if errors.As(err, &nativeError) {
 			nativeError.File = template
-			return 0, nativeError
+			return nativeError
 		}
-		return 0, err
+		return err
 	}
-	return w.Write([]byte(result))
+	return nil
 }
 
 func (s *socks) AddGlobal(key string, value any) {

@@ -2,35 +2,22 @@ package debug
 
 import (
 	"fmt"
+	"github.com/terawatthour/socks/pkg/parser"
 	"reflect"
 	"strings"
 )
 
-func PrintPrograms(label string, programs any) {
-	val := reflect.ValueOf(programs)
+func PrintPrograms(label string, programs []parser.Program) {
 	fmt.Printf("programs (%s):\n", label)
-	indents := make([]int, 0)
-	for i := 0; i < val.Len(); i++ {
-		program := val.Index(i).Interface()
-		if len(indents) > 0 {
-			fmt.Print(strings.Repeat(" ", 2*len(indents)+2*(len(indents)-1)), "└─–")
-			for i := len(indents) - 1; i >= 0; i-- {
-				indents[i] -= 1
-				if indents[i] == 0 {
-					indents = indents[:i]
-				}
-			}
+	level := 0
+	for _, program := range programs {
+		if program.Kind() == "end" {
+			level--
 		}
-		fmt.Print(program)
-		if reflect.TypeOf(program).Kind() == reflect.String {
-			fmt.Println()
-			continue
+		fmt.Printf("%s%s\n", strings.Repeat("  ", level), program)
+		if reflect.ValueOf(program).Kind() == reflect.Ptr && reflect.Indirect(reflect.ValueOf(program)).FieldByName("EndStatement").IsValid() {
+			level++
 		}
-		programsField := reflect.Indirect(reflect.ValueOf(program)).FieldByName("Programs")
-		if programsField.IsValid() {
-			indents = append(indents, int(programsField.Int()))
-		}
-		fmt.Println()
 	}
 	fmt.Println("End programs")
 }

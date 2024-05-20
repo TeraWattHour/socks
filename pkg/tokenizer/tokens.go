@@ -12,8 +12,6 @@ const (
 	TokRparen = "rparen"
 	TokLbrack = "lbrack"
 	TokRbrack = "rbrack"
-	TokLbrace = "lbrace"
-	TokRbrace = "rbrace"
 
 	TokLt  = "lt"
 	TokGt  = "gt"
