@@ -42,8 +42,6 @@ type Expression struct {
 	Dependencies []string
 }
 
-func (vs *Expression) ChangeDepth(by int) {}
-
 func (vs *Expression) Location() helpers.Location {
 	return vs.tag.Location
 }
@@ -60,12 +58,7 @@ func (vs *Expression) Tag() *tokenizer.Mustache {
 	return vs.tag
 }
 
-type Statement interface {
-	Kind() string
-	String() string
-	Location() helpers.Location
-	ChangeDepth(by int)
-}
+type Statement = Program
 
 // ---------------------- If Statement ----------------------
 
@@ -75,8 +68,6 @@ type IfStatement struct {
 	Dependencies []string
 	EndStatement Statement
 }
-
-func (vs *IfStatement) ChangeDepth(by int) {}
 
 func (vs *IfStatement) Location() helpers.Location {
 	return vs.location
@@ -101,8 +92,6 @@ type ForStatement struct {
 	EndStatement *EndStatement
 }
 
-func (es *ForStatement) ChangeDepth(by int) {}
-
 func (es *ForStatement) Location() helpers.Location {
 	return es.location
 }
@@ -125,8 +114,6 @@ type ExtendStatement struct {
 	location helpers.Location
 }
 
-func (es *ExtendStatement) ChangeDepth(by int) {}
-
 func (es *ExtendStatement) Location() helpers.Location {
 	return es.location
 }
@@ -147,8 +134,6 @@ type TemplateStatement struct {
 	EndStatement *EndStatement
 }
 
-func (es *TemplateStatement) ChangeDepth(by int) {}
-
 func (es *TemplateStatement) Location() helpers.Location {
 	return es.location
 }
@@ -165,14 +150,9 @@ func (es *TemplateStatement) Kind() string {
 
 type SlotStatement struct {
 	Name         string
-	Depth        int
 	location     helpers.Location
 	Parent       Statement
 	EndStatement *EndStatement
-}
-
-func (ss *SlotStatement) ChangeDepth(by int) {
-	ss.Depth += by
 }
 
 func (ss *SlotStatement) Location() helpers.Location {
@@ -192,13 +172,8 @@ func (ss *SlotStatement) Kind() string {
 type DefineStatement struct {
 	Name         string
 	location     helpers.Location
-	Depth        int
 	Parent       Statement
 	EndStatement *EndStatement
-}
-
-func (es *DefineStatement) ChangeDepth(by int) {
-	es.Depth += by
 }
 
 func (es *DefineStatement) Location() helpers.Location {
@@ -217,8 +192,6 @@ type EndStatement struct {
 	location        helpers.Location
 	ClosedStatement Statement
 }
-
-func (es *EndStatement) ChangeDepth(by int) {}
 
 func (es *EndStatement) Location() helpers.Location {
 	return es.ClosedStatement.Location()

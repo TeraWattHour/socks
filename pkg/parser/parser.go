@@ -212,7 +212,6 @@ func (p *_parser) parseDefineStatement() (Statement, error) {
 
 	statement := &DefineStatement{
 		Name:     piece.Tokens[0].Literal,
-		Depth:    len(p.unclosed),
 		location: piece.Location,
 	}
 
@@ -230,7 +229,6 @@ func (p *_parser) parseSlotStatement() (Statement, error) {
 
 	statement := &SlotStatement{
 		Name:     piece.Tokens[0].Literal,
-		Depth:    len(p.unclosed),
 		location: piece.Location,
 	}
 	p.unclosed = append(p.unclosed, statement)

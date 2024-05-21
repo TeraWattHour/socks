@@ -1,8 +1,8 @@
 package parser
 
 import (
-	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/pkg/tokenizer"
+	"slices"
 	"testing"
 )
 
@@ -54,15 +54,15 @@ func TestDependencies(t *testing.T) {
 		}
 		switch program.Kind() {
 		case "for":
-			if !helpers.SlicesEqual(program.(*ForStatement).Dependencies, expect[i]) {
+			if !slices.Equal(program.(*ForStatement).Dependencies, expect[i]) {
 				t.Errorf("unexpected result: %v, expected: %v", program.(*ForStatement).Dependencies, expect[i])
 			}
 		case "if":
-			if !helpers.SlicesEqual(program.(*IfStatement).Dependencies, expect[i]) {
+			if !slices.Equal(program.(*IfStatement).Dependencies, expect[i]) {
 				t.Errorf("unexpected result: %v, expected: %v", program.(*IfStatement).Dependencies, expect[i])
 			}
 		case "expression":
-			if !helpers.SlicesEqual(program.(*Expression).Dependencies, expect[i]) {
+			if !slices.Equal(program.(*Expression).Dependencies, expect[i]) {
 				t.Errorf("unexpected result: %v, expected: %v", program.(*Expression).Dependencies, expect[i])
 			}
 		}

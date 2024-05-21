@@ -4,45 +4,27 @@ import (
 	"reflect"
 )
 
-func ConvertInterfaceToSlice(obj any) []any {
+func ConvertInterfaceToSlice(result chan any, obj any) {
 	sliceValue := reflect.ValueOf(obj)
 
-	if sliceValue.Kind() == reflect.Slice || sliceValue.Kind() == reflect.Array {
-		resultSlice := make([]any, sliceValue.Len())
+	switch sliceValue.Kind() {
+	case reflect.Slice, reflect.Array:
 		for i := 0; i < sliceValue.Len(); i++ {
-			resultSlice[i] = sliceValue.Index(i).Interface()
+			result <- sliceValue.Index(i).Interface()
 		}
-
-		return resultSlice
-	} else if sliceValue.Kind() == reflect.Map {
-		resultSlice := make([]any, sliceValue.Len())
-		for i, key := range sliceValue.MapKeys() {
-			resultSlice[i] = sliceValue.MapIndex(key).Interface()
+	case reflect.Map:
+		for _, key := range sliceValue.MapKeys() {
+			result <- sliceValue.MapIndex(key).Interface()
 		}
-
-		return resultSlice
+	default:
+		panic("unreachable")
 	}
 
-	return nil
 }
 
-func SlicesEqual[T comparable](a, b []T) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	for _, v := range a {
-		found := true
-		for _, w := range b {
-			if v == w {
-				found = true
-				break
-			}
-		}
-		if !found {
-			return false
-		}
-	}
-	return true
+func IsIterable(obj any) bool {
+	value := reflect.ValueOf(obj)
+	return value.Kind() == reflect.Slice || value.Kind() == reflect.Array || value.Kind() == reflect.Map
 }
 
 // Subset checks whether a is a subset of B

@@ -114,7 +114,7 @@ Preprocessor tags, the result of the expression will be printed to the template.
 Comment tag, the content of this tag will be ignored.
 ```html
 {# This is a comment #}
-<!-- this is an HTML comment, but it won't be removed -->
+<!-- this is an HTML comment and it won't be removed -->
 ```
 
 ### Execution tag

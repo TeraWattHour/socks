@@ -50,7 +50,7 @@ func (e *staticEvaluator) evaluateProgram(program parser.Program, context map[st
 	case "end":
 		end := program.(*parser.EndStatement)
 		e.i++
-		if slices.Contains(e.result, parser.Program(end.ClosedStatement)) {
+		if slices.Contains(e.result, end.ClosedStatement) {
 			e.result = append(e.result, program)
 		}
 		return nil
@@ -86,7 +86,7 @@ func (e *staticEvaluator) evaluateIfStatement(statement parser.Statement, contex
 
 	resultBool, ok := result.(bool)
 	if !ok {
-		return errors.New("expression doesn't return a boolean", ifStatement.Location())
+		return errors.New(fmt.Sprintf("expression is of type <%s>, expected <bool>", reflect.TypeOf(result).Kind()), ifStatement.Location())
 	}
 
 	e.i++
@@ -116,15 +116,26 @@ func (e *staticEvaluator) evaluateForStatement(statement parser.Statement, conte
 		return err
 	}
 
-	values := helpers.ConvertInterfaceToSlice(obj)
-	if values == nil {
-		return errors.New("for loop iterable must be either a slice, array or map", forStatement.Location())
+	if !helpers.IsIterable(obj) {
+		return errors.New(fmt.Sprintf("expected <slice | array | map>, got <%s>", reflect.ValueOf(obj).Kind()), forStatement.Location())
 	}
+
+	channel := make(chan any)
+	go func() {
+		helpers.ConvertInterfaceToSlice(channel, obj)
+		defer close(channel)
+	}()
 
 	e.i++
 
 	before := e.i
-	for i, v := range values {
+	i := 0
+
+	previousKey := context[forStatement.KeyName]
+	previousValue := context[forStatement.ValueName]
+
+	for v := range channel {
+		e.i = before
 		for e.program() != forStatement.EndStatement {
 			if forStatement.KeyName != "" {
 				context[forStatement.KeyName] = i
@@ -135,12 +146,11 @@ func (e *staticEvaluator) evaluateForStatement(statement parser.Statement, conte
 				return err
 			}
 		}
-		if i != len(values)-1 {
-			e.i = before
-		}
+		i++
 	}
-	delete(context, forStatement.KeyName)
-	delete(context, forStatement.ValueName)
+	context[forStatement.KeyName] = previousKey
+	context[forStatement.ValueName] = previousValue
+
 	e.i++
 
 	return nil

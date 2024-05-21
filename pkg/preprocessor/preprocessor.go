@@ -167,7 +167,7 @@ func (fp *filePreprocessor) evaluateTemplateStatement() error {
 	for i := 0; i < len(includedPrograms); i++ {
 		includedProgram := includedPrograms[i]
 		slotStatement, ok := includedProgram.(*parser.SlotStatement)
-		if !ok || slotStatement.Depth != 0 {
+		if !ok || slices.Contains(fp.result, slotStatement.Parent) {
 			fp.result = append(fp.result, includedProgram)
 			continue
 		}

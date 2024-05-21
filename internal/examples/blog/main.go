@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"net/http"
+	"strconv"
 	"time"
 
 	"github.com/terawatthour/socks"
@@ -38,8 +39,21 @@ func main() {
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+		count, err := strconv.ParseInt(r.URL.Query().Get("count"), 10, 64)
+		if err != nil || count < 1 {
+			count = 1
+		} else if count > 10 {
+			count = 10
+		}
+
+		arr := make([]int, count)
+		for i := 0; i < int(count); i++ {
+			arr[i] = i
+		}
+
 		if err := s.Execute(w, "index.html", map[string]interface{}{
 			"currentDate": time.Now(),
+			"counts":      arr,
 		}); err != nil {
 			w.WriteHeader(500)
 			log.Println(err)
