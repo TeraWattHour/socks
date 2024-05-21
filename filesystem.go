@@ -2,8 +2,8 @@ package socks
 
 import (
 	"fmt"
-	"github.com/terawatthour/socks/pkg/evaluator"
-	"github.com/terawatthour/socks/pkg/preprocessor"
+	"github.com/terawatthour/socks/evaluator"
+	"github.com/terawatthour/socks/preprocessor"
 	"os"
 	"path/filepath"
 	"strings"

@@ -2,7 +2,7 @@ package debug
 
 import (
 	"fmt"
-	"github.com/terawatthour/socks/pkg/parser"
+	"github.com/terawatthour/socks/parser"
 	"reflect"
 	"strings"
 )

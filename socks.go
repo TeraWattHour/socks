@@ -5,9 +5,9 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"maps"
 
-	"github.com/terawatthour/socks/internal/helpers"
-	errors2 "github.com/terawatthour/socks/pkg/errors"
+	errors2 "github.com/terawatthour/socks/errors"
 )
 
 type Socks interface {
@@ -67,7 +67,7 @@ func (s *socks) LoadTemplateFromString(filename string, content string) {
 }
 
 func (s *socks) Compile(staticContext map[string]interface{}) error {
-	s.globals = helpers.CombineMaps(s.globals, staticContext)
+	maps.Copy(s.globals, staticContext)
 	return s.fs.preprocessTemplates(staticContext)
 }
 
@@ -80,7 +80,8 @@ func (s *socks) ExecuteToString(template string, context map[string]interface{})
 	nativeName := s.fs.nativeMap[template]
 
 	result := bytes.NewBufferString("")
-	err := eval.Evaluate(result, helpers.CombineMaps(s.globals, context))
+	maps.Copy(s.globals, context)
+	err := eval.Evaluate(result, s.globals)
 	if err != nil {
 		var nativeError *errors2.Error
 		if errors.As(err, &nativeError) {
@@ -98,7 +99,8 @@ func (s *socks) Execute(w io.Writer, template string, context map[string]any) er
 		return fmt.Errorf("template `%s` not found", template)
 	}
 
-	err := eval.Evaluate(w, helpers.CombineMaps(s.globals, context))
+	maps.Copy(s.globals, context)
+	err := eval.Evaluate(w, s.globals)
 	if err != nil {
 		var nativeError *errors2.Error
 		if errors.As(err, &nativeError) {
@@ -115,7 +117,7 @@ func (s *socks) AddGlobal(key string, value any) {
 }
 
 func (s *socks) AddGlobals(value map[string]any) {
-	s.globals = helpers.CombineMaps(s.globals, value)
+	maps.Copy(s.globals, value)
 }
 
 func (s *socks) GetGlobals() map[string]any {
