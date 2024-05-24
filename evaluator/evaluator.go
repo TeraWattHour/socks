@@ -95,7 +95,7 @@ func (e *Evaluator) evaluateForStatement(forStatement *parser.ForStatement, cont
 
 	channel := make(chan any)
 	go func() {
-		helpers.ConvertInterfaceToSlice(channel, obj)
+		helpers.ExtractValues(channel, obj)
 		close(channel)
 	}()
 

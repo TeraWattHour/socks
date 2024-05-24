@@ -73,7 +73,6 @@ var precedences = map[string]Precedence{
 	tokenizer.TokAsterisk: PrecMultiply,
 	tokenizer.TokSlash:    PrecMultiply,
 	tokenizer.TokModulo:   PrecMultiply,
-	tokenizer.TokFloorDiv: PrecMultiply,
 
 	tokenizer.TokPower: PrecPower,
 
@@ -121,7 +120,6 @@ func newParser(tokens []tokenizer.Token) *_parser {
 		tokenizer.TokAsterisk,
 		tokenizer.TokSlash,
 		tokenizer.TokIn,
-		tokenizer.TokFloorDiv,
 		tokenizer.TokPower,
 		tokenizer.TokModulo,
 		tokenizer.TokNot,
