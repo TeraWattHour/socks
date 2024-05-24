@@ -5,7 +5,6 @@ const (
 	TokNumber = "number"
 	TokString = "string"
 	TokComma  = "comma"
-	TokEnd    = "end"
 	TokAt     = "at"
 
 	TokLparen = "lparen"
@@ -27,38 +26,23 @@ const (
 	TokSlash         = "slash"
 	TokModulo        = "modulo"
 	TokPower         = "power"
-	TokFloorDiv      = "floor_div"
 	TokColon         = "colon"
 	TokQuestion      = "question"
 	TokDot           = "dot"
 	TokOptionalChain = "optional_chain"
 	TokElvis         = "elvis"
 
-	TokFor   = "for"
 	TokIn    = "in"
-	TokIf    = "if"
 	TokTrue  = "true"
 	TokNot   = "not"
 	TokFalse = "false"
 	TokAnd   = "and"
 	TokOr    = "or"
 	TokNil
-
-	TokExtend   = "extend"
-	TokSlot     = "slot"
-	TokTemplate = "template"
-	TokDefine   = "define"
 )
 
 var Keywords = []string{
-	TokFor,
 	TokIn,
-	TokExtend,
-	TokSlot,
-	TokEnd,
-	TokDefine,
-	TokTemplate,
-	TokIf,
 	TokTrue,
 	TokFalse,
 	TokAnd,
@@ -68,12 +52,12 @@ var Keywords = []string{
 }
 
 var Instructions = []string{
-	TokFor,
-	TokIf,
-	TokDefine,
-	TokExtend,
-	TokSlot,
-	TokTemplate,
+	"for",
+	"if",
+	"define",
+	"extend",
+	"slot",
+	"template",
 	"endif",
 	"endfor",
 	"enddefine",

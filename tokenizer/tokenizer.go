@@ -53,7 +53,6 @@ func Tokenize(template string) ([]Element, error) {
 
 func (t *_tokenizer) tokenize() ([]Element, error) {
 	possibleElements := lookupElements(t.template)
-
 	if len(possibleElements) == 0 {
 		t.elements = append(t.elements, Text(t.template))
 		return t.elements, nil
@@ -117,6 +116,10 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 			t.forward()
 			instruction := t.template[element[0]+1 : element[1]]
 			t.goTo(element[1])
+
+			if t.rune() != '(' && !strings.HasPrefix(instruction, "end") {
+				return nil, errors2.New("expected `(` after statement", location)
+			}
 
 			if t.rune() == '(' {
 				t.forward()
@@ -200,13 +203,7 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 				token.Kind = TokAsterisk
 			}
 		case '/':
-			if t.nextRune() == '/' {
-				token.Kind = TokFloorDiv
-				token.Literal = "//"
-				t.forward()
-			} else {
-				token.Kind = TokSlash
-			}
+			token.Kind = TokSlash
 		case '<':
 			if t.nextRune() == '=' {
 				token.Kind = TokLte
@@ -402,7 +399,12 @@ func lookupElements(haystack string) [][]int {
 	}
 
 	found := lookupRegex.FindAllStringIndex(haystack, -1)
+
 	for i, element := range found {
+		if element[1]-element[0] == 2 {
+			continue
+		}
+
 		if haystack[element[0]] == haystack[element[0]+1] {
 			found = append(found[:i], found[i+1:]...)
 			continue

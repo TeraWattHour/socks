@@ -4,7 +4,7 @@ import (
 	"reflect"
 )
 
-func ConvertInterfaceToSlice(result chan any, obj any) {
+func ExtractValues(result chan any, obj any) {
 	sliceValue := reflect.ValueOf(obj)
 
 	switch sliceValue.Kind() {
@@ -27,7 +27,7 @@ func IsIterable(obj any) bool {
 	return value.Kind() == reflect.Slice || value.Kind() == reflect.Array || value.Kind() == reflect.Map
 }
 
-// Subset checks whether a is a subset of B
+// Subset checks whether _a_ is a subset of _B_
 func Subset[T comparable](a, B []T) bool {
 	if len(a) > len(B) {
 		return false
@@ -50,8 +50,22 @@ func Subset[T comparable](a, B []T) bool {
 
 type Stack[T any] []T
 
-func (s *Stack[T]) Push(v T) {
+func (s *Stack[T]) Push(v T) int {
+	idx := len(*s)
 	*s = append(*s, v)
+	return idx
+}
+
+func (s *Stack[T]) Peek() T {
+	if len(*s) == 0 {
+		var noop T
+		return noop
+	}
+	return (*s)[len(*s)-1]
+}
+
+func (s *Stack[T]) IsEmpty() bool {
+	return len(*s) == 0
 }
 
 func (s *Stack[T]) Pop() T {

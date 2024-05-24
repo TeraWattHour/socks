@@ -122,7 +122,7 @@ func (e *staticEvaluator) evaluateForStatement(statement parser.Statement, conte
 
 	channel := make(chan any)
 	go func() {
-		helpers.ConvertInterfaceToSlice(channel, obj)
+		helpers.ExtractValues(channel, obj)
 		defer close(channel)
 	}()
 

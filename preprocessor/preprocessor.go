@@ -203,7 +203,7 @@ func (fp *filePreprocessor) extendTemplate(parentTemplate string) error {
 	for i := 0; i < len(parentPrograms); i++ {
 		// find all parent's slots that can be filled by the child template
 		slotStatement, ok := parentPrograms[i].(*parser.SlotStatement)
-		if !ok || slices.Contains(merged, parser.Program(slotStatement.Parent)) {
+		if !ok || slices.Contains(merged, slotStatement.Parent) {
 			merged = append(merged, parentPrograms[i])
 			continue
 		}
@@ -214,7 +214,7 @@ func (fp *filePreprocessor) extendTemplate(parentTemplate string) error {
 		// swap the contents of the slot with the contents of the define statement
 		for j := 0; j < len(fp.result); j++ {
 			defineStatement, ok := fp.result[j].(*parser.DefineStatement)
-			if !ok || defineStatement.Name != slotStatement.Name || slices.Contains(merged, parser.Program(defineStatement.Parent)) {
+			if !ok || defineStatement.Name != slotStatement.Name || slices.Contains(merged, defineStatement.Parent) {
 				continue
 			}
 
