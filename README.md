@@ -77,14 +77,14 @@ func main() {
 
 ## Elements
 
-### Expression
+### Escaped expression
 Value of this expression will be printed to the template.
 It will be sanitized if a sanitizer function is provided.
 ```html
 {{ Users[0].CreatedAt.Format("2006-01-02") }}
 ```
 
-### Raw expression
+### Unescaped expression
 Value of this expression will be printed to the template without any sanitization.
 ```html
 {! client.scripts !}

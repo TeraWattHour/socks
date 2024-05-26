@@ -261,6 +261,18 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 					return tokens, nil
 				}
 			}
+		case '&':
+			if t.nextRune() == '&' {
+				token.Kind = TokAnd
+				token.Literal = "&&"
+				t.forward()
+			}
+		case '|':
+			if t.nextRune() == '|' {
+				token.Kind = TokOr
+				token.Literal = "||"
+				t.forward()
+			}
 		case '=':
 			if t.nextRune() == '=' {
 				token.Kind = TokEq

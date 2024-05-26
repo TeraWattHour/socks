@@ -11,17 +11,14 @@ import (
 )
 
 type _parser struct {
-	elements []tokenizer.Element
+	elements helpers.Queue[tokenizer.Element]
 	programs []Program
-	cursor   int
-	piece    tokenizer.Element
 	unclosed []Statement
 }
 
 func Parse(elements []tokenizer.Element) ([]Program, error) {
 	parser := &_parser{
 		elements: elements,
-		cursor:   -1,
 		programs: make([]Program, 0),
 		unclosed: make([]Statement, 0),
 	}
@@ -29,16 +26,12 @@ func Parse(elements []tokenizer.Element) ([]Program, error) {
 }
 
 func (p *_parser) Parse() ([]Program, error) {
-	p.next()
-
-	for p.piece != nil {
-		switch p.piece.Kind() {
-		case tokenizer.TextKind:
-			p.programs = append(p.programs, &Text{string(p.piece.(tokenizer.Text))})
-		case tokenizer.MustacheKind:
-			piece := p.piece.(*tokenizer.Mustache)
-
-			expr, err := expression.Parse(piece.Tokens)
+	for !p.elements.IsEmpty() {
+		switch element := p.elements.Pop().(type) {
+		case tokenizer.Text:
+			p.programs = append(p.programs, &Text{string(element)})
+		case *tokenizer.Mustache:
+			expr, err := expression.Parse(element.Tokens)
 			if err != nil {
 				return nil, err
 			}
@@ -47,24 +40,19 @@ func (p *_parser) Parse() ([]Program, error) {
 				return nil, err
 			}
 
-			vm := expression.NewVM(compiled)
-
 			p.addDependencies(expr.Dependencies...)
 			p.programs = append(p.programs, &Expression{
-				Program:      vm,
-				tag:          piece,
+				Program:      expression.NewVM(compiled),
+				tag:          element,
 				dependencies: expr.Dependencies,
 			})
-		case tokenizer.StatementKind:
-			statement, err := p.parseStatement()
-			if err != nil {
+		case *tokenizer.Statement:
+			if statement, err := p.parseStatement(element); err != nil {
 				return nil, err
 			} else if statement != nil {
 				p.programs = append(p.programs, statement)
 			}
 		}
-
-		p.next()
 	}
 
 	if len(p.unclosed) > 0 {
@@ -74,34 +62,31 @@ func (p *_parser) Parse() ([]Program, error) {
 	return p.programs, nil
 }
 
-func (p *_parser) parseStatement() (Statement, error) {
-	piece := p.piece.(*tokenizer.Statement)
-	switch piece.Instruction {
+func (p *_parser) parseStatement(statement *tokenizer.Statement) (Statement, error) {
+	switch statement.Instruction {
 	case "if":
-		return p.parseIfStatement()
+		return p.parseIfStatement(statement)
 	case "for":
-		return p.parseForStatement()
+		return p.parseForStatement(statement)
 	case "extend":
-		return p.parseExtendStatement()
+		return p.parseExtendStatement(statement)
 	case "define":
-		return p.parseDefineStatement()
+		return p.parseDefineStatement(statement)
 	case "slot":
-		return p.parseSlotStatement()
+		return p.parseSlotStatement(statement)
 	case "template":
-		return p.parseTemplateStatement()
+		return p.parseTemplateStatement(statement)
 	default:
-		if strings.HasPrefix(piece.Instruction, "end") {
-			return p.parseEndStatement()
+		if strings.HasPrefix(statement.Instruction, "end") {
+			return p.parseEndStatement(statement)
 		}
 	}
 
-	return nil, errors.New("unrecognised token: '@"+piece.Instruction+"'", piece.Location)
+	return nil, errors.New("unrecognised token: '@"+statement.Instruction+"'", statement.Location)
 }
 
-func (p *_parser) parseIfStatement() (Statement, error) {
-	piece := p.piece.(*tokenizer.Statement)
-
-	expr, err := expression.Parse(piece.Tokens)
+func (p *_parser) parseIfStatement(s *tokenizer.Statement) (Statement, error) {
+	expr, err := expression.Parse(s.Tokens)
 	if err != nil {
 		return nil, err
 	}
@@ -115,7 +100,7 @@ func (p *_parser) parseIfStatement() (Statement, error) {
 
 	statement := &IfStatement{
 		Program:  vm,
-		location: piece.Location,
+		location: s.Location,
 	}
 
 	p.unclosed = append(p.unclosed, statement)
@@ -125,28 +110,26 @@ func (p *_parser) parseIfStatement() (Statement, error) {
 }
 
 // ForStatement ::= "(" Identifier "in" Expression ("with" Identifier)? ")"
-func (p *_parser) parseForStatement() (Statement, error) {
-	piece := p.piece.(*tokenizer.Statement)
-
-	s := &ForStatement{
-		location: piece.Location,
+func (p *_parser) parseForStatement(s *tokenizer.Statement) (Statement, error) {
+	statement := &ForStatement{
+		location: s.Location,
 	}
 
-	tokens := helpers.Queue[tokenizer.Token](piece.Tokens)
+	tokens := helpers.Queue[tokenizer.Token](s.Tokens)
 	if tokens.IsEmpty() {
-		return nil, errors.New("unexpected end of statement, expected identifier", piece.Location)
+		return nil, errors.New("unexpected end of statement, expected identifier", s.Location)
 	}
 	if tokens.Peek().Kind != tokenizer.TokIdent {
 		return nil, errors.New(fmt.Sprintf("unexpected token %s, expected identifier", tokens.Peek().Kind), tokens.Peek().Location)
 	}
 
-	s.ValueName = tokens.Pop().Literal
+	statement.ValueName = tokens.Pop().Literal
 
 	if tokens.Pop().Kind != tokenizer.TokIn {
 		return nil, errors.New(fmt.Sprintf("unexpected token %s, expected `in`", tokens.Peek().Kind), tokens.Peek().Location)
 	}
 	if tokens.IsEmpty() {
-		return nil, errors.New("unexpected end of statement, expected expression", piece.Location)
+		return nil, errors.New("unexpected end of statement, expected expression", s.Location)
 	}
 
 	expressionTokens := helpers.Stack[tokenizer.Token]([]tokenizer.Token{})
@@ -159,12 +142,12 @@ func (p *_parser) parseForStatement() (Statement, error) {
 			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected `with`", tokens.Peek().Kind), tokens.Peek().Location)
 		}
 		if tokens.IsEmpty() {
-			return nil, errors.New("unexpected end of statement, expected identifier", piece.Location)
+			return nil, errors.New("unexpected end of statement, expected identifier", s.Location)
 		}
 		if tokens.Peek().Kind != tokenizer.TokIdent {
 			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected identifier", tokens.Peek().Kind), tokens.Peek().Location)
 		}
-		s.KeyName = tokens.Pop().Literal
+		statement.KeyName = tokens.Pop().Literal
 	}
 
 	expr, err := expression.Parse(expressionTokens)
@@ -177,43 +160,39 @@ func (p *_parser) parseForStatement() (Statement, error) {
 		return nil, err
 	}
 
-	s.Iterable = expression.NewVM(compiled)
+	statement.Iterable = expression.NewVM(compiled)
 
-	p.unclosed = append(p.unclosed, s)
+	p.unclosed = append(p.unclosed, statement)
 	p.addDependencies(expr.Dependencies...)
 
-	return s, nil
+	return statement, nil
 }
 
 // @extend(templateName)
-func (p *_parser) parseExtendStatement() (Statement, error) {
-	piece := p.piece.(*tokenizer.Statement)
-
-	if len(piece.Tokens) != 1 {
-		return nil, errors.New("extend statement requires one argument", piece.Location)
+func (p *_parser) parseExtendStatement(statement *tokenizer.Statement) (Statement, error) {
+	if len(statement.Tokens) != 1 {
+		return nil, errors.New("extend statement requires one argument of type <string>", statement.Location)
 	}
 
 	return &ExtendStatement{
-		Template: piece.Tokens[0].Literal,
-		location: piece.Location,
+		Template: statement.Tokens[0].Literal,
+		location: statement.Location,
 	}, nil
 }
 
 // @define(name)
-func (p *_parser) parseDefineStatement() (Statement, error) {
-	piece := p.piece.(*tokenizer.Statement)
-
-	if len(piece.Tokens) != 1 {
-		return nil, errors.New("define statement requires one argument", piece.Location)
+func (p *_parser) parseDefineStatement(s *tokenizer.Statement) (Statement, error) {
+	if len(s.Tokens) != 1 {
+		return nil, errors.New("define statement requires one argument of type <string>", s.Location)
 	}
 
 	if len(p.unclosed) != 0 && p.unclosed[len(p.unclosed)-1].Kind() != "template" {
-		return nil, errors.New("define statements must be placed inside a template block or at the root level", piece.Location)
+		return nil, errors.New("define statements must be placed inside a template block or at the root level", s.Location)
 	}
 
 	statement := &DefineStatement{
-		Name:     piece.Tokens[0].Literal,
-		location: piece.Location,
+		Name:     s.Tokens[0].Literal,
+		location: s.Location,
 	}
 
 	p.unclosed = append(p.unclosed, statement)
@@ -221,78 +200,67 @@ func (p *_parser) parseDefineStatement() (Statement, error) {
 }
 
 // @slot(name)
-func (p *_parser) parseSlotStatement() (Statement, error) {
-	piece := p.piece.(*tokenizer.Statement)
-
-	if len(piece.Tokens) != 1 {
-		return nil, errors.New("slot statement requires one argument", piece.Location)
+func (p *_parser) parseSlotStatement(s *tokenizer.Statement) (Statement, error) {
+	if len(s.Tokens) != 1 {
+		return nil, errors.New("slot statement requires one argument", s.Location)
 	}
 
 	statement := &SlotStatement{
-		Name:     piece.Tokens[0].Literal,
-		location: piece.Location,
+		Name:     s.Tokens[0].Literal,
+		location: s.Location,
 	}
 	p.unclosed = append(p.unclosed, statement)
 	return statement, nil
 }
 
 // @template(name)
-func (p *_parser) parseTemplateStatement() (Statement, error) {
-	piece := p.piece.(*tokenizer.Statement)
-
-	if len(piece.Tokens) != 1 {
-		return nil, errors.New("template statement requires one argument", piece.Location)
+func (p *_parser) parseTemplateStatement(s *tokenizer.Statement) (Statement, error) {
+	if len(s.Tokens) != 1 {
+		return nil, errors.New("template statement requires one argument", s.Location)
 	}
 
 	statement := &TemplateStatement{
-		Template: piece.Tokens[0].Literal,
-		location: piece.Location,
+		Template: s.Tokens[0].Literal,
+		location: s.Location,
 	}
 	p.unclosed = append(p.unclosed, statement)
 	return statement, nil
 }
 
-func (p *_parser) parseEndStatement() (Statement, error) {
-	piece := p.piece.(*tokenizer.Statement)
-
-	target := piece.Instruction[3:]
+func (p *_parser) parseEndStatement(s *tokenizer.Statement) (Statement, error) {
+	target := s.Instruction[3:]
 	if target != "define" && target != "slot" && target != "template" && target != "if" && target != "for" {
-		return nil, errors.New(fmt.Sprintf("unexpected token: @%s", piece.Instruction), piece.Location)
+		return nil, errors.New(fmt.Sprintf("unexpected token: @%s", s.Instruction), s.Location)
 	}
 
 	depth := len(p.unclosed)
 	if depth == 0 {
-		return nil, errors.New("unexpected end tag", piece.Location)
+		return nil, errors.New("unexpected end tag", s.Location)
 	}
 
 	last := p.unclosed[depth-1]
-	if last.(Statement).Kind() != target {
-		return nil, errors.New(fmt.Sprintf("unexpected @end%s, expected @end%s", target, last.Kind()), piece.Location)
+	if last.Kind() != target {
+		return nil, errors.New(fmt.Sprintf("unexpected @end%s, expected @end%s", target, last.Kind()), s.Location)
 	}
 
 	endStatement := &EndStatement{
 		ClosedStatement: last,
 	}
 
-	switch last.Kind() {
-	case "if":
-		ifStatement := last.(*IfStatement)
-		ifStatement.EndStatement = endStatement
-	case "for":
-		forStatement := last.(*ForStatement)
-		forStatement.EndStatement = endStatement
-		p.removeDependencies(forStatement.KeyName, forStatement.ValueName)
-	case "slot":
-		slotStatement := last.(*SlotStatement)
-		slotStatement.EndStatement = endStatement
-	case "define":
-		defineStatement := last.(*DefineStatement)
-		defineStatement.EndStatement = endStatement
-	case "template":
-		templateStatement := last.(*TemplateStatement)
-		templateStatement.EndStatement = endStatement
+	switch statement := last.(type) {
+	case *IfStatement:
+		statement.EndStatement = endStatement
+	case *ForStatement:
+		statement.EndStatement = endStatement
+		p.removeDependencies(statement.KeyName, statement.ValueName)
+	case *SlotStatement:
+		statement.EndStatement = endStatement
+	case *DefineStatement:
+		statement.EndStatement = endStatement
+	case *TemplateStatement:
+		statement.EndStatement = endStatement
 	default:
-		panic("unreachable")
+		panic("unreachable, unknown closed statement type")
 	}
 
 	p.programs = append(p.programs, endStatement)
@@ -300,26 +268,15 @@ func (p *_parser) parseEndStatement() (Statement, error) {
 	return nil, nil
 }
 
-func (p *_parser) next() {
-	p.cursor += 1
-	if p.cursor >= len(p.elements) {
-		p.piece = nil
-	} else {
-		p.piece = p.elements[p.cursor]
-	}
-}
-
 func (p *_parser) addDependencies(dependencies ...string) {
 	for _, unclosed := range p.unclosed {
-		switch unclosed.Kind() {
-		case "if":
-			ifStatement := unclosed.(*IfStatement)
-			ifStatement.dependencies = append(ifStatement.dependencies, dependencies...)
-		case "for":
-			forStatement := unclosed.(*ForStatement)
-			forStatement.dependencies = append(forStatement.dependencies, dependencies...)
-			forStatement.dependencies = slices.DeleteFunc(forStatement.dependencies, func(s string) bool {
-				return s == forStatement.KeyName || s == forStatement.ValueName
+		switch statement := unclosed.(type) {
+		case *IfStatement:
+			statement.dependencies = append(statement.dependencies, dependencies...)
+		case *ForStatement:
+			statement.dependencies = append(statement.dependencies, dependencies...)
+			statement.dependencies = slices.DeleteFunc(statement.dependencies, func(s string) bool {
+				return s == statement.KeyName || s == statement.ValueName
 			})
 		}
 	}
@@ -327,25 +284,16 @@ func (p *_parser) addDependencies(dependencies ...string) {
 
 func (p *_parser) removeDependencies(dependencies ...string) {
 	for _, unclosed := range p.unclosed {
-		switch unclosed.Kind() {
-		case "if":
-			ifStatement := unclosed.(*IfStatement)
-			ifStatement.dependencies = slices.DeleteFunc(ifStatement.dependencies, func(s string) bool {
+		switch statement := unclosed.(type) {
+		case *IfStatement:
+			statement.dependencies = slices.DeleteFunc(statement.dependencies, func(s string) bool {
 				return slices.Contains(dependencies, s)
 			})
-		case "for":
-			forStatement := unclosed.(*ForStatement)
-			forStatement.dependencies = append(forStatement.dependencies, dependencies...)
-			forStatement.dependencies = slices.DeleteFunc(forStatement.dependencies, func(s string) bool {
+		case *ForStatement:
+			statement.dependencies = append(statement.dependencies, dependencies...)
+			statement.dependencies = slices.DeleteFunc(statement.dependencies, func(s string) bool {
 				return slices.Contains(dependencies, s)
 			})
 		}
 	}
-}
-
-func (p *_parser) parent() Statement {
-	if len(p.unclosed) == 0 {
-		return nil
-	}
-	return p.unclosed[len(p.unclosed)-1]
 }
