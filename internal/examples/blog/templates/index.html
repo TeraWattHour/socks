@@ -6,22 +6,24 @@
         Hello, traveller! Welcome to my blog!
     </h1>
 
-@for(count in counts)
-    <h1>Page {{ count }}</h1>
+@for(count in range(0, total_count))
+    <h1>Page {{ count+1 }}</h1>
     @for(post in Posts)
+    <div>
         <h2>{{ post.Title }}</h2>
         <ul>
-        @for(comment in post.Comments)
-            <li>{{ comment }}</li>
+        @for(comment in post.Comments with i)
+            <li>comment {{i}}: {{ comment }}</li>
         @endfor
         </ul>
         <ol>
-        @for(meta, i in Metas)
-            @if(i < 1)
+        @for(meta in Metas with i)
+            @if(i < 2)
             <li>{{ meta }} {{ currentDate }} </li>
             @endif
         @endfor
         </ol>
+    </div>
     @endfor
 @endfor
 

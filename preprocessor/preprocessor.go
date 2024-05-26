@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	errors2 "github.com/terawatthour/socks/errors"
+	"github.com/terawatthour/socks/evaluator"
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/parser"
 	"github.com/terawatthour/socks/tokenizer"
@@ -114,14 +115,16 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 		}
 	}
 
-	evaluationResult, err := evaluate(fp.result, fp.preprocessor.staticContext, fp.preprocessor.sanitizer)
-	if err != nil {
+	var evaluationResult helpers.Queue[parser.Program]
+	staticEvaluator := evaluator.NewStatic(&evaluationResult, fp.result, fp.preprocessor.sanitizer)
+
+	if err := staticEvaluator.Evaluate(nil, fp.preprocessor.staticContext); err != nil {
 		fp.foldText()
 		return fp.result, nil
 	}
+
 	fp.result = evaluationResult
 	fp.foldText()
-
 	return fp.result, nil
 }
 

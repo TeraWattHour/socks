@@ -254,7 +254,7 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 			parens.Push('(')
 		case ')':
 			token.Kind = TokRparen
-			if parens.Pop() != '(' {
+			if parens.IsEmpty() || parens.Pop() != '(' {
 				if mustache {
 					return nil, errors2.New("unexpected closing parenthesis", t.location())
 				} else {

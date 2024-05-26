@@ -8,7 +8,7 @@ import (
 
 func TestDependencies(t *testing.T) {
 	template := `
-@for(idx in someSlice)
+@for(idx in someSlice with iterator_index)
 	@if(test == 1)
 		{{ fun.method(argument1, argument2[argument4.method(123)]) + argument3 }}
 	@endif
@@ -54,16 +54,16 @@ func TestDependencies(t *testing.T) {
 		}
 		switch program.Kind() {
 		case "for":
-			if !slices.Equal(program.(*ForStatement).Dependencies, expect[i]) {
-				t.Errorf("unexpected result: %v, expected: %v", program.(*ForStatement).Dependencies, expect[i])
+			if !slices.Equal(program.(*ForStatement).dependencies, expect[i]) {
+				t.Errorf("unexpected result: %v, expected: %v", program.(*ForStatement).dependencies, expect[i])
 			}
 		case "if":
-			if !slices.Equal(program.(*IfStatement).Dependencies, expect[i]) {
-				t.Errorf("unexpected result: %v, expected: %v", program.(*IfStatement).Dependencies, expect[i])
+			if !slices.Equal(program.(*IfStatement).dependencies, expect[i]) {
+				t.Errorf("unexpected result: %v, expected: %v", program.(*IfStatement).dependencies, expect[i])
 			}
 		case "expression":
-			if !slices.Equal(program.(*Expression).Dependencies, expect[i]) {
-				t.Errorf("unexpected result: %v, expected: %v", program.(*Expression).Dependencies, expect[i])
+			if !slices.Equal(program.(*Expression).dependencies, expect[i]) {
+				t.Errorf("unexpected result: %v, expected: %v", program.(*Expression).dependencies, expect[i])
 			}
 		}
 		i++

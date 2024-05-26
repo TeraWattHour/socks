@@ -23,7 +23,6 @@ var builtinNames = []string{
 	"uint64",
 	"uintptr",
 	"len",
-
 	// Two-argument builtins
 
 	// Three-argument builtins

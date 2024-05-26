@@ -4,17 +4,27 @@ import (
 	"reflect"
 )
 
-func ExtractValues(result chan any, obj any) {
+type Key any
+type Value any
+
+type KeyValuePair struct {
+	Key
+	Value
+}
+
+type tuple = KeyValuePair
+
+func ExtractValues(result chan tuple, obj any) {
 	sliceValue := reflect.ValueOf(obj)
 
 	switch sliceValue.Kind() {
 	case reflect.Slice, reflect.Array:
 		for i := 0; i < sliceValue.Len(); i++ {
-			result <- sliceValue.Index(i).Interface()
+			result <- tuple{i, sliceValue.Index(i).Interface()}
 		}
 	case reflect.Map:
 		for _, key := range sliceValue.MapKeys() {
-			result <- sliceValue.MapIndex(key).Interface()
+			result <- tuple{key, sliceValue.MapIndex(key).Interface()}
 		}
 	default:
 		panic("unreachable")
@@ -51,16 +61,11 @@ func Subset[T comparable](a, B []T) bool {
 type Stack[T any] []T
 
 func (s *Stack[T]) Push(v T) int {
-	idx := len(*s)
 	*s = append(*s, v)
-	return idx
+	return len(*s) - 1
 }
 
 func (s *Stack[T]) Peek() T {
-	if len(*s) == 0 {
-		var noop T
-		return noop
-	}
 	return (*s)[len(*s)-1]
 }
 
@@ -69,11 +74,28 @@ func (s *Stack[T]) IsEmpty() bool {
 }
 
 func (s *Stack[T]) Pop() T {
-	if len(*s) == 0 {
-		var noop T
-		return noop
-	}
 	v := (*s)[len(*s)-1]
 	*s = (*s)[:len(*s)-1]
+	return v
+}
+
+type Queue[T any] []T
+
+func (q *Queue[T]) Push(v T) int {
+	*q = append(*q, v)
+	return len(*q) - 1
+}
+
+func (q *Queue[T]) Peek() T {
+	return (*q)[0]
+}
+
+func (q *Queue[T]) IsEmpty() bool {
+	return len(*q) == 0
+}
+
+func (q *Queue[T]) Pop() T {
+	v := (*q)[0]
+	*q = (*q)[1:]
 	return v
 }

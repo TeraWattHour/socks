@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"github.com/terawatthour/socks/errors"
 	"github.com/terawatthour/socks/expression"
+	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/tokenizer"
 	"slices"
 	"strings"
@@ -52,7 +53,7 @@ func (p *_parser) Parse() ([]Program, error) {
 			p.programs = append(p.programs, &Expression{
 				Program:      vm,
 				tag:          piece,
-				Dependencies: expr.Dependencies,
+				dependencies: expr.Dependencies,
 			})
 		case tokenizer.StatementKind:
 			statement, err := p.parseStatement()
@@ -123,43 +124,50 @@ func (p *_parser) parseIfStatement() (Statement, error) {
 	return statement, nil
 }
 
+// ForStatement ::= "(" Identifier "in" Expression ("with" Identifier)? ")"
 func (p *_parser) parseForStatement() (Statement, error) {
 	piece := p.piece.(*tokenizer.Statement)
 
-	tokens := piece.Tokens
-
-	if len(tokens) < 3 {
-		return nil, errors.New("unexpected end of statement", tokens[len(tokens)-1].Location)
+	s := &ForStatement{
+		location: piece.Location,
 	}
 
-	var keyName string
-	if tokens[0].Kind != tokenizer.TokIdent {
-		return nil, errors.New(fmt.Sprintf("unexpected token %s, expected identifier", tokens[0].Kind), tokens[0].Location)
+	tokens := helpers.Queue[tokenizer.Token](piece.Tokens)
+	if tokens.IsEmpty() {
+		return nil, errors.New("unexpected end of statement, expected identifier", piece.Location)
 	}
-	valueName := tokens[0].Literal
-	locals := []string{valueName}
-
-	if tokens[1].Kind == tokenizer.TokComma {
-		if len(tokens) < 4 {
-			return nil, errors.New("unexpected end of statement", tokens[len(tokens)-1].Location)
-		}
-		if tokens[2].Kind != tokenizer.TokIdent {
-			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected identifier", tokens[2].Kind), tokens[2].Location)
-		}
-		keyName = tokens[2].Literal
-		locals = append(locals, keyName)
-		if tokens[3].Kind != tokenizer.TokIn {
-			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected `in`", tokens[3].Kind), tokens[3].Location)
-		}
-		tokens = tokens[4:]
-	} else {
-		if tokens[1].Kind != tokenizer.TokIn {
-			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected `in`", tokens[1].Kind), tokens[1].Location)
-		}
-		tokens = tokens[2:]
+	if tokens.Peek().Kind != tokenizer.TokIdent {
+		return nil, errors.New(fmt.Sprintf("unexpected token %s, expected identifier", tokens.Peek().Kind), tokens.Peek().Location)
 	}
 
-	expr, err := expression.Parse(tokens)
+	s.ValueName = tokens.Pop().Literal
+
+	if tokens.Pop().Kind != tokenizer.TokIn {
+		return nil, errors.New(fmt.Sprintf("unexpected token %s, expected `in`", tokens.Peek().Kind), tokens.Peek().Location)
+	}
+	if tokens.IsEmpty() {
+		return nil, errors.New("unexpected end of statement, expected expression", piece.Location)
+	}
+
+	expressionTokens := helpers.Stack[tokenizer.Token]([]tokenizer.Token{})
+	for !tokens.IsEmpty() && tokens.Peek().Kind != tokenizer.TokWith {
+		expressionTokens.Push(tokens.Pop())
+	}
+
+	if !tokens.IsEmpty() {
+		if tokens.Pop().Kind != tokenizer.TokWith {
+			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected `with`", tokens.Peek().Kind), tokens.Peek().Location)
+		}
+		if tokens.IsEmpty() {
+			return nil, errors.New("unexpected end of statement, expected identifier", piece.Location)
+		}
+		if tokens.Peek().Kind != tokenizer.TokIdent {
+			return nil, errors.New(fmt.Sprintf("unexpected token %s, expected identifier", tokens.Peek().Kind), tokens.Peek().Location)
+		}
+		s.KeyName = tokens.Pop().Literal
+	}
+
+	expr, err := expression.Parse(expressionTokens)
 	if err != nil {
 		return nil, err
 	}
@@ -169,19 +177,12 @@ func (p *_parser) parseForStatement() (Statement, error) {
 		return nil, err
 	}
 
-	vm := expression.NewVM(compiled)
+	s.Iterable = expression.NewVM(compiled)
 
-	statement := &ForStatement{
-		KeyName:   keyName,
-		ValueName: valueName,
-		Iterable:  vm,
-		location:  piece.Location,
-	}
-
-	p.unclosed = append(p.unclosed, statement)
+	p.unclosed = append(p.unclosed, s)
 	p.addDependencies(expr.Dependencies...)
 
-	return statement, nil
+	return s, nil
 }
 
 // @extend(templateName)
@@ -313,11 +314,11 @@ func (p *_parser) addDependencies(dependencies ...string) {
 		switch unclosed.Kind() {
 		case "if":
 			ifStatement := unclosed.(*IfStatement)
-			ifStatement.Dependencies = append(ifStatement.Dependencies, dependencies...)
+			ifStatement.dependencies = append(ifStatement.dependencies, dependencies...)
 		case "for":
 			forStatement := unclosed.(*ForStatement)
-			forStatement.Dependencies = append(forStatement.Dependencies, dependencies...)
-			forStatement.Dependencies = slices.DeleteFunc(forStatement.Dependencies, func(s string) bool {
+			forStatement.dependencies = append(forStatement.dependencies, dependencies...)
+			forStatement.dependencies = slices.DeleteFunc(forStatement.dependencies, func(s string) bool {
 				return s == forStatement.KeyName || s == forStatement.ValueName
 			})
 		}
@@ -329,13 +330,13 @@ func (p *_parser) removeDependencies(dependencies ...string) {
 		switch unclosed.Kind() {
 		case "if":
 			ifStatement := unclosed.(*IfStatement)
-			ifStatement.Dependencies = slices.DeleteFunc(ifStatement.Dependencies, func(s string) bool {
+			ifStatement.dependencies = slices.DeleteFunc(ifStatement.dependencies, func(s string) bool {
 				return slices.Contains(dependencies, s)
 			})
 		case "for":
 			forStatement := unclosed.(*ForStatement)
-			forStatement.Dependencies = append(forStatement.Dependencies, dependencies...)
-			forStatement.Dependencies = slices.DeleteFunc(forStatement.Dependencies, func(s string) bool {
+			forStatement.dependencies = append(forStatement.dependencies, dependencies...)
+			forStatement.dependencies = slices.DeleteFunc(forStatement.dependencies, func(s string) bool {
 				return slices.Contains(dependencies, s)
 			})
 		}

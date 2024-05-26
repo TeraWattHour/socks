@@ -46,14 +46,9 @@ func main() {
 			count = 10
 		}
 
-		arr := make([]int, count)
-		for i := 0; i < int(count); i++ {
-			arr[i] = i
-		}
-
 		if err := s.Execute(w, "index.html", map[string]interface{}{
 			"currentDate": time.Now(),
-			"counts":      arr,
+			"total_count": int(count),
 		}); err != nil {
 			w.WriteHeader(500)
 			log.Println(err)

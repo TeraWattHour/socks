@@ -14,6 +14,10 @@ type Program interface {
 	Location() helpers.Location
 }
 
+type WithDependencies interface {
+	Dependencies() []string
+}
+
 type Text struct {
 	Content string
 }
@@ -23,7 +27,15 @@ func (t *Text) Kind() string {
 }
 
 func (t *Text) String() string {
-	return fmt.Sprintf("%-8s: `%s`", "TEXT", strings.ReplaceAll(t.Content, "\n", "\\n"))
+	if len(t.Content) > 80 {
+		return fmt.Sprintf(
+			"TEXT(%s [...] %s)",
+			strings.ReplaceAll(t.Content[:40], "\n", "\\n"),
+			strings.ReplaceAll(t.Content[len(t.Content)-40:], "\n", "\\n"),
+		)
+	}
+
+	return fmt.Sprintf("TEXT(%s)", strings.ReplaceAll(t.Content, "\n", "\\n"))
 }
 
 func (t *Text) Tag() *tokenizer.Mustache {
@@ -39,7 +51,11 @@ func (t *Text) Location() helpers.Location {
 type Expression struct {
 	Program      *expression.VM
 	tag          *tokenizer.Mustache
-	Dependencies []string
+	dependencies []string
+}
+
+func (vs *Expression) Dependencies() []string {
+	return vs.dependencies
 }
 
 func (vs *Expression) Location() helpers.Location {
@@ -65,8 +81,12 @@ type Statement = Program
 type IfStatement struct {
 	Program      *expression.VM
 	location     helpers.Location
-	Dependencies []string
+	dependencies []string
 	EndStatement Statement
+}
+
+func (vs *IfStatement) Dependencies() []string {
+	return vs.dependencies
 }
 
 func (vs *IfStatement) Location() helpers.Location {
@@ -88,8 +108,12 @@ type ForStatement struct {
 	KeyName      string
 	ValueName    string
 	location     helpers.Location
-	Dependencies []string
+	dependencies []string
 	EndStatement *EndStatement
+}
+
+func (es *ForStatement) Dependencies() []string {
+	return es.dependencies
 }
 
 func (es *ForStatement) Location() helpers.Location {

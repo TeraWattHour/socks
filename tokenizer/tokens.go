@@ -1,7 +1,7 @@
 package tokenizer
 
 const (
-	TokIdent  = "ident"
+	TokIdent  = "identifier"
 	TokNumber = "number"
 	TokString = "string"
 	TokComma  = "comma"
@@ -38,7 +38,8 @@ const (
 	TokFalse = "false"
 	TokAnd   = "and"
 	TokOr    = "or"
-	TokNil
+	TokWith  = "with"
+	TokNil   = "nil"
 )
 
 var Keywords = []string{
@@ -49,6 +50,7 @@ var Keywords = []string{
 	TokOr,
 	TokNot,
 	TokNil,
+	TokWith,
 }
 
 var Instructions = []string{

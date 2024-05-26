@@ -75,32 +75,55 @@ func main() {
 }
 ```
 
-## Tags
+## Elements
 
-> [!CAUTION]
-> Nothing is escaped by default, so make sure to set the 
-> `Sanitizer` option to a function that escapes your output.
-
-### Expression tag
-Expression tag, the result of the expression will be printed to the template.
+### Expression
+Value of this expression will be printed to the template.
 It will be sanitized if a sanitizer function is provided.
 ```html
 {{ Users[0].CreatedAt.Format("2006-01-02") }}
 ```
 
-### Raw tag
-Raw tag, the content of this tag will be printed to the template without any modification.
+### Raw expression
+Value of this expression will be printed to the template without any sanitization.
 ```html
 {! client.scripts !}
 ```
 
-### Preprocessor tag
-Preprocessor tags, the result of the expression will be printed to the template.
+### Preprocessor statements
+- `@extend`, `@slot` and `@define` are used for extending templates.
 ```html
-@extend("base.html") <!-- extends the base.html template -->
+<!--base.html-->
+<html>
+    <head>
+        <title>{! title !}</title>
+    </head>
+    <body>
+        @slot("content")
+        <h2>404 – Content not found</h2>
+        @endslot
+    </body>
+</html>
 ```
 ```html
-@template("header.html") <!-- includes the header.html template -->
+@extend("base.html") <!-- extends the base.html template -->
+
+@define("content")
+    <!-- defines a block named content, 
+         if omitted – template will fallback to default slot value 
+         -->
+    <h1>Hello World</h1>
+@enddefine
+```
+- `@template`, `@slot` and `@define` are used for including templates.
+```html
+<!--header.html-->
+<header>
+    @slot("content") Fallback content @endslot
+</header>
+```
+```html
+@template("header.html")
     @define("content")
         <!-- defines a block named content, 
              if omitted – template will fallback to default slot value 
@@ -110,29 +133,32 @@ Preprocessor tags, the result of the expression will be printed to the template.
 @endtemplate
 ```
 
-### Comment tag
+### Comment
 Comment tag, the content of this tag will be ignored.
 ```html
 {# This is a comment #}
 <!-- this is an HTML comment and it won't be removed -->
 ```
 
-### Execution tag
-Execution tag, used for executing statements like `for` or `if` at runtime.
+### For statement
+
 ```html
-@for(user, i in Users)
-    <p>{{ i }}: {{ user.Name }}</p>
+@for(user in Users)
+<p>{{ user.ID }} – {{ user.Name }}</p>
+@endfor
+
+@for(user in Users with i)
+<p>{{ i }}: {{ user.Name }}</p>
 @endfor
 ```
+
+### If statement
 ```html
 @if(len(Users) > 0)
-    <p>{{ Users[0].Name }}</p>
+<p>{{ Users[0].Name }}</p>
 @endif
 ```
 
 ## Roadmap
 - [ ] Runtime error handling
-- [ ] Static type checking
 - [ ] Inline functions like `map`, `filter`, `reduce`, etc.
-- [ ] Constant folding 
-- [ ] Add more tests

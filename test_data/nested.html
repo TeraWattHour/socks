@@ -9,7 +9,7 @@
 
     <p>Hello from the {{ first[1](23)(123)[0] }} server</p>
 
-    @for(phrase, i in Phrases)
+    @for(phrase in Phrases with i)
     <div>
         <p>Phrase `{{ phrase.Content }}` is in {{ resolveLanguage(phrase.Language) }}</p>
         @if(i > 0)
