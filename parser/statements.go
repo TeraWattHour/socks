@@ -12,6 +12,7 @@ type Program interface {
 	Kind() string
 	String() string
 	Location() helpers.Location
+	HasBody() bool
 }
 
 type WithDependencies interface {
@@ -24,6 +25,10 @@ type Text struct {
 
 func (t *Text) Kind() string {
 	return "text"
+}
+
+func (t *Text) HasBody() bool {
+	return false
 }
 
 func (t *Text) String() string {
@@ -52,6 +57,10 @@ type Expression struct {
 	Program      *expression.VM
 	tag          *tokenizer.Mustache
 	dependencies []string
+}
+
+func (vs *Expression) HasBody() bool {
+	return false
 }
 
 func (vs *Expression) Dependencies() []string {
@@ -85,6 +94,10 @@ type IfStatement struct {
 	EndStatement Statement
 }
 
+func (vs *IfStatement) HasBody() bool {
+	return true
+}
+
 func (vs *IfStatement) Dependencies() []string {
 	return vs.dependencies
 }
@@ -110,6 +123,10 @@ type ForStatement struct {
 	location     helpers.Location
 	dependencies []string
 	EndStatement *EndStatement
+}
+
+func (es *ForStatement) HasBody() bool {
+	return true
 }
 
 func (es *ForStatement) Dependencies() []string {
@@ -138,6 +155,10 @@ type ExtendStatement struct {
 	location helpers.Location
 }
 
+func (es *ExtendStatement) HasBody() bool {
+	return false
+}
+
 func (es *ExtendStatement) Location() helpers.Location {
 	return es.location
 }
@@ -156,6 +177,10 @@ type TemplateStatement struct {
 	Template     string
 	location     helpers.Location
 	EndStatement *EndStatement
+}
+
+func (es *TemplateStatement) HasBody() bool {
+	return true
 }
 
 func (es *TemplateStatement) Location() helpers.Location {
@@ -179,6 +204,10 @@ type SlotStatement struct {
 	EndStatement *EndStatement
 }
 
+func (ss *SlotStatement) HasBody() bool {
+	return true
+}
+
 func (ss *SlotStatement) Location() helpers.Location {
 	return ss.location
 }
@@ -198,6 +227,10 @@ type DefineStatement struct {
 	location     helpers.Location
 	Parent       Statement
 	EndStatement *EndStatement
+}
+
+func (es *DefineStatement) HasBody() bool {
+	return true
 }
 
 func (es *DefineStatement) Location() helpers.Location {
@@ -227,4 +260,8 @@ func (es *EndStatement) Kind() string {
 
 func (es *EndStatement) String() string {
 	return fmt.Sprintf("END(%s)", es.ClosedStatement.Kind())
+}
+
+func (es *EndStatement) HasBody() bool {
+	return false
 }

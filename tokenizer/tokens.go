@@ -1,8 +1,9 @@
 package tokenizer
 
 const (
-	TokIdent  = "identifier"
-	TokNumber = "number"
+	TokIdent   = "identifier"
+	TokNumeric = "numeric"
+
 	TokString = "string"
 	TokComma  = "comma"
 	TokAt     = "at"

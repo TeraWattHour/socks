@@ -128,6 +128,30 @@ func TestParse(t *testing.T) {
 			},
 			false,
 		},
+		{
+			"fallback chain",
+			"(a ?: b)?.c",
+			&Chain{
+				Left: &InfixExpression{
+					Left:  &Identifier{Value: "a"},
+					Op:    tokenizer.TokElvis,
+					Right: &Identifier{Value: "b"},
+				},
+				IsOptional: true,
+				Right:      &Identifier{Value: "c"},
+			},
+			false,
+		},
+		{
+			"nil comparison",
+			"a == nil",
+			&InfixExpression{
+				Left:  &Identifier{Value: "a"},
+				Op:    tokenizer.TokEq,
+				Right: &Nil{},
+			},
+			false,
+		},
 	}
 	for _, tt := range tests {
 		elements, err := tokenizer.Tokenize(fmt.Sprintf("{{ %s }}", tt.expr))

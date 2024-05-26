@@ -1,8 +1,27 @@
 package tokenizer
 
 import (
+	"fmt"
 	"testing"
 )
+
+func TestNumbers(t *testing.T) {
+	template := `{{ 2+4.123+0b11+0x123ABC+0o1234567+.2+0o92 }}`
+	elements, err := Tokenize(template)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
+	}
+	if len(elements) != 1 {
+		t.Errorf("expected 1 element, got %d", len(elements))
+		return
+	}
+	if elements[0].Kind() != MustacheKind {
+		t.Errorf("expected MustacheKind, got %s", elements[0].Kind())
+		return
+	}
+	fmt.Println(elements[0].(*Mustache).Tokens)
+}
 
 func TestLookup(t *testing.T) {
 	template := `Ł{{ 2+4 }} @if(1==1){{ "hello" }} @endif \{{ žœ{# comment #}`

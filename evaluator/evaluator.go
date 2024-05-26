@@ -69,7 +69,17 @@ func (e *Evaluator) evaluate(program parser.Program, context map[string]any) err
 
 	prog, ok := program.(parser.WithDependencies)
 	if !ok {
-		return errors.New("unexpected program", program.Location())
+		if e.staticMode {
+			e.output.Push(program)
+			e.i++
+			return nil
+		} else {
+			return errors.New(fmt.Sprintf("unexpected program type %T", program), program.Location())
+		}
+	}
+
+	if program.Kind() == "for" {
+		fmt.Println(prog.Dependencies(), availableInContext(context))
 	}
 
 	if e.staticMode && !helpers.Subset(prog.Dependencies(), availableInContext(context)) {

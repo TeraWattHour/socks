@@ -5,8 +5,6 @@ import (
 	errors2 "github.com/terawatthour/socks/errors"
 	"github.com/terawatthour/socks/tokenizer"
 	"slices"
-	"strconv"
-	"strings"
 )
 
 type _parser struct {
@@ -30,10 +28,9 @@ const (
 	PrecAnd
 	PrecElvis
 	PrecEqual
-	PrecLessGreater
-	PrecInclusion
-	PrecInfix
-	PrecMultiply
+	PrecRelational
+	PrecAdditive
+	PrecMultiplicative
 	PrecPower
 	PrecPrefix
 	PrecCall
@@ -53,30 +50,29 @@ var precedences = map[string]Precedence{
 	tokenizer.TokEq:  PrecEqual,
 	tokenizer.TokNeq: PrecEqual,
 
-	tokenizer.TokLt:  PrecLessGreater,
-	tokenizer.TokLte: PrecLessGreater,
-	tokenizer.TokGt:  PrecLessGreater,
-	tokenizer.TokGte: PrecLessGreater,
+	tokenizer.TokLt:  PrecRelational,
+	tokenizer.TokLte: PrecRelational,
+	tokenizer.TokGt:  PrecRelational,
+	tokenizer.TokGte: PrecRelational,
+	tokenizer.TokIn:  PrecRelational,
 
-	tokenizer.TokIn: PrecInclusion,
+	tokenizer.TokNot:   PrecAdditive,
+	tokenizer.TokPlus:  PrecAdditive,
+	tokenizer.TokMinus: PrecAdditive,
 
-	tokenizer.TokNot:   PrecInfix,
-	tokenizer.TokPlus:  PrecInfix,
-	tokenizer.TokMinus: PrecInfix,
+	tokenizer.TokAsterisk: PrecMultiplicative,
+	tokenizer.TokSlash:    PrecMultiplicative,
+	tokenizer.TokModulo:   PrecMultiplicative,
+
+	tokenizer.TokPower: PrecPower,
+
+	tokenizer.TokBang: PrecPrefix,
 
 	tokenizer.TokDot:           PrecChain,
 	tokenizer.TokOptionalChain: PrecChain,
 
 	tokenizer.TokLparen: PrecCall,
 	tokenizer.TokLbrack: PrecCall,
-
-	tokenizer.TokAsterisk: PrecMultiply,
-	tokenizer.TokSlash:    PrecMultiply,
-	tokenizer.TokModulo:   PrecMultiply,
-
-	tokenizer.TokPower: PrecPower,
-
-	tokenizer.TokBang: PrecPrefix,
 }
 
 func Parse(tokens []tokenizer.Token) (*WrappedExpression, error) {
@@ -98,7 +94,8 @@ func newParser(tokens []tokenizer.Token) *_parser {
 	p.registerPrefix(tokenizer.TokNil, p.parseNil)
 	p.registerPrefix(tokenizer.TokTrue, p.parseBoolean)
 	p.registerPrefix(tokenizer.TokFalse, p.parseBoolean)
-	p.registerPrefix(tokenizer.TokNumber, p.parseNumeric)
+	p.registerPrefix(tokenizer.TokNumeric, p.parseNumeric)
+
 	p.registerPrefix(tokenizer.TokString, p.parseStringLiteral)
 
 	p.registerPrefix(tokenizer.TokNot, p.parsePrefixExpression)
@@ -369,7 +366,7 @@ func (p *_parser) parseIdentifier() (Expression, error) {
 }
 
 func (p *_parser) parseFunctionCall(left Expression) (Expression, error) {
-	if left.Type() == "identifier" {
+	if left.Kind() == "identifier" {
 		functionName := left.(*Identifier).Value
 		if slices.Index(builtinNames, functionName) != -1 {
 			callToken := p.currentToken
@@ -399,23 +396,6 @@ func (p *_parser) parseFunctionCall(left Expression) (Expression, error) {
 
 func (p *_parser) parseStringLiteral() (Expression, error) {
 	return &StringLiteral{Token: p.currentToken, Value: p.currentToken.Literal}, nil
-}
-
-func (p *_parser) parseNumeric() (Expression, error) {
-	if strings.Contains(p.currentToken.Literal, ".") {
-		res, err := strconv.ParseFloat(p.currentToken.Literal, 64)
-		if err != nil {
-			return nil, errors2.New("could not parse `"+p.currentToken.Literal+"` as floating point", p.nextToken.Location)
-		}
-		return &Float{Token: p.currentToken, Value: res}, nil
-	}
-
-	res, err := strconv.ParseInt(p.currentToken.Literal, 10, 64)
-	if err != nil {
-		return nil, errors2.New("could not parse `"+p.currentToken.Literal+"` as integer", p.nextToken.Location)
-	}
-
-	return &Integer{Token: p.currentToken, Value: int(res)}, nil
 }
 
 func (p *_parser) parseBoolean() (Expression, error) {

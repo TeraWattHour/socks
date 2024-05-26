@@ -20,7 +20,7 @@ type Node interface {
 
 type Expression interface {
 	Node
-	Type() string
+	Kind() string
 	Location() helpers.Location
 }
 
@@ -40,7 +40,7 @@ func (s *Identifier) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *Identifier) Type() string {
+func (s *Identifier) Kind() string {
 	return "identifier"
 }
 
@@ -70,7 +70,7 @@ func (s *Builtin) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *Builtin) Type() string {
+func (s *Builtin) Kind() string {
 	return "builtin"
 }
 
@@ -103,7 +103,7 @@ func (s *Nil) IsEqual(node Node) bool {
 	return ok
 }
 
-func (s *Nil) Type() string {
+func (s *Nil) Kind() string {
 	return "nil"
 }
 
@@ -131,7 +131,7 @@ func (s *Boolean) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *Boolean) Type() string {
+func (s *Boolean) Kind() string {
 	return "boolean"
 }
 
@@ -159,7 +159,7 @@ func (s *Integer) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *Integer) Type() string {
+func (s *Integer) Kind() string {
 	return "integer"
 }
 
@@ -187,7 +187,7 @@ func (s *Float) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *Float) Type() string {
+func (s *Float) Kind() string {
 	return "float"
 }
 
@@ -223,7 +223,7 @@ func (s *Array) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *Array) Type() string {
+func (s *Array) Kind() string {
 	return "array"
 }
 
@@ -263,7 +263,7 @@ func (s *PrefixExpression) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *PrefixExpression) Type() string {
+func (s *PrefixExpression) Kind() string {
 	return "prefix"
 }
 
@@ -294,7 +294,7 @@ func (s *InfixExpression) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *InfixExpression) Type() string {
+func (s *InfixExpression) Kind() string {
 	return "infix"
 }
 
@@ -322,7 +322,7 @@ func (s *StringLiteral) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *StringLiteral) Type() string {
+func (s *StringLiteral) Kind() string {
 	return "string"
 }
 
@@ -370,7 +370,7 @@ func (s *FunctionCall) String() string {
 	return fmt.Sprintf("[function: %s(%s)]", s.Called, args)
 }
 
-func (s *FunctionCall) Type() string {
+func (s *FunctionCall) Kind() string {
 	return "function"
 }
 
@@ -399,7 +399,7 @@ func (s *FieldAccess) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *FieldAccess) Type() string {
+func (s *FieldAccess) Kind() string {
 	return "fieldAccess"
 }
 
@@ -429,7 +429,7 @@ func (s *Chain) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *Chain) Type() string {
+func (s *Chain) Kind() string {
 	return "variable"
 }
 
@@ -467,7 +467,7 @@ func (s *Ternary) IsEqual(node Node) bool {
 	return false
 }
 
-func (s *Ternary) Type() string {
+func (s *Ternary) Kind() string {
 	return "ternary"
 }
 

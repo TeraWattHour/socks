@@ -12,7 +12,7 @@
         <h2>{{ post.Title }}</h2>
         <ul>
         @for(comment in post.Comments with i)
-            <li>comment {{i}}: {{ comment }}</li>
+            <li>comment {{ i }}: {{ comment }}</li>
         @endfor
         </ul>
         <ol>

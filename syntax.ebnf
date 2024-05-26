@@ -1,0 +1,15 @@
+(* this file is incomplete *)
+
+letter        = unicode_letter | "_" .
+decimal_digit = "0"..."9" .
+binary_digit  = "0" | "1" .
+octal_digit   = "0"..."7" .
+hex_digit     = "0"..."9" | "A"..."F" | "a"..."f" .
+
+decimal_int_lit = "0" | ( "1"..."9" { decimal_int_digit } ) .
+binary_int_lit  = "0" ( "b" | "B" ) binary_digit { binary_int_digit } .
+octal_int_lit   = "0" [ "c" ] octal_digit { octal_int_digit } .
+hex_int_lit     = "0" ( "x" | "X" ) hex_digit { hex_int_digit } .
+
+int_lit   = decimal_int_lit | binary_int_lit | octal_int_lit | hex_int_lit .
+float_lit = [ decimal_int_lit ] "." decimal_digit { decimal_digit } .

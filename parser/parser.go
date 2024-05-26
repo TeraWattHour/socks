@@ -10,14 +10,14 @@ import (
 	"strings"
 )
 
-type _parser struct {
+type parser struct {
 	elements helpers.Queue[tokenizer.Element]
 	programs []Program
 	unclosed []Statement
 }
 
 func Parse(elements []tokenizer.Element) ([]Program, error) {
-	parser := &_parser{
+	parser := &parser{
 		elements: elements,
 		programs: make([]Program, 0),
 		unclosed: make([]Statement, 0),
@@ -25,7 +25,7 @@ func Parse(elements []tokenizer.Element) ([]Program, error) {
 	return parser.Parse()
 }
 
-func (p *_parser) Parse() ([]Program, error) {
+func (p *parser) Parse() ([]Program, error) {
 	for !p.elements.IsEmpty() {
 		switch element := p.elements.Pop().(type) {
 		case tokenizer.Text:
@@ -50,6 +50,9 @@ func (p *_parser) Parse() ([]Program, error) {
 			if statement, err := p.parseStatement(element); err != nil {
 				return nil, err
 			} else if statement != nil {
+				if statement.HasBody() {
+					p.unclosed = append(p.unclosed, statement)
+				}
 				p.programs = append(p.programs, statement)
 			}
 		}
@@ -62,7 +65,7 @@ func (p *_parser) Parse() ([]Program, error) {
 	return p.programs, nil
 }
 
-func (p *_parser) parseStatement(statement *tokenizer.Statement) (Statement, error) {
+func (p *parser) parseStatement(statement *tokenizer.Statement) (Statement, error) {
 	switch statement.Instruction {
 	case "if":
 		return p.parseIfStatement(statement)
@@ -85,7 +88,7 @@ func (p *_parser) parseStatement(statement *tokenizer.Statement) (Statement, err
 	return nil, errors.New("unrecognised token: '@"+statement.Instruction+"'", statement.Location)
 }
 
-func (p *_parser) parseIfStatement(s *tokenizer.Statement) (Statement, error) {
+func (p *parser) parseIfStatement(s *tokenizer.Statement) (Statement, error) {
 	expr, err := expression.Parse(s.Tokens)
 	if err != nil {
 		return nil, err
@@ -99,18 +102,16 @@ func (p *_parser) parseIfStatement(s *tokenizer.Statement) (Statement, error) {
 	vm := expression.NewVM(compiled)
 
 	statement := &IfStatement{
-		Program:  vm,
-		location: s.Location,
+		Program:      vm,
+		location:     s.Location,
+		dependencies: expr.Dependencies,
 	}
-
-	p.unclosed = append(p.unclosed, statement)
 	p.addDependencies(expr.Dependencies...)
-
 	return statement, nil
 }
 
 // ForStatement ::= "(" Identifier "in" Expression ("with" Identifier)? ")"
-func (p *_parser) parseForStatement(s *tokenizer.Statement) (Statement, error) {
+func (p *parser) parseForStatement(s *tokenizer.Statement) (Statement, error) {
 	statement := &ForStatement{
 		location: s.Location,
 	}
@@ -161,15 +162,14 @@ func (p *_parser) parseForStatement(s *tokenizer.Statement) (Statement, error) {
 	}
 
 	statement.Iterable = expression.NewVM(compiled)
-
-	p.unclosed = append(p.unclosed, statement)
+	statement.dependencies = expr.Dependencies
 	p.addDependencies(expr.Dependencies...)
 
 	return statement, nil
 }
 
 // @extend(templateName)
-func (p *_parser) parseExtendStatement(statement *tokenizer.Statement) (Statement, error) {
+func (p *parser) parseExtendStatement(statement *tokenizer.Statement) (Statement, error) {
 	if len(statement.Tokens) != 1 {
 		return nil, errors.New("extend statement requires one argument of type <string>", statement.Location)
 	}
@@ -181,53 +181,46 @@ func (p *_parser) parseExtendStatement(statement *tokenizer.Statement) (Statemen
 }
 
 // @define(name)
-func (p *_parser) parseDefineStatement(s *tokenizer.Statement) (Statement, error) {
-	if len(s.Tokens) != 1 {
-		return nil, errors.New("define statement requires one argument of type <string>", s.Location)
+func (p *parser) parseDefineStatement(statement *tokenizer.Statement) (Statement, error) {
+	if len(statement.Tokens) != 1 {
+		return nil, errors.New("define statement requires one argument of type <string>", statement.Location)
 	}
 
 	if len(p.unclosed) != 0 && p.unclosed[len(p.unclosed)-1].Kind() != "template" {
-		return nil, errors.New("define statements must be placed inside a template block or at the root level", s.Location)
+		return nil, errors.New("define statements must be placed inside a template block or at the root level", statement.Location)
 	}
 
-	statement := &DefineStatement{
-		Name:     s.Tokens[0].Literal,
-		location: s.Location,
-	}
-
-	p.unclosed = append(p.unclosed, statement)
-	return statement, nil
+	return &DefineStatement{
+		Name:     statement.Tokens[0].Literal,
+		location: statement.Location,
+	}, nil
 }
 
 // @slot(name)
-func (p *_parser) parseSlotStatement(s *tokenizer.Statement) (Statement, error) {
-	if len(s.Tokens) != 1 {
-		return nil, errors.New("slot statement requires one argument", s.Location)
+func (p *parser) parseSlotStatement(statement *tokenizer.Statement) (Statement, error) {
+	if len(statement.Tokens) != 1 {
+		return nil, errors.New("slot statement requires one argument of type <string>", statement.Location)
 	}
 
-	statement := &SlotStatement{
-		Name:     s.Tokens[0].Literal,
-		location: s.Location,
-	}
-	p.unclosed = append(p.unclosed, statement)
-	return statement, nil
+	return &SlotStatement{
+		Name:     statement.Tokens[0].Literal,
+		location: statement.Location,
+	}, nil
 }
 
 // @template(name)
-func (p *_parser) parseTemplateStatement(s *tokenizer.Statement) (Statement, error) {
-	if len(s.Tokens) != 1 {
-		return nil, errors.New("template statement requires one argument", s.Location)
+func (p *parser) parseTemplateStatement(statement *tokenizer.Statement) (Statement, error) {
+	if len(statement.Tokens) != 1 {
+		return nil, errors.New("template statement requires one argument of type <string>", statement.Location)
 	}
 
-	statement := &TemplateStatement{
-		Template: s.Tokens[0].Literal,
-		location: s.Location,
-	}
-	p.unclosed = append(p.unclosed, statement)
-	return statement, nil
+	return &TemplateStatement{
+		Template: statement.Tokens[0].Literal,
+		location: statement.Location,
+	}, nil
 }
 
-func (p *_parser) parseEndStatement(s *tokenizer.Statement) (Statement, error) {
+func (p *parser) parseEndStatement(s *tokenizer.Statement) (Statement, error) {
 	target := s.Instruction[3:]
 	if target != "define" && target != "slot" && target != "template" && target != "if" && target != "for" {
 		return nil, errors.New(fmt.Sprintf("unexpected token: @%s", s.Instruction), s.Location)
@@ -268,7 +261,7 @@ func (p *_parser) parseEndStatement(s *tokenizer.Statement) (Statement, error) {
 	return nil, nil
 }
 
-func (p *_parser) addDependencies(dependencies ...string) {
+func (p *parser) addDependencies(dependencies ...string) {
 	for _, unclosed := range p.unclosed {
 		switch statement := unclosed.(type) {
 		case *IfStatement:
@@ -282,7 +275,7 @@ func (p *_parser) addDependencies(dependencies ...string) {
 	}
 }
 
-func (p *_parser) removeDependencies(dependencies ...string) {
+func (p *parser) removeDependencies(dependencies ...string) {
 	for _, unclosed := range p.unclosed {
 		switch statement := unclosed.(type) {
 		case *IfStatement:

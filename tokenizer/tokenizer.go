@@ -136,7 +136,6 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 				Tokens:      tokens,
 				Location:    location,
 			})
-
 		}
 
 		t.lastClosing = t.cursor
@@ -158,8 +157,6 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 		token := Token{Start: t.cursor, Length: 1, Literal: string(t.rune()), Location: t.location()}
 
 		switch t.rune() {
-		case '.':
-			token.Kind = TokDot
 		case '?':
 			if t.nextRune() == '.' {
 				token.Kind = TokOptionalChain
@@ -281,10 +278,21 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 				break
 			}
 			fallthrough
+		case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
+			if t.rune() == '.' && !isDigit(t.nextRune(), 10) {
+				token.Kind = TokEq
+			} else {
+				var err error
+				token, err = t.numeric()
+				if err != nil {
+					return nil, err
+				}
+				pushNext = false
+			}
 		default:
 			if t.isValidVariableStart() {
 				start := t.rawCursor
-				for t.isValidVariableStart() || t.isDigit() {
+				for t.isValidVariableStart() || isDigit(t.rune(), 10) {
 					t.forward()
 				}
 				literal := t.template[start:t.rawCursor]
@@ -294,21 +302,6 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 					token.Kind = TokIdent
 					token.Literal = literal
 				}
-				pushNext = false
-			} else if t.isDigit() {
-				start := t.rawCursor
-				hasDot := false
-				for t.isDigit() || t.rune() == '.' {
-					t.forward()
-					if t.rune() == '.' {
-						if hasDot {
-							return nil, errors2.New("unexpected dot in number", t.location())
-						}
-						hasDot = true
-					}
-				}
-				token.Kind = TokNumber
-				token.Literal = t.template[start:t.rawCursor]
 				pushNext = false
 			} else {
 				return nil, errors2.New(fmt.Sprintf("unexpected token: '%s'", string(t.rune())), t.location())
@@ -324,6 +317,54 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 	}
 
 	return tokens, nil
+}
+
+func (t *_tokenizer) numeric() (token Token, err error) {
+	token.Location = t.location()
+
+	mode := 10
+	start := t.rawCursor
+	if t.rune() == '0' {
+		t.forward()
+
+		switch t.rune() {
+		case 'x', 'X':
+			t.forward()
+			mode = 16
+		case 'b', 'B':
+			t.forward()
+			mode = 2
+		case 'o', 'O':
+			t.forward()
+			mode = 8
+		}
+	}
+
+	for isDigit(t.rune(), mode) || t.rune() == '_' {
+		t.forward()
+	}
+
+	if t.rune() == '.' && mode != 10 {
+		return token, errors2.New("unexpected floating point number in non decimal literal", t.location())
+	}
+
+	if t.rune() == '.' && mode == 10 {
+		t.forward()
+		for isDigit(t.rune(), 10) || t.rune() == '_' {
+			t.forward()
+		}
+	}
+
+	token.Kind = TokNumeric
+	token.Literal = t.template[start:t.rawCursor]
+	token.Start = start
+	token.Length = t.rawCursor - start
+
+	if isLetter(t.rune()) || isDigit(t.rune(), 10) {
+		return token, errors2.New("unexpected character in numeric literal", t.location())
+	}
+
+	return
 }
 
 func (t *_tokenizer) grabText(cursor int) {
@@ -390,12 +431,32 @@ func (t *_tokenizer) forward() {
 	}
 }
 
-func (t *_tokenizer) isDigit() bool {
-	return t.rune() >= '0' && t.rune() <= '9'
+func isDigit(r rune, radix int) bool {
+	if radix == 10 {
+		return r >= '0' && r <= '9'
+	}
+
+	if radix == 16 {
+		return r >= '0' && r <= '9' || r >= 'a' && r <= 'f' || r >= 'A' && r <= 'F'
+	}
+
+	if radix == 8 {
+		return r >= '0' && r <= '7'
+	}
+
+	if radix == 2 {
+		return r == '0' || r == '1'
+	}
+
+	return false
+}
+
+func isLetter(r rune) bool {
+	return r == '_' || unicode.IsLetter(r)
 }
 
 func (t *_tokenizer) isValidVariableStart() bool {
-	return t.rune() == '_' || unicode.IsLetter(t.rune())
+	return isLetter(t.rune())
 }
 
 var lookupRegex *regexp.Regexp
