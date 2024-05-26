@@ -16,7 +16,7 @@ func (p *_parser) parseNumeric() (Expression, error) {
 	if strings.HasPrefix(p.currentToken.Literal, "0b") {
 		return p.parseBinary()
 	}
-	if strings.HasPrefix(p.currentToken.Literal, "0") {
+	if strings.HasPrefix(p.currentToken.Literal, "0") && len(p.currentToken.Literal) > 1 {
 		return p.parseOctal()
 	}
 	return p.parseDecimalInteger()
@@ -26,7 +26,7 @@ func (p *_parser) parseOctal() (Expression, error) {
 	lit := strings.TrimPrefix(p.currentToken.Literal[1:], "c")
 	i64, err := strconv.ParseInt(lit, 8, 64)
 	if err != nil {
-		return nil, err
+		return nil, errors2.New("could not parse `"+p.currentToken.Literal+"` as octal", p.nextToken.Location)
 	}
 
 	return &Integer{Token: p.currentToken, Value: int(i64)}, nil
@@ -35,7 +35,7 @@ func (p *_parser) parseOctal() (Expression, error) {
 func (p *_parser) parseHex() (Expression, error) {
 	i64, err := strconv.ParseInt(p.currentToken.Literal[2:], 16, 64)
 	if err != nil {
-		return nil, err
+		return nil, errors2.New("could not parse `"+p.currentToken.Literal+"` as hex", p.nextToken.Location)
 	}
 
 	return &Integer{Token: p.currentToken, Value: int(i64)}, nil
@@ -44,7 +44,7 @@ func (p *_parser) parseHex() (Expression, error) {
 func (p *_parser) parseBinary() (Expression, error) {
 	i64, err := strconv.ParseInt(p.currentToken.Literal[2:], 2, 64)
 	if err != nil {
-		return nil, err
+		return nil, errors2.New("could not parse `"+p.currentToken.Literal+"` as binary", p.nextToken.Location)
 	}
 
 	return &Integer{Token: p.currentToken, Value: int(i64)}, nil

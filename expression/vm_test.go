@@ -47,7 +47,7 @@ func TestVM_Run(t *testing.T) {
 		`the ratio is 123.4 non-pointer method value of SomeInt is 123`,
 	}, {
 		`sprintf("%.2f", 12 ? 12 + 123 ** 2.5 : 0.123)`,
-		167800.73,
+		"167800.73",
 	}}
 
 	for i, set := range sets {

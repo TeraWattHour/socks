@@ -73,7 +73,7 @@ outerLoop:
 			case reflect.Array, reflect.Slice:
 				result := castInt(_index)
 				if _, ok := result.(error); ok {
-					return nil, errors2.New(fmt.Sprintf("[%s] expected to produce an Integer, got %v", vm.chunk.Lookups[vm.ip].(*FieldAccess).Index.Literal(), reflect.TypeOf(_index)), vm.chunk.Lookups[vm.ip].Location())
+					return nil, errors2.New(fmt.Sprintf("[%s] expected to produce an Integer, got %T", vm.chunk.Lookups[vm.ip].(*FieldAccess).Index.Literal(), _index), vm.chunk.Lookups[vm.ip].Location())
 				}
 				vm.stack.Push(value.Index(result.(int)).Interface())
 			case reflect.Map:
@@ -81,11 +81,11 @@ outerLoop:
 			case reflect.Struct:
 				index, ok := _index.(string)
 				if !ok {
-					return nil, errors2.New(fmt.Sprintf("struct field accessor expected to be string, got %v", reflect.TypeOf(_index)), vm.chunk.Lookups[vm.ip].Location())
+					return nil, errors2.New(fmt.Sprintf("struct field accessor expected to be string, got %T", _index), vm.chunk.Lookups[vm.ip].Location())
 				}
 				vm.stack.Push(value.FieldByName(index).Interface())
 			default:
-				return nil, errors2.New(fmt.Sprintf("expected array or object, got %v", reflect.TypeOf(_value)), vm.chunk.Lookups[vm.ip].Location())
+				return nil, errors2.New(fmt.Sprintf("expected array or object, got %T", _value), vm.chunk.Lookups[vm.ip].Location())
 			}
 		case OpBuiltin1:
 			function := builtinsOne[vm.chunk.Instructions[vm.ip+1]]
@@ -139,7 +139,7 @@ outerLoop:
 			fn := vm.stack.Pop()
 			reflectedFunction := reflect.ValueOf(fn)
 			if !reflectedFunction.IsValid() || reflectedFunction.Kind() != reflect.Func {
-				vm.currentError = errors2.New(fmt.Sprintf("expected function, got %v", reflect.TypeOf(fn)), vm.chunk.Lookups[vm.ip-1].Location())
+				vm.currentError = errors2.New(fmt.Sprintf("expected function, got %T", fn), vm.chunk.Lookups[vm.ip-1].Location())
 				break
 			}
 			results := reflectedFunction.Call(args)

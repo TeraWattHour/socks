@@ -280,7 +280,7 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 			fallthrough
 		case '.', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9':
 			if t.rune() == '.' && !isDigit(t.nextRune(), 10) {
-				token.Kind = TokEq
+				token.Kind = TokDot
 			} else {
 				var err error
 				token, err = t.numeric()

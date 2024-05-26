@@ -27,7 +27,7 @@ func binaryAddition(a, b any) any {
 			return castFloat64(a).(float64) + castFloat64(b).(float64)
 		}
 	}
-	return fmt.Errorf("invalid operation: %v + %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
+	return fmt.Errorf("invalid operation: %v + %v (mismatched types %T and %T)", a, b, a, b)
 }
 func binarySubtraction(a, b any) any {
 	switch a := a.(type) {
@@ -44,7 +44,7 @@ func binarySubtraction(a, b any) any {
 			return castFloat64(a).(float64) - castFloat64(b).(float64)
 		}
 	}
-	return fmt.Errorf("invalid operation: %v - %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
+	return fmt.Errorf("invalid operation: %v - %v (mismatched types %T and %T)", a, b, a, b)
 }
 func binaryMultiplication(a, b any) any {
 	switch a := a.(type) {
@@ -61,7 +61,7 @@ func binaryMultiplication(a, b any) any {
 			return castFloat64(a).(float64) * castFloat64(b).(float64)
 		}
 	}
-	return fmt.Errorf("invalid operation: %v * %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
+	return fmt.Errorf("invalid operation: %v * %v (mismatched types %T and %T)", a, b, a, b)
 }
 func binaryDivision(a, b any) any {
 	switch a := a.(type) {
@@ -78,7 +78,7 @@ func binaryDivision(a, b any) any {
 			return castFloat64(a).(float64) / castFloat64(b).(float64)
 		}
 	}
-	return fmt.Errorf("invalid operation: %v / %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
+	return fmt.Errorf("invalid operation: %v / %v (mismatched types %T and %T)", a, b, a, b)
 }
 func binaryModulo(a, b any) any {
 	switch a := a.(type) {
@@ -88,7 +88,7 @@ func binaryModulo(a, b any) any {
 			return castInt(a).(int) % castInt(b).(int)
 		}
 	}
-	return fmt.Errorf("invalid operation: %v %% %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
+	return fmt.Errorf("invalid operation: %v %% %v (mismatched types %T and %T)", a, b, a, b)
 }
 
 func binaryExponentiation(a, b any) any {
@@ -106,7 +106,7 @@ func binaryExponentiation(a, b any) any {
 			return math.Pow(castFloat64(a).(float64), castFloat64(b).(float64))
 		}
 	}
-	return fmt.Errorf("invalid operation: %v ** %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
+	return fmt.Errorf("invalid operation: %v ** %v (mismatched types %T and %T)", a, b, a, b)
 }
 
 // END BINARY
@@ -120,7 +120,7 @@ func binaryLessThan(a, b any) any {
 			return castFloat64(a).(float64) < castFloat64(b).(float64)
 		}
 	}
-	return fmt.Errorf("invalid operation: %v < %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
+	return fmt.Errorf("invalid operation: %v < %v (mismatched types %T and %T)", a, b, a, b)
 }
 func binaryLessThanEqual(a, b any) any {
 	switch a := a.(type) {
@@ -130,7 +130,7 @@ func binaryLessThanEqual(a, b any) any {
 			return castFloat64(a).(float64) <= castFloat64(b).(float64)
 		}
 	}
-	return fmt.Errorf("invalid operation: %v <= %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
+	return fmt.Errorf("invalid operation: %v <= %v (mismatched types %T and %T)", a, b, a, b)
 }
 func binaryGreaterThan(a, b any) any {
 	switch a := a.(type) {
@@ -140,7 +140,7 @@ func binaryGreaterThan(a, b any) any {
 			return castFloat64(a).(float64) > castFloat64(b).(float64)
 		}
 	}
-	return fmt.Errorf("invalid operation: %v > %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
+	return fmt.Errorf("invalid operation: %v > %v (mismatched types %T and %T)", a, b, a, b)
 }
 func binaryGreaterThanEqual(a, b any) any {
 	switch a := a.(type) {
@@ -150,7 +150,7 @@ func binaryGreaterThanEqual(a, b any) any {
 			return castFloat64(a).(float64) >= castFloat64(b).(float64)
 		}
 	}
-	return fmt.Errorf("invalid operation: %v >= %v (mismatched types %s and %s)", a, b, reflect.TypeOf(a), reflect.TypeOf(b))
+	return fmt.Errorf("invalid operation: %v >= %v (mismatched types %T and %T)", a, b, a, b)
 }
 
 // END EQUALITY

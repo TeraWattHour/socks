@@ -121,11 +121,11 @@ func length(_val any) any {
 }
 
 func rangeArray(_start, _end, _step any) any {
-	start, startOk := _start.(int)
-	end, endOk := _end.(int)
-	step, stepOk := _step.(int)
+	start, startOk := castInt(_start).(int)
+	end, endOk := castInt(_end).(int)
+	step, stepOk := castInt(_step).(int)
 	if !startOk || !endOk || !stepOk {
-		return fmt.Errorf("call to rangeStep(%s, %s, %s) -> []int does not match the signature of rangeStep(Integer, Integer, Integer = 1) -> []int", reflect.TypeOf(_start), reflect.TypeOf(_end), reflect.TypeOf(_step))
+		return fmt.Errorf("call to rangeStep(%T, %T, %T) -> []int does not match the signature of rangeStep(Integer, Integer, Integer = 1) -> []int", _start, _end, _step)
 	}
 
 	if step == 0 {
@@ -167,7 +167,7 @@ func negate(val any) any {
 		}
 		return string(runes)
 	}
-	return fmt.Errorf("cannot negate %s", reflect.TypeOf(val))
+	return fmt.Errorf("cannot negate %T", val)
 }
 
 // BEGIN CASTS
@@ -201,7 +201,7 @@ func castInt(val any) any {
 		return int(val)
 	}
 
-	return fmt.Errorf("cannot cast %s to int", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to int", val)
 }
 
 func castInt8(val any) any {
@@ -233,7 +233,7 @@ func castInt8(val any) any {
 	case float64:
 		return int8(val)
 	}
-	return fmt.Errorf("cannot cast %s to int8", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to int8", val)
 }
 
 func castInt16(val any) any {
@@ -265,7 +265,7 @@ func castInt16(val any) any {
 	case float64:
 		return int16(val)
 	}
-	return fmt.Errorf("cannot cast %s to int16", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to int16", val)
 }
 
 func castInt32(val any) any {
@@ -297,7 +297,7 @@ func castInt32(val any) any {
 	case float64:
 		return int32(val)
 	}
-	return fmt.Errorf("cannot cast %s to int32", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to int32", val)
 }
 
 func castInt64(val any) any {
@@ -329,7 +329,7 @@ func castInt64(val any) any {
 	case float64:
 		return int64(val)
 	}
-	return fmt.Errorf("cannot cast %s to int64", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to int64", val)
 }
 
 func castUint(val any) any {
@@ -361,7 +361,7 @@ func castUint(val any) any {
 	case float64:
 		return uint(val)
 	}
-	return fmt.Errorf("cannot cast %s to uint", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to uint", val)
 }
 
 func castUint8(val any) any {
@@ -393,7 +393,7 @@ func castUint8(val any) any {
 	case float64:
 		return uint8(val)
 	}
-	return fmt.Errorf("cannot cast %s to uint8", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to uint8", val)
 }
 
 func castUint16(val any) any {
@@ -425,7 +425,7 @@ func castUint16(val any) any {
 	case float64:
 		return uint16(val)
 	}
-	return fmt.Errorf("cannot cast %s to uint16", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to uint16", val)
 }
 
 func castUint32(val any) any {
@@ -457,7 +457,7 @@ func castUint32(val any) any {
 	case float64:
 		return uint32(val)
 	}
-	return fmt.Errorf("cannot cast %s to uint32", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to uint32", val)
 }
 
 func castUint64(val any) any {
@@ -489,7 +489,7 @@ func castUint64(val any) any {
 	case float64:
 		return uint64(val)
 	}
-	return fmt.Errorf("cannot cast %s to uint64", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to uint64", val)
 }
 
 func castUintptr(val any) any {
@@ -521,7 +521,7 @@ func castUintptr(val any) any {
 	case float64:
 		return uintptr(val)
 	}
-	return fmt.Errorf("cannot cast %s to uintptr", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to uintptr", val)
 }
 
 func castFloat32(val any) any {
@@ -553,7 +553,7 @@ func castFloat32(val any) any {
 	case float64:
 		return float32(val)
 	}
-	return fmt.Errorf("cannot cast %s to float32", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to float32", val)
 }
 
 func castFloat64(val any) any {
@@ -585,7 +585,7 @@ func castFloat64(val any) any {
 	case float64:
 		return val
 	}
-	return fmt.Errorf("cannot cast %s to float64", reflect.TypeOf(val))
+	return fmt.Errorf("cannot cast %T to float64", val)
 }
 
 // END CASTS

@@ -78,10 +78,6 @@ func (e *Evaluator) evaluate(program parser.Program, context map[string]any) err
 		}
 	}
 
-	if program.Kind() == "for" {
-		fmt.Println(prog.Dependencies(), availableInContext(context))
-	}
-
 	if e.staticMode && !helpers.Subset(prog.Dependencies(), availableInContext(context)) {
 		e.output.Push(program)
 		e.i++
