@@ -5,6 +5,12 @@
         @define("title") {{ Server }} @enddefine
     @endtemplate
 
+    @if(0 == 1)
+    <p>0 is equal to 1</p>
+    @else
+    <p>0 is definitely not equal to 1</p>
+    @endif
+
     {{ [1,2,3][1] }}
 
     <p>Hello from the {{ first[1](23)(123)[0] }} server</p>

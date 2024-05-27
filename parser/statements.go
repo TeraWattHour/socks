@@ -2,6 +2,7 @@ package parser
 
 import (
 	"fmt"
+	"github.com/terawatthour/socks/evaluator"
 	"github.com/terawatthour/socks/expression"
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/tokenizer"
@@ -12,11 +13,16 @@ type Program interface {
 	Kind() string
 	String() string
 	Location() helpers.Location
-	HasBody() bool
+	IsClosable() bool
 }
 
 type WithDependencies interface {
 	Dependencies() []string
+}
+
+type Evaluable interface {
+	Program
+	Evaluate(evaluator *evaluator.Evaluator) error
 }
 
 type Text struct {
@@ -27,7 +33,7 @@ func (t *Text) Kind() string {
 	return "text"
 }
 
-func (t *Text) HasBody() bool {
+func (t *Text) IsClosable() bool {
 	return false
 }
 
@@ -59,7 +65,7 @@ type Expression struct {
 	dependencies []string
 }
 
-func (vs *Expression) HasBody() bool {
+func (vs *Expression) IsClosable() bool {
 	return false
 }
 
@@ -88,13 +94,15 @@ type Statement = Program
 // ---------------------- If Statement ----------------------
 
 type IfStatement struct {
-	Program      *expression.VM
-	location     helpers.Location
-	dependencies []string
-	EndStatement Statement
+	Program        *expression.VM
+	location       helpers.Location
+	dependencies   []string
+	ElifStatements []Statement
+	ElseStatement  Statement
+	EndStatement   Statement
 }
 
-func (vs *IfStatement) HasBody() bool {
+func (vs *IfStatement) IsClosable() bool {
 	return true
 }
 
@@ -114,6 +122,47 @@ func (vs *IfStatement) Kind() string {
 	return "if"
 }
 
+type ElseStatement struct {
+	location helpers.Location
+}
+
+func (vs *ElseStatement) IsClosable() bool {
+	return false
+}
+
+func (vs *ElseStatement) Location() helpers.Location {
+	return vs.location
+}
+
+func (vs *ElseStatement) String() string {
+	return fmt.Sprintf("%-8s", "ELSE")
+}
+
+func (vs *ElseStatement) Kind() string {
+	return "else"
+}
+
+type ElifStatement struct {
+	location helpers.Location
+	Program  *expression.VM
+}
+
+func (vs *ElifStatement) IsClosable() bool {
+	return false
+}
+
+func (vs *ElifStatement) Location() helpers.Location {
+	return vs.location
+}
+
+func (vs *ElifStatement) String() string {
+	return fmt.Sprintf("%-8s", "ELIF")
+}
+
+func (vs *ElifStatement) Kind() string {
+	return "elif"
+}
+
 // ---------------------- For Statement ----------------------
 
 type ForStatement struct {
@@ -125,7 +174,7 @@ type ForStatement struct {
 	EndStatement *EndStatement
 }
 
-func (es *ForStatement) HasBody() bool {
+func (es *ForStatement) IsClosable() bool {
 	return true
 }
 
@@ -155,7 +204,7 @@ type ExtendStatement struct {
 	location helpers.Location
 }
 
-func (es *ExtendStatement) HasBody() bool {
+func (es *ExtendStatement) IsClosable() bool {
 	return false
 }
 
@@ -179,7 +228,7 @@ type TemplateStatement struct {
 	EndStatement *EndStatement
 }
 
-func (es *TemplateStatement) HasBody() bool {
+func (es *TemplateStatement) IsClosable() bool {
 	return true
 }
 
@@ -204,7 +253,7 @@ type SlotStatement struct {
 	EndStatement *EndStatement
 }
 
-func (ss *SlotStatement) HasBody() bool {
+func (ss *SlotStatement) IsClosable() bool {
 	return true
 }
 
@@ -229,7 +278,7 @@ type DefineStatement struct {
 	EndStatement *EndStatement
 }
 
-func (es *DefineStatement) HasBody() bool {
+func (es *DefineStatement) IsClosable() bool {
 	return true
 }
 
@@ -262,6 +311,6 @@ func (es *EndStatement) String() string {
 	return fmt.Sprintf("END(%s)", es.ClosedStatement.Kind())
 }
 
-func (es *EndStatement) HasBody() bool {
+func (es *EndStatement) IsClosable() bool {
 	return false
 }

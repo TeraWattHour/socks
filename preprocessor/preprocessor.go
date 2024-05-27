@@ -125,6 +125,7 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 
 	fp.result = evaluationResult
 	fp.foldText()
+
 	return fp.result, nil
 }
 

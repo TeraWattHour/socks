@@ -67,15 +67,17 @@ func (e *Evaluator) evaluate(program parser.Program, context map[string]any) err
 		return nil
 	}
 
+	// WithDependencies programs (If, For, Expression) can be evaluated also at "compile" time,
+	// any other program kind is left for the runtime evaluation but is expected to be evaluated
+	// in its block, e.g. elif statement is not to be evaluated on its own but only together with the if statement.
 	prog, ok := program.(parser.WithDependencies)
 	if !ok {
 		if e.staticMode {
 			e.output.Push(program)
 			e.i++
 			return nil
-		} else {
-			return errors.New(fmt.Sprintf("unexpected program type %T", program), program.Location())
 		}
+		return errors.New(fmt.Sprintf("unexpected %s statement encountered at runtime", program.Kind()), program.Location())
 	}
 
 	if e.staticMode && !helpers.Subset(prog.Dependencies(), availableInContext(context)) {
@@ -105,21 +107,95 @@ func (e *Evaluator) evaluateIfStatement(ifStatement *parser.IfStatement, context
 	resultBool := expression.CastToBool(result)
 
 	e.i++
-	for e.program() != ifStatement.EndStatement {
+
+	if resultBool {
+		for (e.program() != ifStatement.EndStatement && e.program() != ifStatement.ElseStatement) &&
+			(len(ifStatement.ElifStatements) == 0 || e.program() != ifStatement.ElifStatements[0]) {
+			if err := e.evaluate(e.program(), context); err != nil {
+				return err
+			}
+		}
+
+		for e.program() != ifStatement.EndStatement {
+			e.i++
+		}
+		e.i++
+
+		return nil
+	}
+
+	for (e.program() != ifStatement.EndStatement && e.program() != ifStatement.ElseStatement) &&
+		(len(ifStatement.ElifStatements) == 0 || e.program() != ifStatement.ElifStatements[0]) {
+		e.i++
+	}
+
+	// at this point there are 3 possibilities:
+	// 1. the program is an else statement
+	// 2. the program is an elif statement
+	// 3. the program is an end statement
+
+	// end statement
+	if e.program() == ifStatement.EndStatement {
+		return nil
+	}
+
+	// else statement
+	if e.program() == ifStatement.ElseStatement {
+		e.i++
+		for e.program() != ifStatement.EndStatement {
+			if err := e.evaluate(e.program(), context); err != nil {
+				return err
+			}
+		}
+
+		if e.program() != ifStatement.EndStatement {
+			panic("unreachable")
+		}
+
+		return nil
+	}
+
+	matchedElif := false
+
+	// elif statement
+	for i, elifStatement := range ifStatement.ElifStatements {
+		result, err := elifStatement.(*parser.ElifStatement).Program.Run(context)
+		if err != nil {
+			return err
+		}
+
+		resultBool := expression.CastToBool(result)
+
+		e.i++
+		for (e.program() != ifStatement.EndStatement && e.program() != ifStatement.ElseStatement) &&
+			(i+1 >= len(ifStatement.ElifStatements) || e.program() != ifStatement.ElifStatements[i+1]) {
+			if resultBool {
+				if err := e.evaluate(e.program(), context); err != nil {
+					return err
+				}
+			} else {
+				e.i++
+			}
+		}
+
 		if resultBool {
+			matchedElif = true
+			break
+		}
+	}
+
+	if e.program() == ifStatement.ElseStatement {
+		e.i++
+	}
+
+	for e.program() != ifStatement.EndStatement {
+		if !matchedElif {
 			if err := e.evaluate(e.program(), context); err != nil {
 				return err
 			}
 		} else {
-			if e.staticMode {
-				e.output.Push(e.program())
-			}
 			e.i++
 		}
-	}
-
-	if e.program() != ifStatement.EndStatement {
-		panic("unreachable")
 	}
 
 	return nil

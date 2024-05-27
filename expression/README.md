@@ -39,15 +39,13 @@
 #### Sets
 - `[...]` Array (always constant)
 - `a in A` Is element _a_ present in _A_? (a ∈ A)
-- `a not in A` Is element _a_ not present in _A_? (a ∉ A)
+- `a not in A` Is element _a_ not present in _A_? (a ∉ A), equivalent to `not (a in A)`
 
 ### Prefix
 - `-` Negation
     - `-Numeric` → `Numeric * -1`
-    - `-"Welcome"` → `"emocleW"`, reverses the string
-    - `-[1, 2, 3]` → `[3, 2, 1]`, reverses the array
 - `not`, `!` Negation
     - `not true` → `false`
-    - `!false` → `true
+    - `!false` → `true`
     - `not 0.01` → `false`
     - `!0` → `true`

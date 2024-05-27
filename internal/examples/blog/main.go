@@ -33,6 +33,7 @@ func main() {
 			{"Hello Wordl", []string{"Nice post!", "I like it!"}},
 			{"Goodbye World", []string{"Sad to see you go.", "Good luck!"}},
 		},
+		"env":         "test",
 		"Metas":       []string{"author: TeraWattHour", time.Now().String()},
 		"currentDate": time.Now(),
 	}); err != nil {
@@ -40,16 +41,15 @@ func main() {
 	}
 
 	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		count, err := strconv.ParseInt(r.URL.Query().Get("count"), 10, 64)
-		if err != nil || count < 1 {
-			count = 1
-		} else if count > 10 {
-			count = 10
+
+		page, err := strconv.ParseInt(r.URL.Query().Get("page"), 10, 64)
+		if err != nil || page < 1 {
+			page = 1
 		}
 
 		if err := s.Execute(w, "index.html", map[string]interface{}{
 			"currentDate": time.Now(),
-			"total_count": int(count),
+			"page":        int(page),
 		}); err != nil {
 			w.WriteHeader(500)
 			log.Println(err)

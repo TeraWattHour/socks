@@ -57,6 +57,8 @@ var Keywords = []string{
 var Instructions = []string{
 	"for",
 	"if",
+	"elif",
+	"else",
 	"define",
 	"extend",
 	"slot",

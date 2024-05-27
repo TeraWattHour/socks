@@ -50,7 +50,7 @@ func (p *parser) Parse() ([]Program, error) {
 			if statement, err := p.parseStatement(element); err != nil {
 				return nil, err
 			} else if statement != nil {
-				if statement.HasBody() {
+				if statement.IsClosable() {
 					p.unclosed = append(p.unclosed, statement)
 				}
 				p.programs = append(p.programs, statement)
@@ -69,6 +69,38 @@ func (p *parser) parseStatement(statement *tokenizer.Statement) (Statement, erro
 	switch statement.Instruction {
 	case "if":
 		return p.parseIfStatement(statement)
+	case "else":
+		ifStatement, ok := p.parent().(*IfStatement)
+		if !ok {
+			return nil, errors.New("unexpected else tag outside if statement", statement.Location)
+		}
+		st := &ElseStatement{location: statement.Location}
+		ifStatement.ElseStatement = st
+		return st, nil
+	case "elif":
+		ifStatement, ok := p.parent().(*IfStatement)
+		if !ok {
+			return nil, errors.New("unexpected elif tag outside if statement", statement.Location)
+		}
+		if ifStatement.ElseStatement != nil {
+			return nil, errors.New("unexpected elif tag after else tag", statement.Location)
+		}
+		ast, err := expression.Parse(statement.Tokens)
+		if err != nil {
+			return nil, err
+		}
+		compiled, err := expression.NewCompiler(ast.Expr).Compile()
+		if err != nil {
+			return nil, err
+		}
+
+		st := &ElifStatement{
+			location: statement.Location,
+			Program:  expression.NewVM(compiled),
+		}
+		p.addDependencies(ast.Dependencies...)
+		ifStatement.ElifStatements = append(ifStatement.ElifStatements, st)
+		return st, nil
 	case "for":
 		return p.parseForStatement(statement)
 	case "extend":
@@ -289,4 +321,11 @@ func (p *parser) removeDependencies(dependencies ...string) {
 			})
 		}
 	}
+}
+
+func (p *parser) parent() Statement {
+	if len(p.unclosed) == 0 {
+		return nil
+	}
+	return p.unclosed[len(p.unclosed)-1]
 }

@@ -117,8 +117,14 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 			instruction := t.template[element[0]+1 : element[1]]
 			t.goTo(element[1])
 
-			if t.rune() != '(' && !strings.HasPrefix(instruction, "end") {
-				return nil, errors2.New("expected `(` after statement", location)
+			// for those statements that require some arguments
+			if !strings.HasPrefix(instruction, "end") && instruction != "else" {
+				for t.rune() != '(' && t.rune() != 0 {
+					t.forward()
+				}
+				if t.rune() == 0 {
+					return nil, errors2.New("unexpected end of template, expected `(` after statement", location)
+				}
 			}
 
 			if t.rune() == '(' {
