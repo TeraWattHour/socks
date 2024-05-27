@@ -1,4 +1,4 @@
-package parser
+package socks
 
 import (
 	"github.com/terawatthour/socks/tokenizer"

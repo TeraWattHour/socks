@@ -2,8 +2,6 @@ package socks
 
 import (
 	"fmt"
-	"github.com/terawatthour/socks/evaluator"
-	"github.com/terawatthour/socks/preprocessor"
 	"os"
 	"path/filepath"
 	"strings"
@@ -13,7 +11,7 @@ type fileSystem struct {
 	options       *Options
 	files         map[string]string
 	nativeMap     map[string]string
-	templates     map[string]*evaluator.Evaluator
+	templates     map[string]*evaluator
 	staticContext map[string]interface{}
 }
 
@@ -21,7 +19,7 @@ func newFileSystem(options *Options) *fileSystem {
 	return &fileSystem{
 		options:   options,
 		files:     make(map[string]string),
-		templates: make(map[string]*evaluator.Evaluator),
+		templates: make(map[string]*evaluator),
 		nativeMap: make(map[string]string),
 	}
 }
@@ -63,12 +61,12 @@ func (fs *fileSystem) loadTemplateFromString(filename string, content string) {
 }
 
 func (fs *fileSystem) preprocessTemplates(staticContext map[string]interface{}) error {
-	proc := preprocessor.New(fs.files, fs.nativeMap, staticContext, fs.options.Sanitizer)
+	proc := New(fs.files, fs.nativeMap, staticContext, fs.options.Sanitizer)
 	for filename := range fs.files {
 		if content, err := proc.Preprocess(filename, false); err != nil {
 			return err
 		} else {
-			fs.templates[filename] = evaluator.New(content, fs.options.Sanitizer)
+			fs.templates[filename] = newEvaluator(content, fs.options.Sanitizer)
 		}
 	}
 

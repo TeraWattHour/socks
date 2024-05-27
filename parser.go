@@ -1,4 +1,4 @@
-package parser
+package socks
 
 import (
 	"fmt"
@@ -12,20 +12,20 @@ import (
 
 type parser struct {
 	elements helpers.Queue[tokenizer.Element]
-	programs []Program
+	programs []Statement
 	unclosed []Statement
 }
 
-func Parse(elements []tokenizer.Element) ([]Program, error) {
+func Parse(elements []tokenizer.Element) ([]Statement, error) {
 	parser := &parser{
 		elements: elements,
-		programs: make([]Program, 0),
+		programs: make([]Statement, 0),
 		unclosed: make([]Statement, 0),
 	}
 	return parser.Parse()
 }
 
-func (p *parser) Parse() ([]Program, error) {
+func (p *parser) Parse() ([]Statement, error) {
 	for !p.elements.IsEmpty() {
 		switch element := p.elements.Pop().(type) {
 		case tokenizer.Text:

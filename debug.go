@@ -1,16 +1,15 @@
-package debug
+package socks
 
 import (
 	"fmt"
-	"github.com/terawatthour/socks/parser"
 	"reflect"
 	"strings"
 )
 
-func PrintPrograms(label string, programs []parser.Program) {
-	fmt.Printf("programs (%s):\n", label)
+func dumpStatements(label string, statements []Statement) {
+	fmt.Printf("statements (%s):\n", label)
 	level := 0
-	for _, program := range programs {
+	for _, program := range statements {
 		if program.Kind() == "end" {
 			level--
 		}
@@ -19,5 +18,5 @@ func PrintPrograms(label string, programs []parser.Program) {
 			level++
 		}
 	}
-	fmt.Println("End programs")
+	fmt.Println("End statements")
 }

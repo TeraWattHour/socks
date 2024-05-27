@@ -1,12 +1,10 @@
-package preprocessor
+package socks
 
 import (
 	"errors"
 	"fmt"
 	errors2 "github.com/terawatthour/socks/errors"
-	"github.com/terawatthour/socks/evaluator"
 	"github.com/terawatthour/socks/internal/helpers"
-	"github.com/terawatthour/socks/parser"
 	"github.com/terawatthour/socks/tokenizer"
 	"slices"
 )
@@ -22,8 +20,8 @@ type Preprocessor struct {
 type filePreprocessor struct {
 	preprocessor *Preprocessor
 	filename     string
-	programs     []parser.Program
-	result       []parser.Program
+	programs     []Statement
+	result       []Statement
 	i            int
 }
 
@@ -36,18 +34,18 @@ func New(files map[string]string, nativeMap map[string]string, staticContext map
 	}
 }
 
-func (p *Preprocessor) Preprocess(filename string, keepSlots bool) ([]parser.Program, error) {
+func (p *Preprocessor) Preprocess(filename string, keepSlots bool) ([]Statement, error) {
 	filePreprocessor := &filePreprocessor{
 		preprocessor: p,
 		filename:     filename,
-		result:       make([]parser.Program, 0),
-		programs:     make([]parser.Program, 0),
+		result:       make([]Statement, 0),
+		programs:     make([]Statement, 0),
 		i:            0,
 	}
 	return filePreprocessor.preprocess(keepSlots)
 }
 
-func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, err error) {
+func (fp *filePreprocessor) preprocess(keepSlots bool) (res []Statement, err error) {
 	content, ok := fp.preprocessor.files[fp.filename]
 	if !ok {
 		return nil, fmt.Errorf("template `%s` not found", fp.filename)
@@ -64,7 +62,7 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 		return nil, tokenizerError
 	}
 
-	fp.programs, err = parser.Parse(elements)
+	fp.programs, err = Parse(elements)
 	if err != nil {
 		var parserError *errors2.Error
 		errors.As(err, &parserError)
@@ -81,7 +79,7 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 
 		switch program.Kind() {
 		case "extend":
-			extends = program.(*parser.ExtendStatement).Template
+			extends = program.(*ExtendStatement).Template
 			if extends == "" {
 				return nil, errors2.New("extend statement must take a valid file name as an argument", program.Location())
 			}
@@ -91,7 +89,7 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 				return nil, err
 			}
 		case "end":
-			end := program.(*parser.EndStatement)
+			end := program.(*EndStatement)
 			fp.i++
 			if !keepSlots && end.ClosedStatement.Kind() == "slot" {
 				continue
@@ -115,10 +113,10 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 		}
 	}
 
-	var evaluationResult helpers.Queue[parser.Program]
-	staticEvaluator := evaluator.NewStatic(&evaluationResult, fp.result, fp.preprocessor.sanitizer)
+	var evaluationResult helpers.Queue[Statement]
+	staticEvaluator := newStaticEvaluator(&evaluationResult, fp.result, fp.preprocessor.sanitizer)
 
-	if err := staticEvaluator.Evaluate(nil, fp.preprocessor.staticContext); err != nil {
+	if err := staticEvaluator.evaluate(nil, fp.preprocessor.staticContext); err != nil {
 		fp.foldText()
 		return fp.result, nil
 	}
@@ -132,8 +130,8 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []parser.Program, er
 func (fp *filePreprocessor) foldText() {
 	for i := 1; i < len(fp.result); i++ {
 		if fp.result[i].Kind() == "text" && fp.result[i-1].Kind() == "text" {
-			textLeft := fp.result[i-1].(*parser.Text)
-			textRight := fp.result[i].(*parser.Text)
+			textLeft := fp.result[i-1].(*Text)
+			textRight := fp.result[i].(*Text)
 			textLeft.Content += textRight.Content
 			fp.result = append(fp.result[:i], fp.result[i+1:]...)
 			i--
@@ -142,7 +140,7 @@ func (fp *filePreprocessor) foldText() {
 }
 
 func (fp *filePreprocessor) evaluateTemplateStatement() error {
-	templateStatement := fp.programs[fp.i].(*parser.TemplateStatement)
+	templateStatement := fp.programs[fp.i].(*TemplateStatement)
 	templateName := templateStatement.Template
 
 	resolvedPath := helpers.ResolvePath(fp.filename, templateName)
@@ -154,9 +152,9 @@ func (fp *filePreprocessor) evaluateTemplateStatement() error {
 
 	fp.i++
 
-	defines := map[string][]parser.Program{}
+	defines := map[string][]Statement{}
 	for ; fp.program() != templateStatement.EndStatement; fp.i++ {
-		defineStatement, ok := fp.program().(*parser.DefineStatement)
+		defineStatement, ok := fp.program().(*DefineStatement)
 		if !ok || defineStatement.Parent != templateStatement {
 			continue
 		}
@@ -170,7 +168,7 @@ func (fp *filePreprocessor) evaluateTemplateStatement() error {
 
 	for i := 0; i < len(includedPrograms); i++ {
 		includedProgram := includedPrograms[i]
-		slotStatement, ok := includedProgram.(*parser.SlotStatement)
+		slotStatement, ok := includedProgram.(*SlotStatement)
 		if !ok || slices.Contains(fp.result, slotStatement.Parent) {
 			fp.result = append(fp.result, includedProgram)
 			continue
@@ -202,11 +200,11 @@ func (fp *filePreprocessor) extendTemplate(parentTemplate string) error {
 		return err
 	}
 
-	merged := make([]parser.Program, 0)
+	merged := make([]Statement, 0)
 
 	for i := 0; i < len(parentPrograms); i++ {
 		// find all parent's slots that can be filled by the child template
-		slotStatement, ok := parentPrograms[i].(*parser.SlotStatement)
+		slotStatement, ok := parentPrograms[i].(*SlotStatement)
 		if !ok || slices.Contains(merged, slotStatement.Parent) {
 			merged = append(merged, parentPrograms[i])
 			continue
@@ -217,7 +215,7 @@ func (fp *filePreprocessor) extendTemplate(parentTemplate string) error {
 
 		// swap the contents of the slot with the contents of the define statement
 		for j := 0; j < len(fp.result); j++ {
-			defineStatement, ok := fp.result[j].(*parser.DefineStatement)
+			defineStatement, ok := fp.result[j].(*DefineStatement)
 			if !ok || defineStatement.Name != slotStatement.Name || slices.Contains(merged, defineStatement.Parent) {
 				continue
 			}
@@ -246,6 +244,6 @@ func (fp *filePreprocessor) extendTemplate(parentTemplate string) error {
 	return nil
 }
 
-func (fp *filePreprocessor) program() parser.Program {
+func (fp *filePreprocessor) program() Statement {
 	return fp.programs[fp.i]
 }

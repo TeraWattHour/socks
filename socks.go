@@ -81,7 +81,7 @@ func (s *socks) ExecuteToString(template string, context map[string]interface{})
 
 	result := bytes.NewBufferString("")
 	maps.Copy(s.globals, context)
-	err := eval.Evaluate(result, s.globals)
+	err := eval.evaluate(result, s.globals)
 	if err != nil {
 		var nativeError *errors2.Error
 		if errors.As(err, &nativeError) {
@@ -100,7 +100,7 @@ func (s *socks) Execute(w io.Writer, template string, context map[string]any) er
 	}
 
 	maps.Copy(s.globals, context)
-	err := eval.Evaluate(w, s.globals)
+	err := eval.evaluate(w, s.globals)
 	if err != nil {
 		var nativeError *errors2.Error
 		if errors.As(err, &nativeError) {

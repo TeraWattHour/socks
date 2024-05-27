@@ -1,7 +1,6 @@
-package preprocessor
+package socks
 
 import (
-	"github.com/terawatthour/socks/internal/debug"
 	"testing"
 )
 
@@ -24,5 +23,5 @@ func TestPreprocessor(t *testing.T) {
 		return
 	}
 
-	debug.PrintPrograms("child.html", result)
+	dumpStatements("TestPreprocessor", result)
 }

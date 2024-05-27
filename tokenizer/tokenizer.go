@@ -5,21 +5,18 @@ import (
 	errors2 "github.com/terawatthour/socks/errors"
 	"github.com/terawatthour/socks/internal/helpers"
 	"math"
-	"regexp"
 	"slices"
 	"strings"
 	"unicode"
 )
 
 type _tokenizer struct {
-	templateRunes []rune
-	template      string
-	elements      []Element
+	template []rune
+	cursor   int
+
+	elements []Element
 
 	lastClosing int
-
-	cursor    int
-	rawCursor int
 
 	line   int
 	column int
@@ -39,34 +36,31 @@ func (t Token) String() string {
 
 func Tokenize(template string) ([]Element, error) {
 	t := &_tokenizer{
-		templateRunes: []rune(template),
-		template:      template,
-		elements:      make([]Element, 0),
-		cursor:        0,
-		rawCursor:     0,
-		line:          1,
-		column:        0,
+		template: []rune(template),
+		elements: make([]Element, 0),
+		cursor:   0,
+		line:     1,
+		column:   0,
 	}
 
 	return t.tokenize()
 }
 
 func (t *_tokenizer) tokenize() ([]Element, error) {
-	possibleElements := lookupElements(t.template)
-	if len(possibleElements) == 0 {
-		t.elements = append(t.elements, Text(t.template))
-		return t.elements, nil
-	}
+	for t.rune() != 0 {
 
-	for _, element := range possibleElements {
-		if element[0] < t.rawCursor {
+		// escaping character
+		if t.rune() == '\\' {
+			t.forward()
+			t.forward()
+
 			continue
 		}
 
-		t.goTo(element[0])
-		t.grabText(t.cursor)
-
+		// comment block, ignore it
 		if t.rune() == '{' && t.nextRune() == '#' {
+			t.grabText(t.cursor)
+
 			t.forward()
 			t.forward()
 
@@ -82,12 +76,17 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 
 			t.forward()
 			t.forward()
+
+			t.lastClosing = t.cursor
 		} else if t.rune() == '{' && (t.nextRune() == '{' || t.nextRune() == '!') {
+			t.grabText(t.cursor)
+
+			sanitize := t.nextRune() != '!'
+
+			t.forward()
 			t.forward()
 
-			sanitize := t.rune() != '!'
-
-			t.forward()
+			start := t.cursor
 
 			location := helpers.Location{
 				Line:   t.line,
@@ -100,7 +99,7 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 			}
 
 			t.elements = append(t.elements, &Mustache{
-				Literal:  t.template[element[0]+2 : t.rawCursor],
+				Literal:  string(t.template[start:t.cursor]),
 				Sanitize: sanitize,
 				Tokens:   tokens,
 				Location: location,
@@ -108,14 +107,24 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 
 			t.forward()
 			t.forward()
-		} else {
-			var tokens []Token
-			var err error
 
+			t.lastClosing = t.cursor
+		} else if t.rune() == '@' && isAsciiLetter(t.nextRune()) {
 			location := t.location()
+			t.grabText(t.cursor)
+
 			t.forward()
-			instruction := t.template[element[0]+1 : element[1]]
-			t.goTo(element[1])
+			start := t.cursor
+			for isAsciiLetter(t.rune()) {
+				t.forward()
+			}
+			instruction := string(t.template[start:t.cursor])
+
+			if !slices.Contains(Instructions, instruction) {
+				return nil, errors2.New(fmt.Sprintf("unexpected instruction: %s", instruction), location)
+			}
+
+			var tokens []Token
 
 			// for those statements that require some arguments
 			if !strings.HasPrefix(instruction, "end") && instruction != "else" {
@@ -125,29 +134,32 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 				if t.rune() == 0 {
 					return nil, errors2.New("unexpected end of template, expected `(` after statement", location)
 				}
-			}
 
-			if t.rune() == '(' {
-				t.forward()
-				tokens, err = t.tokenizeExpression(false, false)
-				if err != nil {
-					return nil, err
+				if t.rune() == '(' {
+					t.forward()
+					var err error
+					tokens, err = t.tokenizeExpression(false, false)
+					if err != nil {
+						return nil, err
+					}
+					t.forward()
 				}
-				t.forward()
 			}
 
 			t.elements = append(t.elements, &Statement{
-				Literal:     t.template[element[0]:t.rawCursor],
+				Literal:     string(t.template[start-1 : t.cursor]),
 				Instruction: instruction,
 				Tokens:      tokens,
 				Location:    location,
 			})
-		}
 
-		t.lastClosing = t.cursor
+			t.lastClosing = t.cursor
+		} else {
+			t.forward()
+		}
 	}
 
-	t.grabText(len(t.templateRunes))
+	t.grabText(len(t.template))
 
 	return t.elements, nil
 }
@@ -237,7 +249,7 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 			quoteChar := t.rune()
 			t.forward()
 			previous := t.rune()
-			start := t.rawCursor
+			start := t.cursor
 			for t.rune() != quoteChar || (t.rune() == quoteChar && previous == '\\') {
 				if t.rune() == 0 {
 					return nil, errors2.New("unexpected end of template, unclosed string", t.location())
@@ -245,11 +257,8 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 				previous = t.rune()
 				t.forward()
 			}
-			literal := t.template[start:t.rawCursor]
-			t.forward()
 			token.Kind = TokString
-			token.Literal = literal
-			pushNext = false
+			token.Literal = string(t.template[start:t.cursor])
 		case ',':
 			token.Kind = TokComma
 		case '(':
@@ -297,11 +306,11 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 			}
 		default:
 			if t.isValidVariableStart() {
-				start := t.rawCursor
+				start := t.cursor
 				for t.isValidVariableStart() || isDigit(t.rune(), 10) {
 					t.forward()
 				}
-				literal := t.template[start:t.rawCursor]
+				literal := string(t.template[start:t.cursor])
 				if slices.Index(Keywords, literal) != -1 {
 					token.Kind, token.Literal = literal, literal
 				} else {
@@ -329,7 +338,7 @@ func (t *_tokenizer) numeric() (token Token, err error) {
 	token.Location = t.location()
 
 	mode := 10
-	start := t.rawCursor
+	start := t.cursor
 	if t.rune() == '0' {
 		t.forward()
 
@@ -362,9 +371,9 @@ func (t *_tokenizer) numeric() (token Token, err error) {
 	}
 
 	token.Kind = TokNumeric
-	token.Literal = t.template[start:t.rawCursor]
+	token.Literal = string(t.template[start:t.cursor])
 	token.Start = start
-	token.Length = t.rawCursor - start
+	token.Length = t.cursor - start
 
 	if isLetter(t.rune()) || isDigit(t.rune(), 10) {
 		return token, errors2.New("unexpected character in numeric literal", t.location())
@@ -374,9 +383,9 @@ func (t *_tokenizer) numeric() (token Token, err error) {
 }
 
 func (t *_tokenizer) grabText(cursor int) {
-	bounded := int(math.Min(float64(cursor), float64(len(t.templateRunes))))
+	bounded := int(math.Min(float64(cursor), float64(len(t.template))))
 	if t.lastClosing < bounded && t.lastClosing-bounded != 0 {
-		t.elements = append(t.elements, Text(t.templateRunes[t.lastClosing:bounded]))
+		t.elements = append(t.elements, Text(t.template[t.lastClosing:bounded]))
 	}
 }
 
@@ -394,40 +403,27 @@ func (t *_tokenizer) skipWhitespace() {
 }
 
 func (t *_tokenizer) rune() rune {
-	if t.cursor >= len(t.templateRunes) {
+	if t.cursor >= len(t.template) {
 		return 0
 	}
-	return t.templateRunes[t.cursor]
+	return t.template[t.cursor]
 }
 
 func (t *_tokenizer) nextRune() rune {
-	if t.cursor+1 >= len(t.templateRunes) {
+	if t.cursor+1 >= len(t.template) {
 		return 0
 	}
-	return t.templateRunes[t.cursor+1]
+	return t.template[t.cursor+1]
 }
 
-func (t *_tokenizer) goTo(location int) {
-	rawCursor := t.rawCursor
-	for i := range t.template[rawCursor:] {
-		if t.rune() == '\n' {
-			t.line++
-			t.column = 0
-		} else {
-			t.column++
-		}
-
-		if i+rawCursor == location {
-			t.rawCursor = i + rawCursor
-			break
-		}
-		t.cursor++
-
+func (t *_tokenizer) prevRune() rune {
+	if t.cursor-1 < 0 {
+		return 0
 	}
+	return t.template[t.cursor-1]
 }
 
 func (t *_tokenizer) forward() {
-	t.rawCursor += len(string(t.rune()))
 	t.cursor++
 	if t.rune() == '\n' {
 		t.line++
@@ -461,43 +457,10 @@ func isLetter(r rune) bool {
 	return r == '_' || unicode.IsLetter(r)
 }
 
+func isAsciiLetter(r rune) bool {
+	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z'
+}
+
 func (t *_tokenizer) isValidVariableStart() bool {
 	return isLetter(t.rune())
-}
-
-var lookupRegex *regexp.Regexp
-
-func generateLookupRegex() {
-	pattern := fmt.Sprintf(`(?:^|[^\\])(\{[\{#!]|@(?:%s))`, strings.Join(Instructions, "|"))
-	lookupRegex = regexp.MustCompile(pattern)
-}
-
-func lookupElements(haystack string) [][]int {
-	if lookupRegex == nil {
-		generateLookupRegex()
-	}
-
-	found := lookupRegex.FindAllStringIndex(haystack, -1)
-
-	for i, element := range found {
-		if element[1]-element[0] == 2 {
-			continue
-		}
-
-		if haystack[element[0]] == haystack[element[0]+1] {
-			found = append(found[:i], found[i+1:]...)
-			continue
-		}
-
-		actualOpeningAt := strings.IndexAny(haystack[element[0]:element[1]], "{@")
-		if actualOpeningAt != 0 || haystack[element[0]+1] == '@' || haystack[element[0]+1] == '{' {
-			if haystack[element[0]] == '@' || haystack[element[0]] == '{' {
-				element[0]++
-				continue
-			}
-			element[0] += actualOpeningAt
-		}
-	}
-
-	return found
 }
