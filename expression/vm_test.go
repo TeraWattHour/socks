@@ -40,13 +40,13 @@ func TestVM_Run(t *testing.T) {
 		"2 ** 3 / 4",
 		2,
 	}, {
-		`not "str" in [true]`,
-		false,
+		`not "str" in [false]`,
+		true,
 	}, {
 		`base.structure.Method(123.4) + base.structure.ReceiverMethod() + someInt.Method()`,
 		`the ratio is 123.4 non-pointer method value of SomeInt is 123`,
 	}, {
-		`sprintf("%.2f", 12 ? 12 + 123 ** 2.5 : 0.123)`,
+		`sprintf("%.2f", 12 ? 12. + 123. ** 2.5 : 0.123)`,
 		"167800.73",
 	}}
 

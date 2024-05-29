@@ -70,22 +70,12 @@ func (e *evaluator) evaluateProgram(context Context) error {
 	// Any other program kind is left for the runtime evaluation but is expected to be evaluated
 	// in its block, e.g. elif statement may not be evaluated on its own but only together with the if statement.
 	prog, ok := program.(Evaluable)
-	if !ok {
-		if e.staticMode {
-			e.output.Push(program)
-			e.i++
-			return nil
-		}
-
-		return errors.New(fmt.Sprintf("unexpected %s statement encountered at runtime", program.Kind()), program.Location())
-	}
-
-	// Statement needs to be evaluated at runtime since the required context is not available,
-	// its children, though, may still be evaluated at compile time.
-	if e.staticMode && !helpers.Subset(prog.Dependencies(), availableInContext(context)) {
+	if !ok && e.staticMode || (e.staticMode && !helpers.Subset(prog.Dependencies(), availableInContext(context))) {
 		e.output.Push(program)
 		e.i++
 		return nil
+	} else if !ok {
+		return errors.New(fmt.Sprintf("unexpected %s statement encountered at runtime", program.Kind()), program.Location())
 	}
 
 	return prog.Evaluate(e, context)

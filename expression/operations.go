@@ -6,148 +6,848 @@ import (
 	"reflect"
 )
 
-// BEGIN BINARY
-func binaryAddition(a, b any) any {
+func operationAddition(a, b any) any {
 	switch a := a.(type) {
 	case string:
 		switch b := b.(type) {
 		case string:
 			return a + b
 		}
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
+	case int:
 		switch b := b.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			return castInt(a).(int) + castInt(b).(int)
-		case float32, float64:
-			return castFloat64(a).(float64) + castFloat64(b).(float64)
+		case int:
+			return a + b
 		}
-	case float32, float64:
+	case int8:
 		switch b := b.(type) {
-		case float32, float64, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			return castFloat64(a).(float64) + castFloat64(b).(float64)
+		case int8:
+			return a + b
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return a + b
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return a + b
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return a + b
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return a + b
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return a + b
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return a + b
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return a + b
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return a + b
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return a + b
+		}
+	case float32:
+		switch b := b.(type) {
+		case float32:
+			return a + b
+		}
+	case float64:
+		switch b := b.(type) {
+		case float64:
+			return a + b
 		}
 	}
 	return fmt.Errorf("invalid operation: %v + %v (mismatched types %T and %T)", a, b, a, b)
 }
-func binarySubtraction(a, b any) any {
+
+func operationSubtraction(a, b any) any {
 	switch a := a.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
+	case int:
 		switch b := b.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			return castInt(a).(int) - castInt(b).(int)
-		case float32, float64:
-			return castFloat64(a).(float64) - castFloat64(b).(float64)
+		case int:
+			return a - b
 		}
-	case float32, float64:
+	case int8:
 		switch b := b.(type) {
-		case float32, float64, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			return castFloat64(a).(float64) - castFloat64(b).(float64)
+		case int8:
+			return a - b
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return a - b
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return a - b
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return a - b
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return a - b
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return a - b
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return a - b
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return a - b
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return a - b
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return a - b
+		}
+	case float32:
+		switch b := b.(type) {
+		case float32:
+			return a - b
+		}
+	case float64:
+		switch b := b.(type) {
+		case float64:
+			return a - b
 		}
 	}
 	return fmt.Errorf("invalid operation: %v - %v (mismatched types %T and %T)", a, b, a, b)
 }
-func binaryMultiplication(a, b any) any {
+
+func operationMultiplication(a, b any) any {
 	switch a := a.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
+	case int:
 		switch b := b.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			return castInt(a).(int) * castInt(b).(int)
-		case float32, float64:
-			return castFloat64(a).(float64) * castFloat64(b).(float64)
+		case int:
+			return a * b
 		}
-	case float32, float64:
+	case int8:
 		switch b := b.(type) {
-		case float32, float64, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			return castFloat64(a).(float64) * castFloat64(b).(float64)
+		case int8:
+			return a * b
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return a * b
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return a * b
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return a * b
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return a * b
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return a * b
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return a * b
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return a * b
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return a * b
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return a * b
+		}
+	case float32:
+		switch b := b.(type) {
+		case float32:
+			return a * b
+		}
+	case float64:
+		switch b := b.(type) {
+		case float64:
+			return a * b
 		}
 	}
 	return fmt.Errorf("invalid operation: %v * %v (mismatched types %T and %T)", a, b, a, b)
 }
-func binaryDivision(a, b any) any {
-	switch a := a.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-		switch b := b.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			return castInt(a).(int) / castInt(b).(int)
-		case float32, float64:
-			return castFloat64(a).(float64) / castFloat64(b).(float64)
-		}
-	case float32, float64:
-		switch b := b.(type) {
-		case float32, float64, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			return castFloat64(a).(float64) / castFloat64(b).(float64)
-		}
-	}
-	return fmt.Errorf("invalid operation: %v / %v (mismatched types %T and %T)", a, b, a, b)
-}
-func binaryModulo(a, b any) any {
-	switch a := a.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-		switch b := b.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			return castInt(a).(int) % castInt(b).(int)
-		}
-	}
-	return fmt.Errorf("invalid operation: %v %% %v (mismatched types %T and %T)", a, b, a, b)
-}
 
-func binaryExponentiation(a, b any) any {
+func operationExponentiation(a, b any) any {
 	switch a := a.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
+	case int:
 		switch b := b.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			return int(math.Pow(castFloat64(a).(float64), castFloat64(b).(float64)))
-		case float32, float64:
-			return math.Pow(castFloat64(a).(float64), castFloat64(b).(float64))
+		case int:
+			return int(math.Pow(float64(a), float64(b)))
 		}
-	case float32, float64:
+	case int8:
 		switch b := b.(type) {
-		case float32, float64, int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr:
-			return math.Pow(castFloat64(a).(float64), castFloat64(b).(float64))
+		case int8:
+			return int8(math.Pow(float64(a), float64(b)))
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return int16(math.Pow(float64(a), float64(b)))
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return int32(math.Pow(float64(a), float64(b)))
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return int64(math.Pow(float64(a), float64(b)))
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return uint(math.Pow(float64(a), float64(b)))
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return uint8(math.Pow(float64(a), float64(b)))
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return uint16(math.Pow(float64(a), float64(b)))
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return uint32(math.Pow(float64(a), float64(b)))
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return uint64(math.Pow(float64(a), float64(b)))
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return uintptr(math.Pow(float64(a), float64(b)))
+		}
+	case float32:
+		switch b := b.(type) {
+		case float32:
+			return float32(math.Pow(float64(a), float64(b)))
+		}
+	case float64:
+		switch b := b.(type) {
+		case float64:
+			return math.Pow(a, b)
 		}
 	}
 	return fmt.Errorf("invalid operation: %v ** %v (mismatched types %T and %T)", a, b, a, b)
 }
 
-// END BINARY
-
-// BEGIN EQUALITY
-func binaryLessThan(a, b any) any {
+func operationDivision(a, b any) any {
 	switch a := a.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr, float32, float64:
+	case int:
 		switch b := b.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr, float32, float64:
-			return castFloat64(a).(float64) < castFloat64(b).(float64)
+		case int:
+			return a / b
+		}
+	case int8:
+		switch b := b.(type) {
+		case int8:
+			return a / b
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return a / b
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return a / b
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return a / b
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return a / b
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return a / b
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return a / b
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return a / b
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return a / b
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return a / b
+		}
+	case float32:
+		switch b := b.(type) {
+		case float32:
+			return a / b
+		}
+	case float64:
+		switch b := b.(type) {
+		case float64:
+			return a / b
+		}
+	}
+	return fmt.Errorf("invalid operation: %v / %v (mismatched types %T and %T)", a, b, a, b)
+}
+
+func operationModulus(a, b any) any {
+	switch a := a.(type) {
+	case int:
+		switch b := b.(type) {
+		case int:
+			return a % b
+		}
+	case int8:
+		switch b := b.(type) {
+		case int8:
+			return a % b
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return a % b
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return a % b
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return a % b
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return a % b
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return a % b
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return a % b
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return a % b
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return a % b
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return a % b
+		}
+	}
+	return fmt.Errorf("invalid operation: %v %% %v (mismatched types %T and %T)", a, b, a, b)
+}
+
+func operationEqual(a, b any) any {
+	switch a := a.(type) {
+	case int:
+		switch b := b.(type) {
+		case int:
+			return a == b
+		}
+	case int8:
+		switch b := b.(type) {
+		case int8:
+			return a == b
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return a == b
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return a == b
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return a == b
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return a == b
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return a == b
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return a == b
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return a == b
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return a == b
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return a == b
+		}
+	case float32:
+		switch b := b.(type) {
+		case float32:
+			return a == b
+		}
+	case float64:
+		switch b := b.(type) {
+		case float64:
+			return a == b
+		}
+	}
+	return fmt.Errorf("invalid operation: %v == %v (mismatched types %T and %T)", a, b, a, b)
+}
+
+func operationNotEqual(a, b any) any {
+	switch a := a.(type) {
+	case int:
+		switch b := b.(type) {
+		case int:
+			return a != b
+		}
+	case int8:
+		switch b := b.(type) {
+		case int8:
+			return a != b
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return a != b
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return a != b
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return a != b
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return a != b
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return a != b
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return a != b
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return a != b
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return a != b
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return a != b
+		}
+	case float32:
+		switch b := b.(type) {
+		case float32:
+			return a != b
+		}
+	case float64:
+		switch b := b.(type) {
+		case float64:
+			return a != b
+		}
+	}
+	return fmt.Errorf("invalid operation: %v != %v (mismatched types %T and %T)", a, b, a, b)
+}
+
+func operationLess(a, b any) any {
+	switch a := a.(type) {
+	case int:
+		switch b := b.(type) {
+		case int:
+			return a < b
+		}
+	case int8:
+		switch b := b.(type) {
+		case int8:
+			return a < b
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return a < b
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return a < b
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return a < b
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return a < b
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return a < b
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return a < b
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return a < b
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return a < b
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return a < b
+		}
+	case float32:
+		switch b := b.(type) {
+		case float32:
+			return a < b
+		}
+	case float64:
+		switch b := b.(type) {
+		case float64:
+			return a < b
 		}
 	}
 	return fmt.Errorf("invalid operation: %v < %v (mismatched types %T and %T)", a, b, a, b)
 }
-func binaryLessThanEqual(a, b any) any {
+
+func operationLessEqual(a, b any) any {
 	switch a := a.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr, float32, float64:
+	case int:
 		switch b := b.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr, float32, float64:
-			return castFloat64(a).(float64) <= castFloat64(b).(float64)
+		case int:
+			return a <= b
+		}
+	case int8:
+		switch b := b.(type) {
+		case int8:
+			return a <= b
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return a <= b
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return a <= b
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return a <= b
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return a <= b
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return a <= b
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return a <= b
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return a <= b
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return a <= b
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return a <= b
+		}
+	case float32:
+		switch b := b.(type) {
+		case float32:
+			return a <= b
+		}
+	case float64:
+		switch b := b.(type) {
+		case float64:
+			return a <= b
 		}
 	}
 	return fmt.Errorf("invalid operation: %v <= %v (mismatched types %T and %T)", a, b, a, b)
 }
-func binaryGreaterThan(a, b any) any {
+
+func operationGreater(a, b any) any {
 	switch a := a.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr, float32, float64:
+	case int:
 		switch b := b.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr, float32, float64:
-			return castFloat64(a).(float64) > castFloat64(b).(float64)
+		case int:
+			return a > b
+		}
+	case int8:
+		switch b := b.(type) {
+		case int8:
+			return a > b
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return a > b
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return a > b
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return a > b
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return a > b
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return a > b
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return a > b
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return a > b
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return a > b
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return a > b
+		}
+	case float32:
+		switch b := b.(type) {
+		case float32:
+			return a > b
+		}
+	case float64:
+		switch b := b.(type) {
+		case float64:
+			return a > b
 		}
 	}
 	return fmt.Errorf("invalid operation: %v > %v (mismatched types %T and %T)", a, b, a, b)
 }
-func binaryGreaterThanEqual(a, b any) any {
+
+func operationGreaterEqual(a, b any) any {
 	switch a := a.(type) {
-	case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr, float32, float64:
+	case int:
 		switch b := b.(type) {
-		case int, int8, int16, int32, int64, uint, uint8, uint16, uint32, uint64, uintptr, float32, float64:
-			return castFloat64(a).(float64) >= castFloat64(b).(float64)
+		case int:
+			return a >= b
+		}
+	case int8:
+		switch b := b.(type) {
+		case int8:
+			return a >= b
+		}
+	case int16:
+		switch b := b.(type) {
+		case int16:
+			return a >= b
+		}
+	case int32:
+		switch b := b.(type) {
+		case int32:
+			return a >= b
+		}
+	case int64:
+		switch b := b.(type) {
+		case int64:
+			return a >= b
+		}
+	case uint:
+		switch b := b.(type) {
+		case uint:
+			return a >= b
+		}
+	case uint8:
+		switch b := b.(type) {
+		case uint8:
+			return a >= b
+		}
+	case uint16:
+		switch b := b.(type) {
+		case uint16:
+			return a >= b
+		}
+	case uint32:
+		switch b := b.(type) {
+		case uint32:
+			return a >= b
+		}
+	case uint64:
+		switch b := b.(type) {
+		case uint64:
+			return a >= b
+		}
+	case uintptr:
+		switch b := b.(type) {
+		case uintptr:
+			return a >= b
+		}
+	case float32:
+		switch b := b.(type) {
+		case float32:
+			return a >= b
+		}
+	case float64:
+		switch b := b.(type) {
+		case float64:
+			return a >= b
 		}
 	}
 	return fmt.Errorf("invalid operation: %v >= %v (mismatched types %T and %T)", a, b, a, b)

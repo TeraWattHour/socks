@@ -7,8 +7,7 @@ import (
 	"slices"
 )
 
-type _parser struct {
-	previousToken  *tokenizer.Token
+type parser struct {
 	currentToken   *tokenizer.Token
 	nextToken      *tokenizer.Token
 	tokens         []tokenizer.Token
@@ -16,7 +15,6 @@ type _parser struct {
 	infixParseFns  map[string]func(Expression) (Expression, error)
 	cursor         int
 	dependencies   []string
-	chain          bool
 }
 
 type Precedence int
@@ -80,14 +78,13 @@ func Parse(tokens []tokenizer.Token) (*WrappedExpression, error) {
 	return p.parser()
 }
 
-func newParser(tokens []tokenizer.Token) *_parser {
-	p := &_parser{
+func newParser(tokens []tokenizer.Token) *parser {
+	p := &parser{
 		cursor:         -1,
 		tokens:         tokens,
 		prefixParseFns: make(map[string]func() (Expression, error)),
 		infixParseFns:  make(map[string]func(Expression) (Expression, error)),
 		dependencies:   make([]string, 0),
-		chain:          false,
 	}
 
 	p.registerPrefix(tokenizer.TokIdent, p.parseIdentifier)
@@ -133,7 +130,7 @@ func newParser(tokens []tokenizer.Token) *_parser {
 	return p
 }
 
-func (p *_parser) parser() (*WrappedExpression, error) {
+func (p *parser) parser() (*WrappedExpression, error) {
 	p.advanceToken()
 
 	expr, err := p.parseExpression(PrecLowest)
@@ -154,9 +151,9 @@ func (p *_parser) parser() (*WrappedExpression, error) {
 	}, nil
 }
 
-func (p *_parser) parseExpression(precedence Precedence) (Expression, error) {
+func (p *parser) parseExpression(precedence Precedence) (Expression, error) {
 	if p.currentToken == nil {
-		return nil, errors2.New("unexpected end of expression", p.previousToken.Location)
+		return nil, errors2.New("unexpected end of expression", p.currentToken.Location)
 	}
 
 	prefix := p.prefixParseFns[p.currentToken.Kind]
@@ -185,7 +182,7 @@ func (p *_parser) parseExpression(precedence Precedence) (Expression, error) {
 	return leftExp, nil
 }
 
-func (p *_parser) parseGroupExpression() (Expression, error) {
+func (p *parser) parseGroupExpression() (Expression, error) {
 	p.advanceToken()
 	exp, err := p.parseExpression(PrecLowest)
 	if err != nil {
@@ -198,7 +195,7 @@ func (p *_parser) parseGroupExpression() (Expression, error) {
 	return exp, nil
 }
 
-func (p *_parser) parsePrefixExpression() (Expression, error) {
+func (p *parser) parsePrefixExpression() (Expression, error) {
 	expr := &PrefixExpression{
 		Token: p.currentToken,
 		Op:    p.currentToken.Kind,
@@ -212,7 +209,7 @@ func (p *_parser) parsePrefixExpression() (Expression, error) {
 	return expr, nil
 }
 
-func (p *_parser) parseInfixExpression(left Expression) (Expression, error) {
+func (p *parser) parseInfixExpression(left Expression) (Expression, error) {
 	var err error
 
 	currentOperand := p.currentToken.Literal
@@ -251,7 +248,7 @@ func (p *_parser) parseInfixExpression(left Expression) (Expression, error) {
 	}
 }
 
-func (p *_parser) parseTernary(left Expression) (Expression, error) {
+func (p *parser) parseTernary(left Expression) (Expression, error) {
 	var err error
 	expr := &Ternary{
 		Token:     p.currentToken,
@@ -273,9 +270,7 @@ func (p *_parser) parseTernary(left Expression) (Expression, error) {
 	return expr, nil
 }
 
-func (p *_parser) parseChain(left Expression) (Expression, error) {
-	p.chain = true
-	var err error
+func (p *parser) parseChain(left Expression) (Expression, error) {
 	expr := &Chain{
 		Token:      p.currentToken,
 		Left:       left,
@@ -283,29 +278,22 @@ func (p *_parser) parseChain(left Expression) (Expression, error) {
 	}
 
 	if !p.expectNext(tokenizer.TokIdent) {
-		return nil, errors2.New(fmt.Sprintf("unexpected `%s`, expected `identifier`", p.nextToken.Kind), p.nextToken.Location)
+		return nil, errors2.New(fmt.Sprintf("unexpected \"%s\", expected \"identifier\"", p.nextToken.Kind), p.nextToken.Location)
 	}
 
-	rightIdent, err := p.parseIdentifier()
-	if err != nil {
-		return nil, err
-	}
-
-	expr.Right = rightIdent.(*Identifier)
-
-	p.chain = false
+	expr.Right = &Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
 
 	return expr, nil
 }
 
-func (p *_parser) parseArrayExpression() (Expression, error) {
+func (p *parser) parseArrayExpression() (Expression, error) {
 	var err error
 	array := &Array{Token: p.currentToken}
 	array.Items, err = p.parseExpressionList(tokenizer.TokRbrack)
 	return array, err
 }
 
-func (p *_parser) parsePropertyAccess(left Expression) (Expression, error) {
+func (p *parser) parsePropertyAccess(left Expression) (Expression, error) {
 	var err error
 	arr := &FieldAccess{
 		Token:    p.currentToken,
@@ -323,7 +311,7 @@ func (p *_parser) parsePropertyAccess(left Expression) (Expression, error) {
 	return arr, nil
 }
 
-func (p *_parser) parseExpressionList(end string) ([]Expression, error) {
+func (p *parser) parseExpressionList(end string) ([]Expression, error) {
 	list := make([]Expression, 0)
 	if p.nextIs(end) {
 		p.advanceToken()
@@ -358,16 +346,16 @@ func (p *_parser) parseExpressionList(end string) ([]Expression, error) {
 	return list, nil
 }
 
-func (p *_parser) parseIdentifier() (Expression, error) {
-	if !p.chain && !slices.Contains(builtinNames, p.currentToken.Literal) {
+func (p *parser) parseIdentifier() (Expression, error) {
+	if !slices.Contains(builtinNames, p.currentToken.Literal) {
 		p.dependencies = append(p.dependencies, p.currentToken.Literal)
 	}
 	return &Identifier{Token: p.currentToken, Value: p.currentToken.Literal}, nil
 }
 
-func (p *_parser) parseFunctionCall(left Expression) (Expression, error) {
-	if left.Kind() == "identifier" {
-		functionName := left.(*Identifier).Value
+func (p *parser) parseFunctionCall(left Expression) (Expression, error) {
+	if ident, ok := left.(*Identifier); ok {
+		functionName := ident.Value
 		if slices.Index(builtinNames, functionName) != -1 {
 			callToken := p.currentToken
 			arguments, err := p.parseExpressionList(tokenizer.TokRparen)
@@ -382,52 +370,55 @@ func (p *_parser) parseFunctionCall(left Expression) (Expression, error) {
 			}, nil
 		}
 	}
+
+	var callToken = p.currentToken
+
 	arguments, err := p.parseExpressionList(tokenizer.TokRparen)
 	if err != nil {
 		return nil, err
 	}
 
 	return &FunctionCall{
-		Token:  p.currentToken,
+		Token:  callToken,
 		Called: left,
 		Args:   arguments,
 	}, nil
 }
 
-func (p *_parser) parseStringLiteral() (Expression, error) {
+func (p *parser) parseStringLiteral() (Expression, error) {
 	return &StringLiteral{Token: p.currentToken, Value: p.currentToken.Literal}, nil
 }
 
-func (p *_parser) parseBoolean() (Expression, error) {
+func (p *parser) parseBoolean() (Expression, error) {
 	return &Boolean{Token: p.currentToken, Value: p.currentToken.Kind == tokenizer.TokTrue}, nil
 }
 
-func (p *_parser) parseNil() (Expression, error) {
+func (p *parser) parseNil() (Expression, error) {
 	return &Nil{Token: p.currentToken}, nil
 }
 
-func (p *_parser) registerPrefix(forKind string, fn func() (Expression, error)) {
+func (p *parser) registerPrefix(forKind string, fn func() (Expression, error)) {
 	p.prefixParseFns[forKind] = fn
 }
 
-func (p *_parser) registerInfix(forKind string, fn func(left Expression) (Expression, error)) {
+func (p *parser) registerInfix(forKind string, fn func(left Expression) (Expression, error)) {
 	p.infixParseFns[forKind] = fn
 }
 
-func (p *_parser) registerStdInfix(forKinds ...string) {
+func (p *parser) registerStdInfix(forKinds ...string) {
 	for _, kind := range forKinds {
 		p.infixParseFns[kind] = p.parseInfixExpression
 	}
 }
 
-func (p *_parser) currentPrecedence() Precedence {
+func (p *parser) currentPrecedence() Precedence {
 	if precedence, ok := precedences[p.currentToken.Kind]; ok {
 		return precedence
 	}
 	return PrecLowest
 }
 
-func (p *_parser) nextPrecedence() Precedence {
+func (p *parser) nextPrecedence() Precedence {
 	if p.nextToken == nil {
 		return PrecLowest
 	}
@@ -438,11 +429,11 @@ func (p *_parser) nextPrecedence() Precedence {
 	return PrecLowest
 }
 
-func (p *_parser) currentIs(t string) bool {
+func (p *parser) currentIs(t string) bool {
 	return p.currentToken.Kind == t
 }
 
-func (p *_parser) nextIs(kinds ...string) bool {
+func (p *parser) nextIs(kinds ...string) bool {
 	if p.nextToken == nil {
 		return false
 	}
@@ -456,11 +447,11 @@ func (p *_parser) nextIs(kinds ...string) bool {
 	return found
 }
 
-func (p *_parser) nextIsEnd() bool {
+func (p *parser) nextIsEnd() bool {
 	return p.nextToken == nil
 }
 
-func (p *_parser) expectNext(kind string) bool {
+func (p *parser) expectNext(kind string) bool {
 	if p.nextToken == nil {
 		return false
 	}
@@ -471,8 +462,7 @@ func (p *_parser) expectNext(kind string) bool {
 	return false
 }
 
-func (p *_parser) advanceToken() {
-	p.previousToken = p.currentToken
+func (p *parser) advanceToken() {
 	p.cursor++
 	if p.cursor >= len(p.tokens) {
 		p.currentToken = nil

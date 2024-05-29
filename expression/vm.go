@@ -182,25 +182,25 @@ outerLoop:
 		case OpNot:
 			vm.stack.Push(!CastToBool(vm.stack.Pop()))
 		case OpAdd:
-			vm.executeInfixExpression(binaryAddition)
+			vm.executeInfixExpression(operationAddition)
 		case OpLt:
-			vm.executeInfixExpression(binaryLessThan)
+			vm.executeInfixExpression(operationLess)
 		case OpGt:
-			vm.executeInfixExpression(binaryGreaterThan)
+			vm.executeInfixExpression(operationGreater)
 		case OpGte:
-			vm.executeInfixExpression(binaryGreaterThanEqual)
+			vm.executeInfixExpression(operationGreaterEqual)
 		case OpLte:
-			vm.executeInfixExpression(binaryLessThanEqual)
+			vm.executeInfixExpression(operationLessEqual)
 		case OpSubtract:
-			vm.executeInfixExpression(binarySubtraction)
+			vm.executeInfixExpression(operationSubtraction)
 		case OpMultiply:
-			vm.executeInfixExpression(binaryMultiplication)
+			vm.executeInfixExpression(operationMultiplication)
 		case OpDivide:
-			vm.executeInfixExpression(binaryDivision)
+			vm.executeInfixExpression(operationDivision)
 		case OpModulo:
-			vm.executeInfixExpression(binaryModulo)
+			vm.executeInfixExpression(operationModulus)
 		case OpPower:
-			vm.executeInfixExpression(binaryExponentiation)
+			vm.executeInfixExpression(operationExponentiation)
 		case OpAnd:
 			vm.executeInfixExpression(and)
 		case OpOr:

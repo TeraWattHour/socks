@@ -337,7 +337,7 @@ func (t *_tokenizer) tokenizeExpression(mustache bool, sanitizedMustache bool) (
 func (t *_tokenizer) numeric() (token Token, err error) {
 	token.Location = t.location()
 
-	mode := 10
+	radix := 10
 	start := t.cursor
 	if t.rune() == '0' {
 		t.forward()
@@ -345,38 +345,42 @@ func (t *_tokenizer) numeric() (token Token, err error) {
 		switch t.rune() {
 		case 'x', 'X':
 			t.forward()
-			mode = 16
+			radix = 16
 		case 'b', 'B':
 			t.forward()
-			mode = 2
+			radix = 2
 		case 'o', 'O':
 			t.forward()
-			mode = 8
+			radix = 8
+		default:
+			if isDigit(t.rune(), 10) {
+				radix = 8
+			}
 		}
 	}
 
-	for isDigit(t.rune(), mode) || t.rune() == '_' {
+	for isDigit(t.rune(), radix) || (isDigit(t.previousRune(), radix) && t.rune() == '_' && isDigit(t.nextRune(), radix)) {
 		t.forward()
 	}
 
-	if t.rune() == '.' && mode != 10 {
+	if t.rune() == '.' && radix != 10 {
 		return token, errors2.New("unexpected floating point number in non decimal literal", t.location())
 	}
 
-	if t.rune() == '.' && mode == 10 {
+	if t.rune() == '.' && radix == 10 {
 		t.forward()
-		for isDigit(t.rune(), 10) || t.rune() == '_' {
+		for isDigit(t.rune(), radix) || (isDigit(t.previousRune(), radix) && t.rune() == '_' && isDigit(t.nextRune(), radix)) {
 			t.forward()
 		}
 	}
 
 	token.Kind = TokNumeric
-	token.Literal = string(t.template[start:t.cursor])
+	token.Literal = strings.ReplaceAll(string(t.template[start:t.cursor]), "_", "")
 	token.Start = start
 	token.Length = t.cursor - start
 
-	if isLetter(t.rune()) || isDigit(t.rune(), 10) {
-		return token, errors2.New("unexpected character in numeric literal", t.location())
+	if isLetter(t.rune()) || isDigit(t.rune(), 10) || t.rune() == '_' || t.rune() == '.' {
+		return token, errors2.New(fmt.Sprintf("unexpected character `%s` in numeric literal", string(t.rune())), t.location())
 	}
 
 	return
@@ -416,7 +420,7 @@ func (t *_tokenizer) nextRune() rune {
 	return t.template[t.cursor+1]
 }
 
-func (t *_tokenizer) prevRune() rune {
+func (t *_tokenizer) previousRune() rune {
 	if t.cursor-1 < 0 {
 		return 0
 	}
