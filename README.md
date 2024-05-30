@@ -154,8 +154,12 @@ Comment tag, the content of this tag will be ignored.
 
 ### If statement
 ```html
-@if(len(Users) > 0)
+@if(len(Users) == 1)
 <p>{{ Users[0].Name }}</p>
+@elif(len(Users) > 1)
+<p>{{ Users[0].Name }} and {{ len(Users)-1 }} more...</p>
+@else
+<p>No users in the database</p>
 @endif
 ```
 

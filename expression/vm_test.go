@@ -87,3 +87,45 @@ func TestVM_Run(t *testing.T) {
 		}
 	}
 }
+
+func TestVM_Errors(t *testing.T) {
+	sets := []struct {
+		expr string
+		err  string
+	}{
+		{
+			`10 + someNilThing`,
+			"undefined variable: someNilThing",
+		},
+	}
+
+	for i, set := range sets {
+		elements, err := tokenizer.Tokenize(fmt.Sprintf("{{ %s }}", set.expr))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+		expr, err := Parse(elements[0].(*tokenizer.Mustache).Tokens)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+
+		compiler := NewCompiler(expr.Expr)
+		chunk, err := compiler.Compile()
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+
+		_, err = NewVM(chunk).Run(map[string]any{})
+		if err == nil {
+			t.Errorf("expected error for set %d, got nil", i)
+			return
+		}
+		fmt.Println(err)
+		//if result != set.expect {
+		//	t.Errorf("expected %v, got %v", set.expect, result)
+		//}
+	}
+}

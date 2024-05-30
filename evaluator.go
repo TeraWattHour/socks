@@ -75,7 +75,7 @@ func (e *evaluator) evaluateProgram(context Context) error {
 		e.i++
 		return nil
 	} else if !ok {
-		return errors.New(fmt.Sprintf("unexpected %s statement encountered at runtime", program.Kind()), program.Location())
+		return errors.New_(fmt.Sprintf("unexpected %s statement encountered at runtime", program.Kind()), program.Location())
 	}
 
 	return prog.Evaluate(e, context)

@@ -2,12 +2,9 @@ package socks
 
 import (
 	"bytes"
-	"errors"
 	"fmt"
 	"io"
 	"maps"
-
-	errors2 "github.com/terawatthour/socks/errors"
 )
 
 type Socks interface {
@@ -77,17 +74,10 @@ func (s *socks) ExecuteToString(template string, context map[string]interface{})
 		return "", fmt.Errorf("template `%s` not found", template)
 	}
 
-	nativeName := s.fs.nativeMap[template]
-
 	result := bytes.NewBufferString("")
 	maps.Copy(s.globals, context)
 	err := eval.evaluate(result, s.globals)
 	if err != nil {
-		var nativeError *errors2.Error
-		if errors.As(err, &nativeError) {
-			nativeError.File = nativeName
-			return "", nativeError
-		}
 		return "", err
 	}
 	return result.String(), nil
@@ -102,11 +92,6 @@ func (s *socks) Execute(w io.Writer, template string, context map[string]any) er
 	maps.Copy(s.globals, context)
 	err := eval.evaluate(w, s.globals)
 	if err != nil {
-		var nativeError *errors2.Error
-		if errors.As(err, &nativeError) {
-			nativeError.File = template
-			return nativeError
-		}
 		return err
 	}
 	return nil

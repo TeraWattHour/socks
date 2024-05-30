@@ -160,9 +160,9 @@ func TestParse(t *testing.T) {
 			continue
 		}
 		p := newParser(elements[0].(*tokenizer.Mustache).Tokens)
-		got, err := p.parser()
+		got, err := p.parse()
 		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. parser() error = %v, wantErr %v", tt.name, err, tt.wantErr)
+			t.Errorf("%q. parse() error = %v, wantErr %v", tt.name, err, tt.wantErr)
 			continue
 		}
 		if !got.Expr.IsEqual(tt.want) {

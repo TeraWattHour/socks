@@ -96,7 +96,7 @@ func (c *Compiler) compile(expr Expression, scope Expression) error {
 			types := builtinTypes[expr.Name]
 			inputTypes := types[:len(types)-1]
 			returnType := types[len(types)-1]
-			return errors.New(fmt.Sprintf("call to %s(%s) -> any does not match the signature of %s(%s) -> %s", expr.Name, strings.TrimSuffix(strings.Repeat("any, ", len(expr.Args)), ", "), expr.Name, strings.Join(inputTypes, ", "), returnType), expr.location)
+			return errors.New_(fmt.Sprintf("call to %s(%s) -> any does not match the signature of %s(%s) -> %s", expr.Name, strings.TrimSuffix(strings.Repeat("any, ", len(expr.Args)), ", "), expr.Name, strings.Join(inputTypes, ", "), returnType), expr.location)
 		}
 
 		switch builtinType {
@@ -208,7 +208,7 @@ func (c *Compiler) compile(expr Expression, scope Expression) error {
 			c.emit(OpPower)
 		case tokenizer.TokModulo:
 			c.emit(OpModulo)
-		case "elvis":
+		case tokenizer.TokElvis:
 			c.emit(OpElvis)
 			start := len(c.chunk.Instructions)
 			c.emit(-1)

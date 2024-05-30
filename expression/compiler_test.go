@@ -15,7 +15,7 @@ func TestCompiler(t *testing.T) {
 		}
 
 		p := newParser(elements[0].(*tokenizer.Mustache).Tokens)
-		expr, err := p.parser()
+		expr, err := p.parse()
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 			return

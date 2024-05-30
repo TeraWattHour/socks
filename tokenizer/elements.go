@@ -23,7 +23,6 @@ func (t Text) Kind() ElementKind {
 }
 
 type Mustache struct {
-	Literal  string
 	Sanitize bool
 	Tokens   []Token
 	Location helpers.Location
@@ -34,7 +33,6 @@ func (t *Mustache) Kind() ElementKind {
 }
 
 type Statement struct {
-	Literal     string
 	Instruction string
 	Tokens      []Token
 	Location    helpers.Location

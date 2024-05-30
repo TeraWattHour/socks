@@ -1,7 +1,6 @@
 package socks
 
 import (
-	"errors"
 	"fmt"
 	errors2 "github.com/terawatthour/socks/errors"
 	"github.com/terawatthour/socks/internal/helpers"
@@ -53,22 +52,14 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []Statement, err err
 
 	nativeName := fp.preprocessor.nativeMap[fp.filename]
 
-	elements, err := tokenizer.Tokenize(content)
+	elements, err := tokenizer.Tokenize(nativeName, content)
 	if err != nil {
-		var tokenizerError *errors2.Error
-		errors.As(err, &tokenizerError)
-		tokenizerError.File = nativeName
-
-		return nil, tokenizerError
+		return nil, err
 	}
 
-	fp.programs, err = Parse(elements)
+	fp.programs, err = Parse(helpers.File{Name: nativeName, Content: content}, elements)
 	if err != nil {
-		var parserError *errors2.Error
-		errors.As(err, &parserError)
-		parserError.File = nativeName
-
-		return nil, parserError
+		return nil, err
 	}
 
 	var extends = ""
@@ -81,7 +72,7 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []Statement, err err
 		case "extend":
 			extends = program.(*ExtendStatement).Template
 			if extends == "" {
-				return nil, errors2.New("extend statement must take a valid file name as an argument", program.Location())
+				return nil, errors2.New_("extend statement must take a valid file name as an argument", program.Location())
 			}
 			fp.i++
 		case "template":

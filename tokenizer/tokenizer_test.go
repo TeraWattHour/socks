@@ -7,7 +7,7 @@ import (
 
 func TestNumbers(t *testing.T) {
 	template := `{{ 2+4.123+0b11+0x123ABC+0o1234567+.2+0o62*076 }}`
-	elements, err := Tokenize(template)
+	elements, err := Tokenize("index.html", template)
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 		return
@@ -64,7 +64,7 @@ func TestMalformedNumbers(t *testing.T) {
 		"0x99.23",
 	}
 	for i, c := range cases {
-		_, err := Tokenize(fmt.Sprintf("{{ %s }}", c))
+		_, err := Tokenize("xd", fmt.Sprintf("{{ %s }}", c))
 		if err == nil {
 			t.Errorf("(%d) expected error, got nil", i)
 			return
@@ -72,37 +72,61 @@ func TestMalformedNumbers(t *testing.T) {
 	}
 }
 
-func TestStatements(t *testing.T) {
-	template := `xd ą@if(1==1)@endif{{ 123 }}@slot("content")@if(predicate()) true @endif default \{{ slot }} {# comm{{ ent #} content @endslot xd {# @enddefine #}`
-	elements, err := Tokenize(template)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-		return
+func TestErrorReporting(t *testing.T) {
+	sets := []struct {
+		template string
+		expect   string
+	}{
+		{
+			`	{#      a`,
+			"  ┌─ debug.txt:1:11:\n1 | \t{#      a␄\n  | \t         ^\nunexpected EOF, unclosed comment",
+		}, {
+			"\n@endsome",
+			"  ┌─ debug.txt:2:1:\n2 | @endsome␄\n  | ^^^^^^^^\nunexpected instruction: `endsome`",
+		}, {
+			"\na\n|\n @if ",
+			"  ┌─ debug.txt:4:2:\n4 |  @if ␄\n  |  ^^^^\nunexpected EOF, expected `(` after statement",
+		}, {
+			"{{ ",
+			"  ┌─ debug.txt:1:4:\n1 | {{ ␄\n  |    ^\nunexpected EOF",
+		}, {
+			"@if ([))",
+			"  ┌─ debug.txt:1:7:\n1 | @if ([))␄\n  |       ^\nunexpected `)`, as it closes `[`",
+		}, {
+			"\n{{) }}",
+			"  ┌─ debug.txt:2:3:\n2 | {{) }}␄\n  |   ^\nunexpected `)`",
+		}, {
+			"\n{{(  ]}}",
+			"  ┌─ debug.txt:2:6:\n2 | {{(  ]}}␄\n  |      ^\nunexpected `]`, as it closes `(`",
+		}, {
+			"\n@if(]",
+			"  ┌─ debug.txt:2:5:\n2 | @if(]␄\n  |     ^\nunexpected `]`",
+		}, {
+			"{{ \"unclosed ",
+			"  ┌─ debug.txt:1:14:\n1 | {{ \"unclosed ␄\n  |              ^\nunexpected EOF, unclosed string",
+		}, {
+			"{{ $ }}",
+			"  ┌─ debug.txt:1:4:\n1 | {{ $ }}␄\n  |    ^\nunexpected token: `$`",
+		}, {
+			"{{ good }}zb {{ aaa !}zb",
+			"  ┌─ debug.txt:1:21:\n1 | {{ good }}zb {{ aaa !}zb␄\n  |                     ^^\nexpected `}}` to close mustache",
+		}, {
+			"{{ }}",
+			"  ┌─ debug.txt:1:1:\n1 | {{ }}␄\n  | ^^^^^\nempty statement",
+		}, {
+			"@if()",
+			"  ┌─ debug.txt:1:1:\n1 | @if()␄\n  | ^^^^^\nempty statement",
+		},
 	}
-	expected := []string{"xd ą", "@if(1==1)", "@endif", " 123 ", "@slot(\"content\")", "@if(predicate())", " true ", "@endif", " default \\{{ slot }} ", " content ", "@endslot", " xd "}
-	if len(elements) != len(expected) {
-		t.Errorf("expected %d element, got %d", len(expected), len(elements))
-		return
-	}
-
-	for i, e := range expected {
-		el := elements[i]
-		var lit string
-		switch el := el.(type) {
-		case *Statement:
-			lit = el.Literal
-		case *Mustache:
-			lit = el.Literal
-		case Text:
-			lit = string(el)
-		}
-		if e != lit {
-			t.Errorf("(%d) expected %s, got %s", i, e, lit)
+	for i, set := range sets {
+		_, err := Tokenize("debug.txt", set.template)
+		if err == nil {
+			t.Errorf("(%d) expected error, got nil", i)
 			return
 		}
+		if err.Error() != set.expect {
+			fmt.Println(err)
+			t.Errorf("(%d) expected %q, got %q", i, set.expect, err.Error())
+		}
 	}
-}
-
-func TestExpressionTokenizing(t *testing.T) {
-
 }

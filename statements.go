@@ -2,12 +2,10 @@ package socks
 
 import (
 	"fmt"
-	"github.com/terawatthour/socks/errors"
 	"github.com/terawatthour/socks/expression"
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/tokenizer"
 	"maps"
-	"reflect"
 )
 
 type Context = map[string]any
@@ -296,7 +294,8 @@ func (st *ForStatement) Evaluate(e *evaluator, context Context) error {
 	}
 
 	if !helpers.IsIterable(obj) {
-		return errors.New(fmt.Sprintf("expected <slice | array | map>, got <%st>", reflect.ValueOf(obj).Kind()), st.Location())
+		panic("not implemented")
+		//return t.error(fmt.Sprintf("expected <slice | array | map>, got <%st>", reflect.ValueOf(obj).Kind()), st.location)
 	}
 
 	channel := make(chan helpers.KeyValuePair)

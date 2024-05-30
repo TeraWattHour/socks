@@ -1,71 +1,40 @@
 package socks
 
 import (
+	"fmt"
+	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/tokenizer"
-	"slices"
 	"testing"
 )
 
-func TestDependencies(t *testing.T) {
-	template := `
-@for(idx in someSlice with iterator_index)
-	@if(test == 1)
-		{{ fun.method(argument1, argument2[argument4.method(123)]) + argument3 }}
-	@endif
-
-	@for(jdx in otherSlice)
-		{{ jdx }}
-	@endfor
-	
-	{{ idx }}
-@endfor
-
-{{ independent }}
-
-{{ another }}
-`
-	elements, err := tokenizer.Tokenize(template)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-		return
+func TestMalformed(t *testing.T) {
+	sets := []struct {
+		template string
+		expect   string
+	}{
+		{
+			`@if(1==1) @endfor`,
+			"  ┌─ debug.txt:1:11:\n1 | @if(1==1) @endfor␄\n  |           ^^^^^^^\nunexpected `@endfor`, expected `@endif`",
+		}, {
+			`{{ 1! }}`,
+			"  ┌─ debug.txt:1:5:\n1 | {{ 1! }}␄\n  |     ^\nunexpected token `!`",
+		},
 	}
-
-	expect := [][]string{
-		{"argument1", "argument2", "argument3", "argument4", "fun", "someSlice", "test", "otherSlice"},
-		{"argument1", "argument2", "argument3", "argument4", "fun", "test"},
-		{"argument1", "argument2", "argument3", "argument4", "fun"},
-		{"otherSlice"},
-		{"jdx"},
-		{"idx"},
-		{"independent"},
-		{"another"},
-	}
-
-	programs, err := Parse(elements)
-	if err != nil {
-		t.Errorf("unexpected error: %v", err)
-		return
-	}
-
-	i := 0
-	for _, program := range programs {
-		if program.Kind() == "text" {
-			continue
+	for i, set := range sets {
+		elements, err := tokenizer.Tokenize("debug.txt", set.template)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
 		}
-		switch program.Kind() {
-		case "for":
-			if !slices.Equal(program.(*ForStatement).dependencies, expect[i]) {
-				t.Errorf("unexpected result: %v, expected: %v", program.(*ForStatement).dependencies, expect[i])
-			}
-		case "if":
-			if !slices.Equal(program.(*IfStatement).dependencies, expect[i]) {
-				t.Errorf("unexpected result: %v, expected: %v", program.(*IfStatement).dependencies, expect[i])
-			}
-		case "expression":
-			if !slices.Equal(program.(*Expression).dependencies, expect[i]) {
-				t.Errorf("unexpected result: %v, expected: %v", program.(*Expression).dependencies, expect[i])
-			}
+
+		_, err = Parse(helpers.File{"debug.txt", set.template}, elements)
+		if err == nil {
+			t.Errorf("expected error, got nil")
+			return
 		}
-		i++
+		if err.Error() != set.expect {
+			fmt.Println(err)
+			t.Errorf("(%d) expected `%s`, got `%s`", i, set.expect, err)
+		}
 	}
 }

@@ -2,6 +2,7 @@ package socks
 
 import (
 	"bytes"
+	"github.com/terawatthour/socks/internal/helpers"
 	"testing"
 
 	"github.com/terawatthour/socks/tokenizer"
@@ -9,13 +10,13 @@ import (
 
 func TestLoopsAndIfs(t *testing.T) {
 	template := `@if (1==1) @for (a in A with i) @if (i % 2 == 0) {{ a }} says hello! @endif @endfor @endif`
-	elements, err := tokenizer.Tokenize(template)
+	elements, err := tokenizer.Tokenize("debug.txt", template)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 		return
 	}
 
-	programs, err := Parse(elements)
+	programs, err := Parse(helpers.File{"debug.txt", template}, elements)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 		return

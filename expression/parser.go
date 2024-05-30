@@ -3,11 +3,14 @@ package expression
 import (
 	"fmt"
 	errors2 "github.com/terawatthour/socks/errors"
+	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/tokenizer"
 	"slices"
 )
 
 type parser struct {
+	file           helpers.File
+	previousToken  *tokenizer.Token
 	currentToken   *tokenizer.Token
 	nextToken      *tokenizer.Token
 	tokens         []tokenizer.Token
@@ -73,13 +76,13 @@ var precedences = map[string]Precedence{
 	tokenizer.TokLbrack: PrecCall,
 }
 
-func Parse(tokens []tokenizer.Token) (*WrappedExpression, error) {
-	p := newParser(tokens)
-	return p.parser()
+func Parse(file helpers.File, tokens []tokenizer.Token) (*WrappedExpression, error) {
+	return newParser(file, tokens).parse()
 }
 
-func newParser(tokens []tokenizer.Token) *parser {
+func newParser(file helpers.File, tokens []tokenizer.Token) *parser {
 	p := &parser{
+		file:           file,
 		cursor:         -1,
 		tokens:         tokens,
 		prefixParseFns: make(map[string]func() (Expression, error)),
@@ -130,7 +133,7 @@ func newParser(tokens []tokenizer.Token) *parser {
 	return p
 }
 
-func (p *parser) parser() (*WrappedExpression, error) {
+func (p *parser) parse() (*WrappedExpression, error) {
 	p.advanceToken()
 
 	expr, err := p.parseExpression(PrecLowest)
@@ -139,8 +142,8 @@ func (p *parser) parser() (*WrappedExpression, error) {
 	}
 
 	if p.nextToken != nil {
-		return nil, errors2.New(
-			fmt.Sprintf("unexpected token %s", p.nextToken.Literal),
+		return nil, p.error(
+			fmt.Sprintf("unexpected token `%s`", p.nextToken.Literal),
 			p.nextToken.Location,
 		)
 	}
@@ -153,12 +156,13 @@ func (p *parser) parser() (*WrappedExpression, error) {
 
 func (p *parser) parseExpression(precedence Precedence) (Expression, error) {
 	if p.currentToken == nil {
-		return nil, errors2.New("unexpected end of expression", p.currentToken.Location)
+		return nil, p.error("unexpected end of statement", p.previousToken.Location.MoveBy(1))
 	}
 
 	prefix := p.prefixParseFns[p.currentToken.Kind]
 	if prefix == nil {
-		return nil, errors2.New("unexpected token "+p.currentToken.Literal, p.currentToken.Location)
+		fmt.Println("here")
+		return nil, p.error("unexpected token "+p.currentToken.Literal, p.currentToken.Location)
 	}
 
 	leftExp, err := prefix()
@@ -189,7 +193,7 @@ func (p *parser) parseGroupExpression() (Expression, error) {
 		return nil, err
 	}
 	if !p.expectNext(tokenizer.TokRparen) {
-		return nil, errors2.New("unclosed parenthesis", p.nextToken.Location)
+		return nil, p.error("unclosed parenthesis", p.nextToken.Location)
 	}
 
 	return exp, nil
@@ -216,7 +220,7 @@ func (p *parser) parseInfixExpression(left Expression) (Expression, error) {
 	if currentOperand == "not" {
 		nextKind := p.nextToken.Kind
 		if nextKind != tokenizer.TokIn {
-			return nil, errors2.New(fmt.Sprintf("unexpected infix negation `not %s`, expected `not in`", p.nextToken.Literal), p.nextToken.Location)
+			return nil, p.error(fmt.Sprintf("unexpected infix negation `not %s`, expected `not in`", p.nextToken.Literal), p.nextToken.Location)
 		}
 	}
 
@@ -260,7 +264,7 @@ func (p *parser) parseTernary(left Expression) (Expression, error) {
 		return nil, err
 	}
 	if !p.expectNext(tokenizer.TokColon) {
-		return nil, errors2.New("expected `:`", p.nextToken.Location)
+		return nil, p.error("expected `:`", p.nextToken.Location)
 	}
 	p.advanceToken()
 	expr.Alternative, err = p.parseExpression(PrecLowest)
@@ -278,7 +282,7 @@ func (p *parser) parseChain(left Expression) (Expression, error) {
 	}
 
 	if !p.expectNext(tokenizer.TokIdent) {
-		return nil, errors2.New(fmt.Sprintf("unexpected \"%s\", expected \"identifier\"", p.nextToken.Kind), p.nextToken.Location)
+		return nil, p.error(fmt.Sprintf("unexpected \"%s\", expected \"identifier\"", p.nextToken.Kind), p.nextToken.Location)
 	}
 
 	expr.Right = &Identifier{Token: p.currentToken, Value: p.currentToken.Literal}
@@ -305,7 +309,7 @@ func (p *parser) parsePropertyAccess(left Expression) (Expression, error) {
 		return nil, err
 	}
 	if !p.nextIs(tokenizer.TokRbrack) {
-		return nil, errors2.New("unclosed property access", p.nextToken.Location)
+		return nil, p.error("unclosed property access", p.nextToken.Location)
 	}
 	p.advanceToken()
 	return arr, nil
@@ -340,7 +344,7 @@ func (p *parser) parseExpressionList(end string) ([]Expression, error) {
 		if p.nextToken != nil {
 			location = p.nextToken.Location
 		}
-		return nil, errors2.New("unclosed list", location)
+		return nil, p.error("unclosed list", location)
 	}
 
 	return list, nil
@@ -463,6 +467,8 @@ func (p *parser) expectNext(kind string) bool {
 }
 
 func (p *parser) advanceToken() {
+	p.previousToken = p.currentToken
+
 	p.cursor++
 	if p.cursor >= len(p.tokens) {
 		p.currentToken = nil
@@ -477,4 +483,8 @@ func (p *parser) advanceToken() {
 	} else {
 		p.nextToken = &p.tokens[p.cursor+1]
 	}
+}
+
+func (p *parser) error(message string, location helpers.Location) error {
+	return errors2.New(message, p.file.Name, p.file.Content, location, location.FromOther())
 }
