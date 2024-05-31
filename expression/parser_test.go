@@ -2,6 +2,7 @@ package expression
 
 import (
 	"fmt"
+	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/tokenizer"
 	"testing"
 )
@@ -154,12 +155,12 @@ func TestParse(t *testing.T) {
 		},
 	}
 	for _, tt := range tests {
-		elements, err := tokenizer.Tokenize(fmt.Sprintf("{{ %s }}", tt.expr))
+		elements, err := tokenizer.Tokenize("debug.txt", fmt.Sprintf("{{ %s }}", tt.expr))
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 			continue
 		}
-		p := newParser(elements[0].(*tokenizer.Mustache).Tokens)
+		p := newParser(helpers.File{"debug.txt", fmt.Sprintf("{{ %s }}", tt.expr)}, elements[0].(*tokenizer.Mustache).Tokens)
 		got, err := p.parse()
 		if (err != nil) != tt.wantErr {
 			t.Errorf("%q. parse() error = %v, wantErr %v", tt.name, err, tt.wantErr)

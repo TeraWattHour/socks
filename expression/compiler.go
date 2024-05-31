@@ -3,6 +3,7 @@ package expression
 import (
 	"fmt"
 	"github.com/terawatthour/socks/errors"
+	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/tokenizer"
 	"slices"
 	"strings"
@@ -15,13 +16,15 @@ type Chunk struct {
 }
 
 type Compiler struct {
+	file           helpers.File
 	expr           Expression
 	chunk          Chunk
 	optionalChains map[Expression][]int
 }
 
-func NewCompiler(expr Expression) *Compiler {
+func NewCompiler(file helpers.File, expr Expression) *Compiler {
 	return &Compiler{
+		file:           file,
 		expr:           expr,
 		optionalChains: map[Expression][]int{},
 		chunk: Chunk{
@@ -89,14 +92,14 @@ func (c *Compiler) compile(expr Expression, scope Expression) error {
 		builtinType := builtinType(expr.Name)
 
 		if builtinType == -1 {
-			panic("unknown builtin: " + expr.Name)
+			panic("unknown builtin, bytecode malformed")
 		}
 
 		if len(expr.Args) != builtinType {
 			types := builtinTypes[expr.Name]
 			inputTypes := types[:len(types)-1]
 			returnType := types[len(types)-1]
-			return errors.New_(fmt.Sprintf("call to %s(%s) -> any does not match the signature of %s(%s) -> %s", expr.Name, strings.TrimSuffix(strings.Repeat("any, ", len(expr.Args)), ", "), expr.Name, strings.Join(inputTypes, ", "), returnType), expr.location)
+			return c.error(fmt.Sprintf("call to %s(%s) -> any does not match the signature of %s(%s) -> %s", expr.Name, strings.TrimSuffix(strings.Repeat("any, ", len(expr.Args)), ", "), expr.Name, strings.Join(inputTypes, ", "), returnType), expressionsLocation(expr.Args))
 		}
 
 		switch builtinType {
@@ -274,4 +277,8 @@ func (c *Compiler) addLookup(expression Expression) {
 		c.chunk.Lookups = append(c.chunk.Lookups, make([]Expression, fillSpaces)...)
 	}
 	c.chunk.Lookups[atIndex] = expression
+}
+
+func (c *Compiler) error(message string, location helpers.Location) error {
+	return errors.New(message, c.file.Name, c.file.Content, location, location.FromOther())
 }

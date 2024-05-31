@@ -23,7 +23,7 @@ func TestLoopsAndIfs(t *testing.T) {
 	}
 
 	evaluated := bytes.NewBufferString("")
-	if err := newEvaluator(programs, nil).evaluate(evaluated, map[string]interface{}{"A": []string{"a", "b", "c"}}); err != nil {
+	if err := newEvaluator(helpers.File{"debug.txt", template}, programs, nil).evaluate(evaluated, map[string]interface{}{"A": []string{"a", "b", "c"}}); err != nil {
 		t.Errorf("unexpected error: %s", err)
 		return
 	}

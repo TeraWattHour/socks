@@ -2,7 +2,6 @@ package socks
 
 import (
 	"fmt"
-	errors2 "github.com/terawatthour/socks/errors"
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/tokenizer"
 	"slices"
@@ -62,7 +61,7 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []Statement, err err
 		return nil, err
 	}
 
-	var extends = ""
+	var extends string
 
 	fp.i = 0
 	for fp.i < len(fp.programs) {
@@ -71,9 +70,6 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []Statement, err err
 		switch program.Kind() {
 		case "extend":
 			extends = program.(*ExtendStatement).Template
-			if extends == "" {
-				return nil, errors2.New_("extend statement must take a valid file name as an argument", program.Location())
-			}
 			fp.i++
 		case "template":
 			if err := fp.evaluateTemplateStatement(); err != nil {
@@ -105,7 +101,7 @@ func (fp *filePreprocessor) preprocess(keepSlots bool) (res []Statement, err err
 	}
 
 	var evaluationResult helpers.Queue[Statement]
-	staticEvaluator := newStaticEvaluator(&evaluationResult, fp.result, fp.preprocessor.sanitizer)
+	staticEvaluator := newStaticEvaluator(helpers.File{nativeName, content}, &evaluationResult, fp.result, fp.preprocessor.sanitizer)
 
 	if err := staticEvaluator.evaluate(nil, fp.preprocessor.staticContext); err != nil {
 		fp.foldText()

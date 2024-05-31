@@ -38,14 +38,14 @@ func (p *parser) Parse() ([]Statement, error) {
 			if err != nil {
 				return nil, err
 			}
-			compiled, err := expression.NewCompiler(expr.Expr).Compile()
+			compiled, err := expression.NewCompiler(p.file, expr.Expr).Compile()
 			if err != nil {
 				return nil, err
 			}
 
 			p.addDependencies(expr.Dependencies...)
 			p.programs = append(p.programs, &Expression{
-				Program:      expression.NewVM(compiled),
+				Program:      expression.NewVM(p.file, compiled),
 				tag:          element,
 				dependencies: expr.Dependencies,
 			})
@@ -92,28 +92,22 @@ func (p *parser) parseStatement(statement *tokenizer.Statement) (Statement, erro
 		if err != nil {
 			return nil, err
 		}
-		compiled, err := expression.NewCompiler(ast.Expr).Compile()
+		compiled, err := expression.NewCompiler(p.file, ast.Expr).Compile()
 		if err != nil {
 			return nil, err
 		}
 
 		st := &ElifStatement{
 			location: statement.Location,
-			Program:  expression.NewVM(compiled),
+			Program:  expression.NewVM(p.file, compiled),
 		}
 		p.addDependencies(ast.Dependencies...)
 		ifStatement.ElifStatements = append(ifStatement.ElifStatements, st)
 		return st, nil
 	case "for":
 		return p.parseForStatement(statement)
-	case "extend":
-		return p.parseExtendStatement(statement)
-	case "define":
-		return p.parseDefineStatement(statement)
-	case "slot":
-		return p.parseSlotStatement(statement)
-	case "template":
-		return p.parseTemplateStatement(statement)
+	case "extend", "define", "slot", "template":
+		return p.parseSimpleStatement(statement)
 	default:
 		if strings.HasPrefix(statement.Instruction, "end") {
 			return p.parseEndStatement(statement)
@@ -129,12 +123,12 @@ func (p *parser) parseIfStatement(s *tokenizer.Statement) (Statement, error) {
 		return nil, err
 	}
 
-	compiled, err := expression.NewCompiler(expr.Expr).Compile()
+	compiled, err := expression.NewCompiler(p.file, expr.Expr).Compile()
 	if err != nil {
 		return nil, err
 	}
 
-	vm := expression.NewVM(compiled)
+	vm := expression.NewVM(p.file, compiled)
 
 	statement := &IfStatement{
 		Program:      vm,
@@ -208,70 +202,59 @@ func (p *parser) parseForStatement(s *tokenizer.Statement) (Statement, error) {
 		return nil, err
 	}
 
-	compiled, err := expression.NewCompiler(expr.Expr).Compile()
+	compiled, err := expression.NewCompiler(p.file, expr.Expr).Compile()
 	if err != nil {
 		return nil, err
 	}
 
-	statement.Iterable = expression.NewVM(compiled)
+	statement.Iterable = expression.NewVM(p.file, compiled)
 	statement.dependencies = expr.Dependencies
 	p.addDependencies(expr.Dependencies...)
 
 	return statement, nil
 }
 
-// ExtendStatement ::= "@extend(" String ")"
-func (p *parser) parseExtendStatement(statement *tokenizer.Statement) (Statement, error) {
-	if len(statement.Tokens) != 1 {
-		return nil, p.error("extend statement requires exactly 1 argument of type string", statement.Location)
+// SimpleStatement ::= ExtendStatement | DefineStatement | TemplateStatement | SlotStatement
+func (p *parser) parseSimpleStatement(s *tokenizer.Statement) (Statement, error) {
+	if len(s.Tokens) != 1 || s.Tokens[0].Kind != tokenizer.TokString {
+		return nil, p.error(fmt.Sprintf("%s statement requires exactly 1 argument of type string", s.Instruction), s.Location)
 	}
 
-	return &ExtendStatement{
-		Template: statement.Tokens[0].Literal,
-		location: statement.Location,
-	}, nil
+	argument := s.Tokens[0].Literal
+	if len(argument) == 0 {
+		return nil, p.error(fmt.Sprintf("%s statement requires a non-empty string", s.Instruction), s.Location)
+	}
+
+	switch s.Instruction {
+	case "extend":
+		return &ExtendStatement{
+			Template: argument,
+			location: s.Location,
+		}, nil
+	case "define":
+		if len(p.unclosed) != 0 && p.unclosed[len(p.unclosed)-1].Kind() != "template" {
+			return nil, p.error("define statements must be placed directly inside a template block or at the root level", s.Location)
+		}
+		return &DefineStatement{
+			Name:     argument,
+			location: s.Location,
+		}, nil
+	case "template":
+		return &TemplateStatement{
+			Template: argument,
+			location: s.Location,
+		}, nil
+	case "slot":
+		return &SlotStatement{
+			Name:     argument,
+			location: s.Location,
+		}, nil
+	}
+
+	panic("unreachable")
 }
 
-// @define(name)
-func (p *parser) parseDefineStatement(statement *tokenizer.Statement) (Statement, error) {
-	if len(statement.Tokens) != 1 {
-		return nil, p.error("define statement requires exactly 1 argument of type string", statement.Location)
-	}
-
-	if len(p.unclosed) != 0 && p.unclosed[len(p.unclosed)-1].Kind() != "template" {
-		return nil, p.error("define statements must be placed directly inside a template block or at the root level", statement.Location)
-	}
-
-	return &DefineStatement{
-		Name:     statement.Tokens[0].Literal,
-		location: statement.Location,
-	}, nil
-}
-
-// @slot(name)
-func (p *parser) parseSlotStatement(statement *tokenizer.Statement) (Statement, error) {
-	if len(statement.Tokens) != 1 {
-		return nil, p.error("slot statement requires exactly 1 argument of type string", statement.Location)
-	}
-
-	return &SlotStatement{
-		Name:     statement.Tokens[0].Literal,
-		location: statement.Location,
-	}, nil
-}
-
-// @template(name)
-func (p *parser) parseTemplateStatement(statement *tokenizer.Statement) (Statement, error) {
-	if len(statement.Tokens) != 1 {
-		return nil, p.error("template statement requires exactly 1 argument of type string", statement.Location)
-	}
-
-	return &TemplateStatement{
-		Template: statement.Tokens[0].Literal,
-		location: statement.Location,
-	}, nil
-}
-
+// EndStatement ::= "@end" ("if" | "for" | "slot" | "define" | "template")
 func (p *parser) parseEndStatement(s *tokenizer.Statement) (Statement, error) {
 	target := s.Instruction[3:]
 	depth := len(p.unclosed)

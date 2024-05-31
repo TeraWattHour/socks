@@ -22,6 +22,11 @@ func (l Location) SetLength(length int) Location {
 	return l
 }
 
+func (l Location) Combine(other Location) Location {
+	l.Length = other.Cursor + other.Length - l.Cursor
+	return l
+}
+
 func (l Location) FromOther() Location {
 	l.Column += l.Length
 	l.Cursor += l.Length

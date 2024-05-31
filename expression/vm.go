@@ -8,6 +8,7 @@ import (
 )
 
 type VM struct {
+	file         helpers.File
 	chunk        Chunk
 	stack        helpers.Stack[any]
 	funcs        map[string]any
@@ -15,8 +16,9 @@ type VM struct {
 	currentError error
 }
 
-func NewVM(chunk Chunk) *VM {
+func NewVM(file helpers.File, chunk Chunk) *VM {
 	return &VM{
+		file:  file,
 		chunk: chunk,
 		stack: []any{},
 	}
@@ -30,7 +32,7 @@ outerLoop:
 		case OpChain:
 			object := vm.stack.Pop()
 			if object == nil {
-				return nil, errors2.New_("cannot access properties of <nil>", vm.chunk.Lookups[vm.ip].Location())
+				return nil, vm.error("cannot access properties of <nil>", vm.chunk.Lookups[vm.ip].Location())
 			}
 			property := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]].(string)
 			vm.stack.Push(vm.accessProperty(object, property))
@@ -69,11 +71,12 @@ outerLoop:
 			_index := vm.stack.Pop()
 			_value := vm.stack.Pop()
 			value := reflect.ValueOf(_value)
+			lookup := vm.chunk.Lookups[vm.ip].(*FieldAccess)
 			switch value.Kind() {
 			case reflect.Array, reflect.Slice:
 				result := castInt(_index)
-				if _, ok := result.(error); ok {
-					return nil, errors2.New_(fmt.Sprintf("[%s] expected to produce an Integer, got %T", vm.chunk.Lookups[vm.ip].(*FieldAccess).Index.Literal(), _index), vm.chunk.Lookups[vm.ip].Location())
+				if err, ok := result.(error); ok {
+					return nil, vm.error("forbidden array index access, "+err.Error(), lookup.Index.Location())
 				}
 				vm.stack.Push(value.Index(result.(int)).Interface())
 			case reflect.Map:
@@ -81,11 +84,11 @@ outerLoop:
 			case reflect.Struct:
 				index, ok := _index.(string)
 				if !ok {
-					return nil, errors2.New_(fmt.Sprintf("struct field accessor expected to be string, got %T", _index), vm.chunk.Lookups[vm.ip].Location())
+					return nil, vm.error(fmt.Sprintf("struct field accessor must be of type string, got %T", _index), lookup.Index.Location())
 				}
 				vm.stack.Push(value.FieldByName(index).Interface())
 			default:
-				return nil, errors2.New_(fmt.Sprintf("expected array or object, got %T", _value), vm.chunk.Lookups[vm.ip].Location())
+				return nil, vm.error(fmt.Sprintf("expected array, struct or map, got %T", _value), lookup.Accessed.Location())
 			}
 		case OpBuiltin1:
 			function := builtinsOne[vm.chunk.Instructions[vm.ip+1]]
@@ -93,7 +96,7 @@ outerLoop:
 			result := function(arg)
 
 			if general, ok := result.(error); ok {
-				return nil, errors2.New_(general.Error(), vm.chunk.Lookups[vm.ip].Location())
+				return nil, vm.error(general.Error(), vm.chunk.Lookups[vm.ip].(*Builtin).Args[0].Location())
 			}
 
 			vm.stack.Push(result)
@@ -104,7 +107,7 @@ outerLoop:
 			arg1 := vm.stack.Pop()
 			result := function(arg1, arg2)
 			if general, ok := result.(error); ok {
-				return nil, errors2.New_(general.Error(), vm.chunk.Lookups[vm.ip].Location())
+				return nil, vm.error(general.Error(), expressionsLocation(vm.chunk.Lookups[vm.ip].(*Builtin).Args))
 			}
 			vm.stack.Push(result)
 			vm.ip++
@@ -115,7 +118,7 @@ outerLoop:
 			arg1 := vm.stack.Pop()
 			result := function(arg1, arg2, arg3)
 			if general, ok := result.(error); ok {
-				return nil, errors2.New_(general.Error(), vm.chunk.Lookups[vm.ip].Location())
+				return nil, vm.error(general.Error(), expressionsLocation(vm.chunk.Lookups[vm.ip].(*Builtin).Args))
 			}
 			vm.stack.Push(result)
 			vm.ip++
@@ -139,7 +142,7 @@ outerLoop:
 			fn := vm.stack.Pop()
 			reflectedFunction := reflect.ValueOf(fn)
 			if !reflectedFunction.IsValid() || reflectedFunction.Kind() != reflect.Func {
-				vm.currentError = errors2.New_(fmt.Sprintf("expected function, got %T", fn), vm.chunk.Lookups[vm.ip-1].Location())
+				vm.currentError = vm.error(fmt.Sprintf("expected function, got %T", fn), vm.chunk.Lookups[vm.ip-1].(*FunctionCall).Called.Location())
 				break
 			}
 			results := reflectedFunction.Call(args)
@@ -205,7 +208,7 @@ outerLoop:
 			vm.executeInfixExpression(and)
 		case OpOr:
 			vm.executeInfixExpression(or)
-		case OpCodeCount:
+		default:
 			panic("unreachable")
 		}
 		if vm.currentError != nil {
@@ -214,7 +217,7 @@ outerLoop:
 	}
 
 	if len(vm.stack) == 0 {
-		return nil, errors2.New_("expression does not return a value", vm.chunk.Lookups[0].Location())
+		return nil, vm.error("expression does not return a value", vm.chunk.Lookups[0].Location())
 	}
 
 	if len(vm.stack) != 1 {
@@ -229,7 +232,7 @@ func (vm *VM) executeInfixExpression(fn func(any, any) any) {
 	left := vm.stack.Pop()
 	res := fn(left, right)
 	if general, ok := res.(error); ok {
-		vm.currentError = errors2.New_(general.Error(), vm.chunk.Lookups[vm.ip].(*InfixExpression).Token.Location)
+		vm.currentError = vm.error(general.Error(), vm.chunk.Lookups[vm.ip].Location())
 		return
 	}
 	vm.stack.Push(res)
@@ -278,6 +281,10 @@ func (vm *VM) accessProperty(base any, property string) any {
 	}
 
 	return reflected.Interface()
+}
+
+func (vm *VM) error(message string, location helpers.Location) error {
+	return errors2.New(message, vm.file.Name, vm.file.Content, location, location.FromOther())
 }
 
 func reflectedSliceToInterfaceSlice(vs []reflect.Value) []interface{} {

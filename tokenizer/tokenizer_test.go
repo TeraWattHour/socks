@@ -2,6 +2,7 @@ package tokenizer
 
 import (
 	"fmt"
+	errors2 "github.com/terawatthour/socks/errors"
 	"testing"
 )
 
@@ -129,4 +130,59 @@ func TestErrorReporting(t *testing.T) {
 			t.Errorf("(%d) expected %q, got %q", i, set.expect, err.Error())
 		}
 	}
+}
+
+func TestTokenLength(t *testing.T) {
+	sets := []struct {
+		token  string
+		expect int
+	}{
+		{
+			"\"string_length\"",
+			15,
+		}, {
+			".",
+			1,
+		}, {
+			"2.3",
+			3,
+		}, {
+			"0b101",
+			5,
+		}, {
+			"identifier",
+			10,
+		},
+	}
+	for i, set := range sets {
+		elements, err := Tokenize("debug.txt", fmt.Sprintf("{{ %s }}", set.token))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+		if len(elements) != 1 {
+			t.Errorf("expected 1 element, got %d", len(elements))
+			return
+		}
+		mustache, ok := elements[0].(*Mustache)
+		if !ok {
+			t.Errorf("expected MustacheKind")
+			return
+		}
+		if mustache.Tokens[0].Location.Length != set.expect {
+			t.Errorf("(%d) expected %d, got %d", i, set.expect, mustache.Tokens[0].Location.Length)
+		}
+	}
+
+}
+
+func TestTokenLocation(t *testing.T) {
+
+	tokens, err := Tokenize("debug.txt", "{{ \"wrong_index\" }}")
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
+	}
+
+	fmt.Println(errors2.New("eee", "debug.txt", "{{ \"wrong_index\" }}", tokens[0].(*Mustache).Tokens[0].Location, tokens[0].(*Mustache).Tokens[0].Location.FromOther()).Error())
 }

@@ -156,12 +156,11 @@ func (p *parser) parse() (*WrappedExpression, error) {
 
 func (p *parser) parseExpression(precedence Precedence) (Expression, error) {
 	if p.currentToken == nil {
-		return nil, p.error("unexpected end of statement", p.previousToken.Location.MoveBy(1))
+		return nil, p.error("unexpected end of statement", p.previousToken.Location.PointAfter())
 	}
 
 	prefix := p.prefixParseFns[p.currentToken.Kind]
 	if prefix == nil {
-		fmt.Println("here")
 		return nil, p.error("unexpected token "+p.currentToken.Literal, p.currentToken.Location)
 	}
 

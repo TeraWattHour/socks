@@ -15,10 +15,6 @@ type Error struct {
 	EndLocation helpers.Location
 }
 
-func New_(message string, location helpers.Location) error {
-	panic("dont use")
-}
-
 func New(message string, filename string, source string, location, endLocation helpers.Location) *Error {
 	return &Error{
 		Filename:    filename,

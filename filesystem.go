@@ -2,6 +2,7 @@ package socks
 
 import (
 	"fmt"
+	"github.com/terawatthour/socks/internal/helpers"
 	"os"
 	"path/filepath"
 	"strings"
@@ -62,11 +63,11 @@ func (fs *fileSystem) loadTemplateFromString(filename string, content string) {
 
 func (fs *fileSystem) preprocessTemplates(staticContext map[string]interface{}) error {
 	proc := New(fs.files, fs.nativeMap, staticContext, fs.options.Sanitizer)
-	for filename := range fs.files {
-		if content, err := proc.Preprocess(filename, false); err != nil {
+	for fileName, fileContent := range fs.files {
+		if content, err := proc.Preprocess(fileName, false); err != nil {
 			return err
 		} else {
-			fs.templates[filename] = newEvaluator(content, fs.options.Sanitizer)
+			fs.templates[fileName] = newEvaluator(helpers.File{fileName, fileContent}, content, fs.options.Sanitizer)
 		}
 	}
 

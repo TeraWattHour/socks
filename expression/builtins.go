@@ -44,7 +44,7 @@ var builtinTypes = map[string][]string{
 	"uint64":  {"Numeric", "uint64"},
 	"uintptr": {"Numeric", "uintptr"},
 	"len":     {"Countable", "len"},
-	"range":   {"Integer", "Integer", "Integer", "[]int"},
+	"range":   {"Integer", "Integer", "Integer = 1", "[]int"},
 }
 
 var builtinsOne = []func(any) any{
@@ -125,7 +125,7 @@ func rangeArray(_start, _end, _step any) any {
 	end, endOk := castInt(_end).(int)
 	step, stepOk := castInt(_step).(int)
 	if !startOk || !endOk || !stepOk {
-		return fmt.Errorf("call to rangeStep(%T, %T, %T) -> []int does not match the signature of rangeStep(Integer, Integer, Integer = 1) -> []int", _start, _end, _step)
+		return fmt.Errorf("call to range(%T, %T, %T) -> []int does not match the signature of rangeStep(Integer, Integer, Integer = 1) -> []int", _start, _end, _step)
 	}
 
 	if step == 0 {

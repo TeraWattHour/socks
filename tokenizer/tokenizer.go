@@ -267,8 +267,8 @@ func (t *_tokenizer) tokenizeExpression(mustache bool) ([]Token, error) {
 		case '"', '\'':
 			quoteChar := t.rune()
 			t.forward()
-			previous := t.rune()
 			start := t.cursor
+			previous := t.rune()
 			for t.rune() != quoteChar || (t.rune() == quoteChar && previous == '\\') {
 				if t.rune() == 0 {
 					return nil, t.error("unexpected EOF, unclosed string", t.location())
@@ -347,10 +347,11 @@ func (t *_tokenizer) tokenizeExpression(mustache bool) ([]Token, error) {
 		}
 
 		token.Length = t.cursor - token.Start
-		token.Location.Length = token.Length
 		if pushNext {
+			token.Length++
 			t.forward()
 		}
+		token.Location.Length = token.Length
 
 		tokens = append(tokens, token)
 	}

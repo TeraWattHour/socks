@@ -284,7 +284,7 @@ type InfixExpression struct {
 }
 
 func (s *InfixExpression) Location() helpers.Location {
-	return s.Token.Location
+	return s.Left.Location().Combine(s.Right.Location())
 }
 
 func (s *InfixExpression) IsEqual(node Node) bool {
@@ -389,7 +389,7 @@ type FieldAccess struct {
 }
 
 func (s *FieldAccess) Location() helpers.Location {
-	return s.Token.Location
+	return s.Accessed.Location().Combine(s.Index.Location())
 }
 
 func (s *FieldAccess) IsEqual(node Node) bool {
@@ -419,7 +419,7 @@ type Chain struct {
 }
 
 func (s *Chain) Location() helpers.Location {
-	return s.Token.Location
+	return s.Left.Location().Combine(s.Right.Location())
 }
 
 func (s *Chain) IsEqual(node Node) bool {
@@ -477,4 +477,11 @@ func (s *Ternary) Literal() string {
 
 func (s *Ternary) String() string {
 	return fmt.Sprintf("[ternary: %s ? %s : %s]", s.Condition.String(), s.Consequence.String(), s.Alternative.String())
+}
+
+func expressionsLocation(exprs []Expression) helpers.Location {
+	if len(exprs) == 0 {
+		return helpers.Location{}
+	}
+	return exprs[0].Location().Combine(exprs[len(exprs)-1].Location())
 }

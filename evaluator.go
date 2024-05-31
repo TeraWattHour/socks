@@ -12,6 +12,7 @@ import (
 type evaluator struct {
 	programs []Statement
 
+	file       helpers.File
 	output     *helpers.Queue[Statement]
 	writer     io.Writer
 	staticMode bool
@@ -21,12 +22,12 @@ type evaluator struct {
 	i int
 }
 
-func newEvaluator(programs []Statement, sanitizer func(string) string) *evaluator {
-	return &evaluator{programs: programs, sanitizer: sanitizer}
+func newEvaluator(file helpers.File, programs []Statement, sanitizer func(string) string) *evaluator {
+	return &evaluator{programs: programs, file: file, sanitizer: sanitizer}
 }
 
-func newStaticEvaluator(output *helpers.Queue[Statement], programs []Statement, sanitizer func(string) string) *evaluator {
-	return &evaluator{output: output, programs: programs, staticMode: true, sanitizer: sanitizer}
+func newStaticEvaluator(file helpers.File, output *helpers.Queue[Statement], programs []Statement, sanitizer func(string) string) *evaluator {
+	return &evaluator{output: output, file: file, programs: programs, staticMode: true, sanitizer: sanitizer}
 }
 
 func (e *evaluator) evaluate(writer io.Writer, context Context) error {
@@ -75,7 +76,7 @@ func (e *evaluator) evaluateProgram(context Context) error {
 		e.i++
 		return nil
 	} else if !ok {
-		return errors.New_(fmt.Sprintf("unexpected %s statement encountered at runtime", program.Kind()), program.Location())
+		return e.error(fmt.Sprintf("unexpected %s statement encountered at runtime", program.Kind()), program.Location())
 	}
 
 	return prog.Evaluate(e, context)
@@ -83,6 +84,10 @@ func (e *evaluator) evaluateProgram(context Context) error {
 
 func (e *evaluator) program() Statement {
 	return e.programs[e.i]
+}
+
+func (e *evaluator) error(message string, location helpers.Location) error {
+	return errors.New(message, e.file.Name, e.file.Content, location, location.FromOther())
 }
 
 func availableInContext(context map[string]any) []string {
