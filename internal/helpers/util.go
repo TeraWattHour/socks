@@ -35,6 +35,13 @@ func (l Location) MoveBy(amount int) Location {
 	return l
 }
 
+func (l Location) PointAfter() Location {
+	l.Column += l.Length
+	l.Cursor += l.Length
+	l.Length = 1
+	return l
+}
+
 // ResolvePath resolves a path from a given path and a relative referenced path.
 func ResolvePath(from string, referenced string) string {
 	if filepath.IsAbs(referenced) {

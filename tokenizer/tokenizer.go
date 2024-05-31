@@ -33,7 +33,10 @@ type Token struct {
 }
 
 func (t Token) String() string {
-	return fmt.Sprintf("(%s [%s])", t.Literal, t.Kind)
+	if t.Kind != TokIdent {
+		return fmt.Sprintf("\"%s\"", t.Kind)
+	}
+	return t.Kind
 }
 
 func Tokenize(filename string, template string) ([]Element, error) {
@@ -344,6 +347,7 @@ func (t *_tokenizer) tokenizeExpression(mustache bool) ([]Token, error) {
 		}
 
 		token.Length = t.cursor - token.Start
+		token.Location.Length = token.Length
 		if pushNext {
 			t.forward()
 		}

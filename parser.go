@@ -75,7 +75,7 @@ func (p *parser) parseStatement(statement *tokenizer.Statement) (Statement, erro
 	case "else":
 		ifStatement, ok := p.parent().(*IfStatement)
 		if !ok {
-			return nil, p.error("unexpected else tag outside if statement", statement.Location)
+			return nil, p.error("unexpected `@else` outside if statement", statement.Location)
 		}
 		st := &ElseStatement{location: statement.Location}
 		ifStatement.ElseStatement = st
@@ -83,10 +83,10 @@ func (p *parser) parseStatement(statement *tokenizer.Statement) (Statement, erro
 	case "elif":
 		ifStatement, ok := p.parent().(*IfStatement)
 		if !ok {
-			return nil, p.error("unexpected elif tag outside if statement", statement.Location)
+			return nil, p.error("unexpected `@elif` outside if statement", statement.Location)
 		}
 		if ifStatement.ElseStatement != nil {
-			return nil, p.error("unexpected elif tag after else tag", statement.Location)
+			return nil, p.error("unexpected `@elif` after `@else`", statement.Location)
 		}
 		ast, err := expression.Parse(p.file, statement.Tokens)
 		if err != nil {
@@ -120,7 +120,7 @@ func (p *parser) parseStatement(statement *tokenizer.Statement) (Statement, erro
 		}
 	}
 
-	return nil, p.error("unrecognised token: '@"+statement.Instruction+"'", statement.Location)
+	panic("unreachable")
 }
 
 func (p *parser) parseIfStatement(s *tokenizer.Statement) (Statement, error) {
@@ -145,7 +145,7 @@ func (p *parser) parseIfStatement(s *tokenizer.Statement) (Statement, error) {
 	return statement, nil
 }
 
-// ForStatement ::= "(" Identifier "in" Expression ("with" Identifier)? ")"
+// ForStatement ::= "(" Identifier "in" Expression ["with" Identifier] ")"
 func (p *parser) parseForStatement(s *tokenizer.Statement) (Statement, error) {
 	statement := &ForStatement{
 		location: s.Location,
@@ -155,35 +155,52 @@ func (p *parser) parseForStatement(s *tokenizer.Statement) (Statement, error) {
 	if tokens.IsEmpty() {
 		return nil, p.error("unexpected end of statement, expected identifier", s.Location)
 	}
-	if tokens.Peek().Kind != tokenizer.TokIdent {
-		return nil, p.error(fmt.Sprintf("unexpected token %s, expected identifier", tokens.Peek().Kind), tokens.Peek().Location)
-	}
 
-	statement.ValueName = tokens.Pop().Literal
-
-	if tokens.Pop().Kind != tokenizer.TokIn {
-		return nil, p.error(fmt.Sprintf("unexpected token %s, expected `in`", tokens.Peek().Kind), tokens.Peek().Location)
+	valueToken := tokens.Pop()
+	if valueToken.Kind != tokenizer.TokIdent {
+		return nil, p.error(fmt.Sprintf("unexpected %s, expected identifier", valueToken), valueToken.Location)
 	}
+	statement.ValueName = valueToken.Literal
+
 	if tokens.IsEmpty() {
-		return nil, p.error("unexpected end of statement, expected expression", s.Location)
+		return nil, p.error(fmt.Sprintf("unexpected end of statement, expected \"in\""), valueToken.Location.PointAfter())
 	}
 
-	expressionTokens := helpers.Stack[tokenizer.Token]([]tokenizer.Token{})
+	inToken := tokens.Pop()
+	if inToken.Kind != tokenizer.TokIn {
+		return nil, p.error(fmt.Sprintf("unexpected %s, expected \"in\"", inToken), inToken.Location)
+	}
+
+	if tokens.IsEmpty() {
+		return nil, p.error("unexpected end of statement, expected expression", inToken.Location.PointAfter())
+	}
+
+	expressionTokens := helpers.Stack[tokenizer.Token]{}
 	for !tokens.IsEmpty() && tokens.Peek().Kind != tokenizer.TokWith {
 		expressionTokens.Push(tokens.Pop())
 	}
 
+	if expressionTokens.IsEmpty() {
+		return nil, p.error("expected expression", inToken.Location.PointAfter())
+	}
+
 	if !tokens.IsEmpty() {
-		if tokens.Pop().Kind != tokenizer.TokWith {
-			return nil, p.error(fmt.Sprintf("unexpected token %s, expected `with`", tokens.Peek().Kind), tokens.Peek().Location)
+		withToken := tokens.Pop()
+		if withToken.Kind != tokenizer.TokWith {
+			return nil, p.error(fmt.Sprintf("unexpected %s, expected \"with\"", withToken), withToken.Location)
 		}
 		if tokens.IsEmpty() {
-			return nil, p.error("unexpected end of statement, expected identifier", s.Location)
+			return nil, p.error("unexpected end of statement, expected identifier", withToken.Location.PointAfter())
 		}
-		if tokens.Peek().Kind != tokenizer.TokIdent {
-			return nil, p.error(fmt.Sprintf("unexpected token %s, expected identifier", tokens.Peek().Kind), tokens.Peek().Location)
+		keyToken := tokens.Pop()
+		if keyToken.Kind != tokenizer.TokIdent {
+			return nil, p.error(fmt.Sprintf("unexpected %s, expected identifier", keyToken.Kind), keyToken.Location)
 		}
-		statement.KeyName = tokens.Pop().Literal
+		statement.KeyName = keyToken.Literal
+
+		if !tokens.IsEmpty() {
+			return nil, p.error(fmt.Sprintf("unexpected %s, expected end of statement", tokens.Peek()), tokens.Peek().Location)
+		}
 	}
 
 	expr, err := expression.Parse(p.file, expressionTokens)
@@ -203,10 +220,10 @@ func (p *parser) parseForStatement(s *tokenizer.Statement) (Statement, error) {
 	return statement, nil
 }
 
-// @extend(templateName)
+// ExtendStatement ::= "@extend(" String ")"
 func (p *parser) parseExtendStatement(statement *tokenizer.Statement) (Statement, error) {
 	if len(statement.Tokens) != 1 {
-		return nil, p.error("extend statement requires one argument of type <string>", statement.Location)
+		return nil, p.error("extend statement requires exactly 1 argument of type string", statement.Location)
 	}
 
 	return &ExtendStatement{
@@ -218,11 +235,11 @@ func (p *parser) parseExtendStatement(statement *tokenizer.Statement) (Statement
 // @define(name)
 func (p *parser) parseDefineStatement(statement *tokenizer.Statement) (Statement, error) {
 	if len(statement.Tokens) != 1 {
-		return nil, p.error("define statement requires one argument of type <string>", statement.Location)
+		return nil, p.error("define statement requires exactly 1 argument of type string", statement.Location)
 	}
 
 	if len(p.unclosed) != 0 && p.unclosed[len(p.unclosed)-1].Kind() != "template" {
-		return nil, p.error("define statements must be placed inside a template block or at the root level", statement.Location)
+		return nil, p.error("define statements must be placed directly inside a template block or at the root level", statement.Location)
 	}
 
 	return &DefineStatement{
@@ -234,7 +251,7 @@ func (p *parser) parseDefineStatement(statement *tokenizer.Statement) (Statement
 // @slot(name)
 func (p *parser) parseSlotStatement(statement *tokenizer.Statement) (Statement, error) {
 	if len(statement.Tokens) != 1 {
-		return nil, p.error("slot statement requires one argument of type <string>", statement.Location)
+		return nil, p.error("slot statement requires exactly 1 argument of type string", statement.Location)
 	}
 
 	return &SlotStatement{
@@ -246,7 +263,7 @@ func (p *parser) parseSlotStatement(statement *tokenizer.Statement) (Statement, 
 // @template(name)
 func (p *parser) parseTemplateStatement(statement *tokenizer.Statement) (Statement, error) {
 	if len(statement.Tokens) != 1 {
-		return nil, p.error("template statement requires one argument of type <string>", statement.Location)
+		return nil, p.error("template statement requires exactly 1 argument of type string", statement.Location)
 	}
 
 	return &TemplateStatement{
@@ -257,10 +274,6 @@ func (p *parser) parseTemplateStatement(statement *tokenizer.Statement) (Stateme
 
 func (p *parser) parseEndStatement(s *tokenizer.Statement) (Statement, error) {
 	target := s.Instruction[3:]
-	if target != "define" && target != "slot" && target != "template" && target != "if" && target != "for" {
-		return nil, p.error(fmt.Sprintf("unexpected token: @%s", s.Instruction), s.Location)
-	}
-
 	depth := len(p.unclosed)
 	if depth == 0 {
 		return nil, p.error("unexpected end tag", s.Location)
