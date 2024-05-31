@@ -125,18 +125,19 @@ func (t *_tokenizer) tokenize() ([]Element, error) {
 			t.lastClosing = t.cursor
 		} else if t.rune() == '@' && isAsciiLetter(t.nextRune()) {
 			location := t.location()
-			t.grabText(t.cursor)
-
-			t.forward()
 			start := t.cursor
+
+			// skip @
+			t.forward()
 			for isAsciiLetter(t.rune()) {
 				t.forward()
 			}
-			instruction := string(t.template[start:t.cursor])
+			instruction := string(t.template[start+1 : t.cursor])
 
 			if !slices.Contains(Instructions, instruction) {
-				return nil, t.error(fmt.Sprintf("unexpected instruction: `%s`", instruction), location)
+				continue
 			}
+			t.grabText(start)
 
 			var tokens []Token
 

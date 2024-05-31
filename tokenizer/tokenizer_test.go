@@ -6,6 +6,23 @@ import (
 	"testing"
 )
 
+func TestIgnore(t *testing.T) {
+	template := `@import{{ 2+2 }}@if(1==1)`
+	elements, err := Tokenize("debug.txt", template)
+	if err != nil {
+		t.Errorf("unexpected error: %v", err)
+		return
+	}
+	expected := []ElementKind{TextKind, MustacheKind, StatementKind}
+	for i, e := range expected {
+		el := elements[i].Kind()
+		if el != e {
+			t.Errorf("(%d) expected %v, got %v", i, e, el)
+			return
+		}
+	}
+}
+
 func TestNumbers(t *testing.T) {
 	template := `{{ 2+4.123+0b11+0x123ABC+0o1234567+.2+0o62*076 }}`
 	elements, err := Tokenize("index.html", template)
@@ -81,9 +98,6 @@ func TestErrorReporting(t *testing.T) {
 		{
 			`	{#      a`,
 			"  ┌─ debug.txt:1:11:\n1 | \t{#      a␄\n  | \t         ^\nunexpected EOF, unclosed comment",
-		}, {
-			"\n@endsome",
-			"  ┌─ debug.txt:2:1:\n2 | @endsome␄\n  | ^^^^^^^^\nunexpected instruction: `endsome`",
 		}, {
 			"\na\n|\n @if ",
 			"  ┌─ debug.txt:4:2:\n4 |  @if ␄\n  |  ^^^^\nunexpected EOF, expected `(` after statement",

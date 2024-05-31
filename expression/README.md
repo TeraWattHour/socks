@@ -18,7 +18,6 @@
 - `/` Division
 - `%` Modulo
 - `**` Exponentiation
-- `//` Floor division
 
 #### Comparison
 - `==` Equal
@@ -35,6 +34,7 @@
 
 #### Conditional
 - `a ?: b` If _a_ is nil then _b_
+- `a ? b : c` If _a_ then _b_ else _c_
 
 #### Sets
 - `[...]` Array (always constant)
