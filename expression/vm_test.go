@@ -114,10 +114,7 @@ func TestVM_Errors(t *testing.T) {
 			"  ┌─ debug.txt:1:16:\n1 | {{ someNilValue() }}␄\n  |                ^^\ncan't call <nil>",
 		}, {
 			"float64(\"string\")",
-			"  ┌─ debug.txt:1:12:\n1 | {{ float64(\"string\") }}␄\n  |           ^^^^^^^^^^\ncan't cast string to float64",
-		}, {
-			"range(2, 1, 1)",
-			"  ┌─ debug.txt:1:10:\n1 | {{ range(2, 1, 1) }}␄\n  |         ^^^^^^^^^\nstep can't be positive while start > end",
+			"  ┌─ debug.txt:1:11:\n1 | {{ float64(\"string\") }}␄\n  |           ^^^^^^^^^^\ncan't cast string to float64",
 		},
 	}
 

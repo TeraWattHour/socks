@@ -3,31 +3,7 @@ package expression
 import (
 	"fmt"
 	"reflect"
-	"slices"
 )
-
-// Order of builtins is important
-var builtinNames = []string{
-	// One-argument builtins
-	"float32",
-	"float64",
-	"int",
-	"int8",
-	"int16",
-	"int32",
-	"int64",
-	"uint",
-	"uint8",
-	"uint16",
-	"uint32",
-	"uint64",
-	"uintptr",
-	"len",
-	// Two-argument builtins
-
-	// Three-argument builtins
-	"range",
-}
 
 var builtinTypes = map[string][]string{
 	"float32": {"Numeric", "float32"},
@@ -44,69 +20,26 @@ var builtinTypes = map[string][]string{
 	"uint64":  {"Numeric", "uint64"},
 	"uintptr": {"Numeric", "uintptr"},
 	"len":     {"Countable", "len"},
-	"range":   {"Integer", "Integer", "Integer = 1", "[]int"},
 }
 
-var builtinsOne = []func(any) any{
-	castFloat32,
-	castFloat64,
-	castInt,
-	castInt8,
-	castInt16,
-	castInt32,
-	castInt64,
-	castUint,
-	castUint8,
-	castUint16,
-	castUint32,
-	castUint64,
-	castUintptr,
-	length,
+var builtinsOne = map[string]func(any) any{
+	"float32": castFloat32,
+	"float64": castFloat64,
+	"fnt":     castInt,
+	"fnt8":    castInt8,
+	"fnt16":   castInt16,
+	"fnt32":   castInt32,
+	"fnt64":   castInt64,
+	"uint":    castUint,
+	"uint8":   castUint8,
+	"uint16":  castUint16,
+	"uint32":  castUint32,
+	"uint64":  castUint64,
+	"uintptr": castUintptr,
+	"length":  length,
 }
 
-var builtinsTwo = []func(any, any) any{}
-
-var builtinsThree = []func(any, any, any) any{
-	rangeArray,
-}
-
-var numBuiltinsOne = reflect.ValueOf(builtinsOne).Len()
-var numBuiltinsTwo = reflect.ValueOf(builtinsTwo).Len()
-var numBuiltinsThree = reflect.ValueOf(builtinsThree).Len()
-
-func builtinRelativeIndex(name string) int {
-	idx := slices.Index(builtinNames, name)
-	if idx == -1 {
-		return -1
-	}
-
-	if idx < numBuiltinsOne {
-		return idx
-	} else if idx < numBuiltinsOne+numBuiltinsTwo {
-		return idx - numBuiltinsOne
-	} else if idx < numBuiltinsOne+numBuiltinsTwo+numBuiltinsThree {
-		return idx - numBuiltinsOne - numBuiltinsTwo
-	}
-
-	return -1
-}
-
-func builtinType(name string) int {
-	idx := slices.Index(builtinNames, name)
-	if idx == -1 {
-		return -1
-	}
-
-	if idx < numBuiltinsOne {
-		return 1
-	} else if idx < numBuiltinsOne+numBuiltinsTwo {
-		return 2
-	} else if idx < numBuiltinsOne+numBuiltinsTwo+numBuiltinsThree {
-		return 3
-	}
-
-	return -1
-}
+var builtinNames = reflect.ValueOf(builtinsOne).MapKeys()
 
 func length(_val any) any {
 	switch val := _val.(type) {
@@ -120,29 +53,29 @@ func length(_val any) any {
 	return reflect.ValueOf(_val).Len()
 }
 
-func rangeArray(_start, _end, _step any) any {
-	start, startOk := castInt(_start).(int)
-	end, endOk := castInt(_end).(int)
-	step, stepOk := castInt(_step).(int)
-	if !startOk || !endOk || !stepOk {
-		return fmt.Errorf("call to range(%T, %T, %T) -> []int does not match the signature of rangeStep(Integer, Integer, Integer = 1) -> []int", _start, _end, _step)
-	}
-
-	if step == 0 {
-		return fmt.Errorf("step cannot be 0")
-	}
-	if start < end && step < 0 {
-		return fmt.Errorf("step cannot be negative while start < end")
-	}
-	if start > end && step > 0 {
-		return fmt.Errorf("step cannot be positive while start > end")
-	}
-	var result []int
-	for i := start; i < end; i += step {
-		result = append(result, i)
-	}
-	return result
-}
+//func rangeArray(_start, _end, _step any) any {
+//	start, startOk := castInt(_start).(int)
+//	end, endOk := castInt(_end).(int)
+//	step, stepOk := castInt(_step).(int)
+//	if !startOk || !endOk || !stepOk {
+//		return fmt.Errorf("call to range(%T, %T, %T) -> []int does not match the signature of rangeStep(Integer, Integer, Integer = 1) -> []int", _start, _end, _step)
+//	}
+//
+//	if step == 0 {
+//		return fmt.Errorf("step cannot be 0")
+//	}
+//	if start < end && step < 0 {
+//		return fmt.Errorf("step cannot be negative while start < end")
+//	}
+//	if start > end && step > 0 {
+//		return fmt.Errorf("step cannot be positive while start > end")
+//	}
+//	var result []int
+//	for i := start; i < end; i += step {
+//		result = append(result, i)
+//	}
+//	return result
+//}
 
 func negate(val any) any {
 	switch val := val.(type) {

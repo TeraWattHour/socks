@@ -34,15 +34,6 @@ func dumpChunk(chunk Chunk) {
 		case OpGet:
 			fmt.Printf(" | %v\n", chunk.Constants[chunk.Instructions[i+1]])
 			i++
-		case OpBuiltin1:
-			fmt.Printf(" | %s\n", builtinNames[chunk.Instructions[i+1]])
-			i++
-		case OpBuiltin2:
-			fmt.Printf(" | %v\n", builtinNames[numBuiltinsOne+chunk.Instructions[i+1]])
-			i++
-		case OpBuiltin3:
-			fmt.Printf(" | %v\n", builtinNames[numBuiltinsOne+numBuiltinsTwo+chunk.Instructions[i+1]])
-			i++
 		case OpCodeCount:
 			panic("unreachable")
 		default:

@@ -5,6 +5,7 @@ import (
 	errors2 "github.com/terawatthour/socks/errors"
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/tokenizer"
+	"reflect"
 	"slices"
 	"strconv"
 	"strings"
@@ -399,7 +400,9 @@ func (p *parser) list(end tokenizer.TokenKind, endLiteral string) ([]Expression,
 }
 
 func (p *parser) identifier(token tokenizer.Token) (Expression, error) {
-	if !slices.Contains(builtinNames, token.Literal) {
+	if !slices.ContainsFunc(builtinNames, func(value reflect.Value) bool {
+		return value.String() == token.Literal
+	}) {
 		p.dependencies = append(p.dependencies, token.Literal)
 	}
 

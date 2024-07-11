@@ -2,6 +2,19 @@ package expression
 
 import "fmt"
 
+type castError struct {
+	from string
+	to   string
+}
+
+func cerr(from any, to string) *castError {
+	return &castError{from: fmt.Sprintf("%T", from), to: to}
+}
+
+func (e *castError) Error() string {
+	return fmt.Sprintf("can't cast %s to %s", e.from, e.to)
+}
+
 func castInt(val any) any {
 	switch val := val.(type) {
 	case int:
@@ -32,7 +45,7 @@ func castInt(val any) any {
 		return int(val)
 	}
 
-	return fmt.Errorf("can't cast %T to int", val)
+	return cerr(val, "int")
 }
 
 func castInt8(val any) any {
@@ -64,7 +77,7 @@ func castInt8(val any) any {
 	case float64:
 		return int8(val)
 	}
-	return fmt.Errorf("can't cast %T to int8", val)
+	return cerr(val, "int8")
 }
 
 func castInt16(val any) any {
@@ -96,7 +109,7 @@ func castInt16(val any) any {
 	case float64:
 		return int16(val)
 	}
-	return fmt.Errorf("can't cast %T to int16", val)
+	return cerr(val, "int16")
 }
 
 func castInt32(val any) any {
@@ -128,7 +141,7 @@ func castInt32(val any) any {
 	case float64:
 		return int32(val)
 	}
-	return fmt.Errorf("can't cast %T to int32", val)
+	return cerr(val, "int32")
 }
 
 func castInt64(val any) any {
@@ -160,7 +173,7 @@ func castInt64(val any) any {
 	case float64:
 		return int64(val)
 	}
-	return fmt.Errorf("can't cast %T to int64", val)
+	return cerr(val, "int64")
 }
 
 func castUint(val any) any {
@@ -192,7 +205,7 @@ func castUint(val any) any {
 	case float64:
 		return uint(val)
 	}
-	return fmt.Errorf("can't cast %T to uint", val)
+	return cerr(val, "uint")
 }
 
 func castUint8(val any) any {
@@ -224,7 +237,7 @@ func castUint8(val any) any {
 	case float64:
 		return uint8(val)
 	}
-	return fmt.Errorf("can't cast %T to uint8", val)
+	return cerr(val, "uint8")
 }
 
 func castUint16(val any) any {
@@ -256,7 +269,7 @@ func castUint16(val any) any {
 	case float64:
 		return uint16(val)
 	}
-	return fmt.Errorf("can't cast %T to uint16", val)
+	return cerr(val, "uint16")
 }
 
 func castUint32(val any) any {
@@ -288,7 +301,7 @@ func castUint32(val any) any {
 	case float64:
 		return uint32(val)
 	}
-	return fmt.Errorf("can't cast %T to uint32", val)
+	return cerr(val, "uint32")
 }
 
 func castUint64(val any) any {
@@ -320,7 +333,7 @@ func castUint64(val any) any {
 	case float64:
 		return uint64(val)
 	}
-	return fmt.Errorf("can't cast %T to uint64", val)
+	return cerr(val, "uint64")
 }
 
 func castUintptr(val any) any {
@@ -352,7 +365,7 @@ func castUintptr(val any) any {
 	case float64:
 		return uintptr(val)
 	}
-	return fmt.Errorf("can't cast %T to uintptr", val)
+	return cerr(val, "uintptr")
 }
 
 func castFloat32(val any) any {
@@ -384,7 +397,7 @@ func castFloat32(val any) any {
 	case float64:
 		return float32(val)
 	}
-	return fmt.Errorf("can't cast %T to float32", val)
+	return cerr(val, "float32")
 }
 
 func castFloat64(val any) any {
@@ -416,5 +429,5 @@ func castFloat64(val any) any {
 	case float64:
 		return val
 	}
-	return fmt.Errorf("can't cast %T to float64", val)
+	return cerr(val, "float64")
 }

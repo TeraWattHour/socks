@@ -11,7 +11,7 @@ type VM struct {
 	file         helpers.File
 	chunk        Chunk
 	stack        helpers.Stack[any]
-	funcs        map[string]any
+	funcs        map[string]func(any) any
 	ip           int
 	currentError error
 }
@@ -19,6 +19,7 @@ type VM struct {
 func NewVM(file helpers.File, chunk Chunk) *VM {
 	return &VM{
 		file:  file,
+		funcs: builtinsOne,
 		chunk: chunk,
 		stack: []any{},
 	}
@@ -118,13 +119,27 @@ outerLoop:
 			}
 			results := reflectedFunction.Call(args)
 			if len(results) == 1 {
-				vm.stack.Push(results[0].Interface())
+				result := results[0].Interface()
+				switch result := result.(type) {
+				case *castError:
+					vm.currentError = vm.error(result.Error(), vm.chunk.Lookups[vm.ip-1].(*FunctionCall).Location())
+					break
+				default:
+					vm.stack.Push(result)
+				}
 			} else if len(results) > 1 {
 				vm.stack.Push(reflectedSliceToInterfaceSlice(results))
 			}
 		case OpGet:
 			ident := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]].(string)
-			vm.stack.Push(env[ident])
+			if env[ident] != nil {
+				vm.stack.Push(env[ident])
+			} else if f, ok := vm.funcs[ident]; ok {
+				vm.stack.Push(f)
+			} else {
+				vm.stack.Push(nil)
+			}
+
 			vm.ip++
 		case OpConstant:
 			constant := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]]
