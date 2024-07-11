@@ -4,6 +4,7 @@ package expression
 const (
 	OpConstant = iota
 	OpJmp
+	OpOptionalChaining
 	OpNil
 	OpEq
 	OpNeq
@@ -33,6 +34,7 @@ const (
 	OpBuiltin1
 	OpBuiltin2
 	OpBuiltin3
+	OpPop
 
 	OpCodeCount
 )
@@ -41,36 +43,38 @@ const (
 
 // BEGIN LOOKUP
 var opcodesLookup = map[int]string{
-	OpConstant:      "Constant",
-	OpJmp:           "Jmp",
-	OpEq:            "Eq",
-	OpNeq:           "Neq",
-	OpGt:            "Gt",
-	OpGte:           "Gte",
-	OpLt:            "Lt",
-	OpLte:           "Lte",
-	OpAdd:           "Add",
-	OpSubtract:      "Subtract",
-	OpMultiply:      "Multiply",
-	OpDivide:        "Divide",
-	OpPower:         "Exponent",
-	OpElvis:         "Elvis",
-	OpTernary:       "Ternary",
-	OpAnd:           "And",
-	OpOr:            "Or",
-	OpNot:           "Not",
-	OpNegate:        "Negate",
-	OpArrayAccess:   "FieldAccess",
-	OpChain:         "Chain",
-	OpOptionalChain: "OptionalChain",
-	OpArray:         "Array",
-	OpIn:            "In",
-	OpGet:           "Get",
-	OpCall:          "Call",
-	OpBuiltin1:      "Builtin1",
-	OpBuiltin2:      "Builtin2",
-	OpBuiltin3:      "Builtin3",
-	OpNil:           "Nil",
+	OpConstant:         "Constant",
+	OpOptionalChaining: "OptionalChaining",
+	OpJmp:              "Jmp",
+	OpPop:              "Pop",
+	OpEq:               "Eq",
+	OpNeq:              "Neq",
+	OpGt:               "Gt",
+	OpGte:              "Gte",
+	OpLt:               "Lt",
+	OpLte:              "Lte",
+	OpAdd:              "Add",
+	OpSubtract:         "Subtract",
+	OpMultiply:         "Multiply",
+	OpDivide:           "Divide",
+	OpPower:            "Exponent",
+	OpElvis:            "Elvis",
+	OpTernary:          "Ternary",
+	OpAnd:              "And",
+	OpOr:               "Or",
+	OpNot:              "Not",
+	OpNegate:           "Negate",
+	OpArrayAccess:      "FieldAccess",
+	OpChain:            "Chain",
+	OpOptionalChain:    "OptionalChain",
+	OpArray:            "Array",
+	OpIn:               "In",
+	OpGet:              "Get",
+	OpCall:             "Call",
+	OpBuiltin1:         "Builtin1",
+	OpBuiltin2:         "Builtin2",
+	OpBuiltin3:         "Builtin3",
+	OpNil:              "Nil",
 }
 
 // END LOOKUP

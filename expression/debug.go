@@ -13,6 +13,9 @@ func dumpChunk(chunk Chunk) {
 		case OpJmp:
 			fmt.Printf(" | jump: %v\n", chunk.Instructions[i+1])
 			i++
+		case OpOptionalChaining:
+			fmt.Printf(" | jumpIf: %v\n", chunk.Instructions[i+1])
+			i++
 		case OpTernary:
 			fmt.Printf(" | jumpIfFalse: %v\n", chunk.Instructions[i+1])
 			i++

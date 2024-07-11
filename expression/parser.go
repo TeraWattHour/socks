@@ -320,17 +320,16 @@ func (p *parser) chain(left Expression) (Expression, error) {
 			if p.expectNext(tokenizer.TokIdent) {
 				expr.Parts.Push(&Identifier{Token: p.currentToken, Value: p.currentToken.Literal})
 			}
-
 		case tokenizer.TokLparen:
 			p.advance()
 
-			args, err := p.parseExpressionList(tokenizer.TokRparen, ")")
+			args, err := p.list(tokenizer.TokRparen, ")")
 			if err != nil {
 				return nil, err
 			}
-			assert(p.currentToken.Kind == tokenizer.TokRparen, "p.currentToken after p.parseExpressionList must always be the end literal")
+			assert(p.currentToken.Kind == tokenizer.TokRparen, "p.currentToken after p.list must always be the end literal")
 
-			expr.Parts.Push(&FunctionCall{Token: token, Args: args})
+			expr.Parts.Push(&FunctionCall{Token: token, Args: args, closeToken: p.currentToken})
 		case tokenizer.TokLbrack:
 			p.advance()
 
@@ -343,7 +342,9 @@ func (p *parser) chain(left Expression) (Expression, error) {
 				return nil, p.error("expected `]`", p.currentToken.Location)
 			}
 
-			expr.Parts.Push(&FieldAccess{Token: token, Index: index})
+			expr.Parts.Push(&FieldAccess{Token: token, Index: index, closeToken: p.currentToken})
+		default:
+			panic("unreachable")
 		}
 
 		p.advance()
@@ -355,11 +356,11 @@ func (p *parser) chain(left Expression) (Expression, error) {
 func (p *parser) array() (Expression, error) {
 	var err error
 	array := &Array{Token: p.currentToken}
-	array.Items, err = p.parseExpressionList(tokenizer.TokRbrack, "]")
+	array.Items, err = p.list(tokenizer.TokRbrack, "]")
 	if err != nil {
 		return nil, err
 	}
-	assert(p.currentToken.Kind == tokenizer.TokRbrack, "p.currentToken after p.parseExpressionList must always be the end literal")
+	assert(p.currentToken.Kind == tokenizer.TokRbrack, "p.currentToken after p.list must always be the end literal")
 
 	if p.nextIs(tokenizer.TokLbrack) {
 		p.advance()
@@ -369,7 +370,7 @@ func (p *parser) array() (Expression, error) {
 	return array, err
 }
 
-func (p *parser) parseExpressionList(end tokenizer.TokenKind, endLiteral string) ([]Expression, error) {
+func (p *parser) list(end tokenizer.TokenKind, endLiteral string) ([]Expression, error) {
 	list := make([]Expression, 0)
 	if p.currentIs(end) {
 		return list, nil

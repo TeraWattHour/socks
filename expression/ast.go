@@ -350,12 +350,13 @@ func (s *StringLiteral) String() string {
 }
 
 type FunctionCall struct {
-	Args  []Expression
-	Token tokenizer.Token
+	Args       []Expression
+	Token      tokenizer.Token
+	closeToken tokenizer.Token
 }
 
 func (s *FunctionCall) Location() helpers.Location {
-	return s.Token.Location
+	return s.Token.Location.Combine(s.closeToken.Location)
 }
 
 func (s *FunctionCall) IsEqual(node Node) bool {
@@ -394,12 +395,13 @@ func (s *FunctionCall) Literal() string {
 }
 
 type FieldAccess struct {
-	Index Expression
-	Token tokenizer.Token
+	Index      Expression
+	Token      tokenizer.Token
+	closeToken tokenizer.Token
 }
 
 func (s *FieldAccess) Location() helpers.Location {
-	return s.Token.Location.Combine(s.Index.Location())
+	return s.Token.Location.Combine(s.closeToken.Location)
 }
 
 func (s *FieldAccess) IsEqual(node Node) bool {

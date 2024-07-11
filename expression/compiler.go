@@ -70,50 +70,56 @@ func (c *Compiler) compile(expr Expression, scope Expression) error {
 	case *Nil:
 		c.emit(OpNil)
 		c.addLookup(expr)
-	case *FunctionCall:
-		panic("implement me")
-
-		//if err := c.compile(expr.Called, scope); err != nil {
-		//	return err
-		//}
-		//for _, arg := range expr.Args {
-		//	if err := c.compile(arg, arg); err != nil {
-		//		return err
-		//	}
-		//}
-		//c.emit(OpCall)
-		//c.addLookup(expr)
-		//c.emit(len(expr.Args))
-	case *FieldAccess:
-		panic("implement me")
-
-		//err := c.compile(expr.Accessed, scope)
-		//if err != nil {
-		//	return err
-		//}
-		//
-		//if err := c.compile(expr.Index, expr.Index); err != nil {
-		//	return err
-		//}
-		//
-		//c.emit(OpArrayAccess)
-		//c.addLookup(expr)
 	case *Chain:
-		panic("implement me")
+		var optionalIndices []int
 
-		//if err := c.compile(expr.Left, scope); err != nil {
-		//	return err
-		//}
-		//if expr.IsOptional {
-		//	c.emit(OpOptionalChain)
-		//	c.addLookup(expr)
-		//	c.emit(-1)
-		//	c.optionalChains[scope] = append(c.optionalChains[scope], len(c.chunk.Instructions)-1)
-		//} else {
-		//	c.emit(OpChain)
-		//	c.addLookup(expr)
-		//}
-		//c.emit(c.createConstant(expr.Right.Value))
+		for i, part := range expr.Parts {
+			switch part := part.(type) {
+			case *FieldAccess:
+				if err := c.compile(part.Index, part.Index); err != nil {
+					return err
+				}
+				c.emit(OpArrayAccess)
+				c.addLookup(part)
+			case *DotAccess:
+				c.emit(OpChain)
+				c.addLookup(part)
+				c.emit(c.createConstant(part.Property))
+			case *OptionalAccess:
+				c.emit(OpOptionalChaining)
+				c.addLookup(part)
+				optionalIndices = append(optionalIndices, len(c.chunk.Instructions))
+				c.emit(-1)
+			case *FunctionCall:
+				for _, arg := range part.Args {
+					if err := c.compile(arg, arg); err != nil {
+						return err
+					}
+				}
+
+				c.emit(OpCall)
+				c.addLookup(part)
+				c.emit(len(part.Args))
+			case *Identifier:
+				if i == 0 {
+					if err := c.compile(part, part); err != nil {
+						return err
+					}
+				} else {
+					c.emit(OpChain)
+					c.addLookup(part)
+					c.emit(c.createConstant(part.Value))
+				}
+			default:
+				if err := c.compile(part, part); err != nil {
+					return err
+				}
+			}
+		}
+
+		for _, index := range optionalIndices {
+			c.chunk.Instructions[index] = len(c.chunk.Instructions)
+		}
 	case *Ternary:
 		if err := c.compile(expr.Condition, expr.Condition); err != nil {
 			return err

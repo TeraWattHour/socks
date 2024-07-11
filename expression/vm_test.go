@@ -96,28 +96,28 @@ func TestVM_Errors(t *testing.T) {
 	}{
 		{
 			`someNilValue.accessed`,
-			"  ┌─ debug.txt:1:4:\n1 | {{ someNilValue.accessed }}␄\n  |    ^^^^^^^^^^^^^^^^^^^^^\ncannot access properties of <nil>",
+			"  ┌─ debug.txt:1:17:\n1 | {{ someNilValue.accessed }}␄\n  |                 ^^^^^^^^\ncan't access properties of <nil>",
 		}, {
 			"arrayValue[\"wrong_index\"]",
-			"  ┌─ debug.txt:1:15:\n1 | {{ arrayValue[\"wrong_index\"] }}␄\n  |               ^^^^^^^^^^^^^\nforbidden array index access, cannot cast string to int",
+			"  ┌─ debug.txt:1:15:\n1 | {{ arrayValue[\"wrong_index\"] }}␄\n  |               ^^^^^^^^^^^^^\nforbidden array index access, can't cast string to int",
 		}, {
 			"structValue[123]",
-			"  ┌─ debug.txt:1:16:\n1 | {{ structValue[123] }}␄\n  |                ^^^\nstruct field accessor must be of type string, got int",
+			"  ┌─ debug.txt:1:16:\n1 | {{ structValue[123] }}␄\n  |                ^^^\nstruct field accessor must be of type string, got int64",
 		}, {
 			"(1 + 2)[3]",
-			"  ┌─ debug.txt:1:5:\n1 | {{ (1 + 2)[3] }}␄\n  |     ^^^^^\nexpected array, struct or map, got int",
+			"  ┌─ debug.txt:1:11:\n1 | {{ (1 + 2)[3] }}␄\n  |           ^^^\nforbidden access of properties of int64",
 		}, {
 			"someNilValue . method()",
-			"  ┌─ debug.txt:1:4:\n1 | {{ someNilValue . method() }}␄\n  |    ^^^^^^^^^^^^^^^^^^^^^\ncannot access properties of <nil>",
+			"  ┌─ debug.txt:1:19:\n1 | {{ someNilValue . method() }}␄\n  |                   ^^^^^^\ncan't access properties of <nil>",
 		}, {
 			"someNilValue()",
-			"  ┌─ debug.txt:1:4:\n1 | {{ someNilValue() }}␄\n  |    ^^^^^^^^^^^^\nexpected function, got <nil>",
+			"  ┌─ debug.txt:1:16:\n1 | {{ someNilValue() }}␄\n  |                ^^\ncan't call <nil>",
 		}, {
 			"float64(\"string\")",
-			"  ┌─ debug.txt:1:12:\n1 | {{ float64(\"string\") }}␄\n  |            ^^^^^^^^\ncannot cast string to float64",
+			"  ┌─ debug.txt:1:12:\n1 | {{ float64(\"string\") }}␄\n  |           ^^^^^^^^^^\ncan't cast string to float64",
 		}, {
 			"range(2, 1, 1)",
-			"  ┌─ debug.txt:1:10:\n1 | {{ range(2, 1, 1) }}␄\n  |          ^^^^^^^\nstep cannot be positive while start > end",
+			"  ┌─ debug.txt:1:10:\n1 | {{ range(2, 1, 1) }}␄\n  |         ^^^^^^^^^\nstep can't be positive while start > end",
 		},
 	}
 
@@ -150,8 +150,7 @@ func TestVM_Errors(t *testing.T) {
 			return
 		}
 		if err.Error() != set.err {
-			fmt.Println(err)
-			t.Errorf("expected %v, got %v", set.err, err)
+			t.Errorf("expected\n%v\ngot\n%v", set.err, err)
 		}
 	}
 }
@@ -162,11 +161,16 @@ func TestChains(t *testing.T) {
 	sets := []struct {
 		string
 		context
+		any
 	}{
-		{"some?.value", map[string]any{"some": nil}},
-		{"some.value", map[string]any{"some": 123}},
+		{"a.b.c", map[string]any{"a": map[string]any{"b": map[string]any{"c": 123}}}, 123},
+		{"some?.value", map[string]any{"some": nil}, nil},
+		{"func?.()", map[string]any{"func": func() int { return 444 }}, 444},
+		{"func()", map[string]any{"func": func() int { return 444 }}, 444},
+		{"func?.()", map[string]any{}, nil},
+		{"arr[1+1]", map[string]any{"arr": []string{"one", "two", "three"}}, "three"},
 	}
-	for _, set := range sets {
+	for i, set := range sets {
 		file := helpers.File{"debug.txt", fmt.Sprintf("{{ %s }}", set.string)}
 		elements, err := tokenizer.Tokenize("debug.txt", fmt.Sprintf("{{ %s }}", set.string))
 		if err != nil {
@@ -186,9 +190,16 @@ func TestChains(t *testing.T) {
 			return
 		}
 
-		dumpChunk(chunk)
-
 		res, err := NewVM(file, chunk).Run(set.context)
-		fmt.Println(res, err)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			continue
+		}
+
+		if res != set.any {
+			t.Errorf("expected %v, got %v", set.any, res)
+		}
+
+		t.Logf("set %d: pass", i)
 	}
 }
