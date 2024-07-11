@@ -25,7 +25,7 @@ type _tokenizer struct {
 }
 
 type Token struct {
-	Kind     string
+	Kind     TokenKind
 	Literal  string
 	Start    int
 	Length   int
@@ -34,9 +34,9 @@ type Token struct {
 
 func (t Token) String() string {
 	if t.Kind != TokIdent {
-		return fmt.Sprintf("\"%s\"", t.Kind)
+		return fmt.Sprintf("\"%s\"", TokenKinds[t.Kind])
 	}
-	return t.Kind
+	return TokenKinds[t.Kind]
 }
 
 func Tokenize(filename string, template string) ([]Element, error) {
@@ -333,8 +333,9 @@ func (t *_tokenizer) tokenizeExpression(mustache bool) ([]Token, error) {
 					t.forward()
 				}
 				literal := string(t.template[start:t.cursor])
-				if slices.Index(Keywords, literal) != -1 {
-					token.Kind, token.Literal = literal, literal
+				kind := slices.Index(TokenKinds, literal)
+				if kind != -1 && slices.Contains(Keywords, TokenKind(kind)) {
+					token.Kind, token.Literal = TokenKind(kind), literal
 				} else {
 					token.Kind = TokIdent
 					token.Literal = literal

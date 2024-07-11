@@ -1,12 +1,10 @@
 package expression
 
 import (
-	"fmt"
 	"github.com/terawatthour/socks/errors"
 	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/tokenizer"
 	"slices"
-	"strings"
 )
 
 type Chunk struct {
@@ -72,85 +70,50 @@ func (c *Compiler) compile(expr Expression, scope Expression) error {
 	case *Nil:
 		c.emit(OpNil)
 		c.addLookup(expr)
-	case *Builtin:
-		for _, arg := range expr.Args {
-			if err := c.compile(arg, arg); err != nil {
-				return err
-			}
-		}
-
-		if expr.Name == "range" && len(expr.Args) > 1 {
-			if len(expr.Args) == 2 {
-				c.emitConstant(1)
-			}
-			c.emit(OpBuiltin3)
-			c.addLookup(expr)
-			c.emit(builtinRelativeIndex(expr.Name))
-			break
-		}
-
-		builtinType := builtinType(expr.Name)
-
-		if builtinType == -1 {
-			panic("unknown builtin, bytecode malformed")
-		}
-
-		if len(expr.Args) != builtinType {
-			types := builtinTypes[expr.Name]
-			inputTypes := types[:len(types)-1]
-			returnType := types[len(types)-1]
-			return c.error(fmt.Sprintf("call to %s(%s) -> any does not match the signature of %s(%s) -> %s", expr.Name, strings.TrimSuffix(strings.Repeat("any, ", len(expr.Args)), ", "), expr.Name, strings.Join(inputTypes, ", "), returnType), expressionsLocation(expr.Args))
-		}
-
-		switch builtinType {
-		case 1:
-			c.emit(OpBuiltin1)
-		case 2:
-			c.emit(OpBuiltin2)
-		case 3:
-			c.emit(OpBuiltin3)
-		}
-
-		c.addLookup(expr)
-		c.emit(builtinRelativeIndex(expr.Name))
 	case *FunctionCall:
-		if err := c.compile(expr.Called, scope); err != nil {
-			return err
-		}
-		for _, arg := range expr.Args {
-			if err := c.compile(arg, arg); err != nil {
-				return err
-			}
-		}
-		c.emit(OpCall)
-		c.addLookup(expr)
-		c.emit(len(expr.Args))
+		panic("implement me")
+
+		//if err := c.compile(expr.Called, scope); err != nil {
+		//	return err
+		//}
+		//for _, arg := range expr.Args {
+		//	if err := c.compile(arg, arg); err != nil {
+		//		return err
+		//	}
+		//}
+		//c.emit(OpCall)
+		//c.addLookup(expr)
+		//c.emit(len(expr.Args))
 	case *FieldAccess:
-		err := c.compile(expr.Accessed, scope)
-		if err != nil {
-			return err
-		}
+		panic("implement me")
 
-		if err := c.compile(expr.Index, expr.Index); err != nil {
-			return err
-		}
-
-		c.emit(OpArrayAccess)
-		c.addLookup(expr)
+		//err := c.compile(expr.Accessed, scope)
+		//if err != nil {
+		//	return err
+		//}
+		//
+		//if err := c.compile(expr.Index, expr.Index); err != nil {
+		//	return err
+		//}
+		//
+		//c.emit(OpArrayAccess)
+		//c.addLookup(expr)
 	case *Chain:
-		if err := c.compile(expr.Left, scope); err != nil {
-			return err
-		}
-		if expr.IsOptional {
-			c.emit(OpOptionalChain)
-			c.addLookup(expr)
-			c.emit(-1)
-			c.optionalChains[scope] = append(c.optionalChains[scope], len(c.chunk.Instructions)-1)
-		} else {
-			c.emit(OpChain)
-			c.addLookup(expr)
-		}
-		c.emit(c.createConstant(expr.Right.Value))
+		panic("implement me")
+
+		//if err := c.compile(expr.Left, scope); err != nil {
+		//	return err
+		//}
+		//if expr.IsOptional {
+		//	c.emit(OpOptionalChain)
+		//	c.addLookup(expr)
+		//	c.emit(-1)
+		//	c.optionalChains[scope] = append(c.optionalChains[scope], len(c.chunk.Instructions)-1)
+		//} else {
+		//	c.emit(OpChain)
+		//	c.addLookup(expr)
+		//}
+		//c.emit(c.createConstant(expr.Right.Value))
 	case *Ternary:
 		if err := c.compile(expr.Condition, expr.Condition); err != nil {
 			return err

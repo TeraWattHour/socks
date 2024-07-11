@@ -32,7 +32,7 @@ func castInt(val any) any {
 		return int(val)
 	}
 
-	return fmt.Errorf("cannot cast %T to int", val)
+	return fmt.Errorf("can't cast %T to int", val)
 }
 
 func castInt8(val any) any {
@@ -64,7 +64,7 @@ func castInt8(val any) any {
 	case float64:
 		return int8(val)
 	}
-	return fmt.Errorf("cannot cast %T to int8", val)
+	return fmt.Errorf("can't cast %T to int8", val)
 }
 
 func castInt16(val any) any {
@@ -96,7 +96,7 @@ func castInt16(val any) any {
 	case float64:
 		return int16(val)
 	}
-	return fmt.Errorf("cannot cast %T to int16", val)
+	return fmt.Errorf("can't cast %T to int16", val)
 }
 
 func castInt32(val any) any {
@@ -128,7 +128,7 @@ func castInt32(val any) any {
 	case float64:
 		return int32(val)
 	}
-	return fmt.Errorf("cannot cast %T to int32", val)
+	return fmt.Errorf("can't cast %T to int32", val)
 }
 
 func castInt64(val any) any {
@@ -160,7 +160,7 @@ func castInt64(val any) any {
 	case float64:
 		return int64(val)
 	}
-	return fmt.Errorf("cannot cast %T to int64", val)
+	return fmt.Errorf("can't cast %T to int64", val)
 }
 
 func castUint(val any) any {
@@ -192,7 +192,7 @@ func castUint(val any) any {
 	case float64:
 		return uint(val)
 	}
-	return fmt.Errorf("cannot cast %T to uint", val)
+	return fmt.Errorf("can't cast %T to uint", val)
 }
 
 func castUint8(val any) any {
@@ -224,7 +224,7 @@ func castUint8(val any) any {
 	case float64:
 		return uint8(val)
 	}
-	return fmt.Errorf("cannot cast %T to uint8", val)
+	return fmt.Errorf("can't cast %T to uint8", val)
 }
 
 func castUint16(val any) any {
@@ -256,7 +256,7 @@ func castUint16(val any) any {
 	case float64:
 		return uint16(val)
 	}
-	return fmt.Errorf("cannot cast %T to uint16", val)
+	return fmt.Errorf("can't cast %T to uint16", val)
 }
 
 func castUint32(val any) any {
@@ -288,7 +288,7 @@ func castUint32(val any) any {
 	case float64:
 		return uint32(val)
 	}
-	return fmt.Errorf("cannot cast %T to uint32", val)
+	return fmt.Errorf("can't cast %T to uint32", val)
 }
 
 func castUint64(val any) any {
@@ -320,7 +320,7 @@ func castUint64(val any) any {
 	case float64:
 		return uint64(val)
 	}
-	return fmt.Errorf("cannot cast %T to uint64", val)
+	return fmt.Errorf("can't cast %T to uint64", val)
 }
 
 func castUintptr(val any) any {
@@ -352,7 +352,7 @@ func castUintptr(val any) any {
 	case float64:
 		return uintptr(val)
 	}
-	return fmt.Errorf("cannot cast %T to uintptr", val)
+	return fmt.Errorf("can't cast %T to uintptr", val)
 }
 
 func castFloat32(val any) any {
@@ -384,7 +384,7 @@ func castFloat32(val any) any {
 	case float64:
 		return float32(val)
 	}
-	return fmt.Errorf("cannot cast %T to float32", val)
+	return fmt.Errorf("can't cast %T to float32", val)
 }
 
 func castFloat64(val any) any {
@@ -416,5 +416,5 @@ func castFloat64(val any) any {
 	case float64:
 		return val
 	}
-	return fmt.Errorf("cannot cast %T to float64", val)
+	return fmt.Errorf("can't cast %T to float64", val)
 }

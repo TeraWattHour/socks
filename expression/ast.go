@@ -24,9 +24,62 @@ type Expression interface {
 	Location() helpers.Location
 }
 
+type DotAccess struct {
+	Token    tokenizer.Token
+	Property string
+}
+
+func (s *DotAccess) Location() helpers.Location {
+	return s.Token.Location
+}
+
+func (s *DotAccess) IsEqual(node Node) bool {
+	if dot, ok := node.(*DotAccess); ok {
+		return dot.Property == s.Property
+	}
+	return false
+}
+
+func (s *DotAccess) Kind() string {
+	return "dot_access"
+}
+
+func (s *DotAccess) Literal() string {
+	return "." + s.Property
+}
+
+func (s *DotAccess) String() string {
+	return fmt.Sprintf("[dot: %s]", s.Property)
+}
+
+type OptionalAccess struct {
+	Token tokenizer.Token
+}
+
+func (s *OptionalAccess) Location() helpers.Location {
+	return s.Token.Location
+}
+
+func (s *OptionalAccess) IsEqual(node Node) bool {
+	_, ok := node.(*OptionalAccess)
+	return ok
+}
+
+func (s *OptionalAccess) Kind() string {
+	return "optional_access"
+}
+
+func (s *OptionalAccess) Literal() string {
+	return "?."
+}
+
+func (s *OptionalAccess) String() string {
+	return "[optional]"
+}
+
 type Identifier struct {
 	Value string
-	Token *tokenizer.Token
+	Token tokenizer.Token
 }
 
 func (s *Identifier) Location() helpers.Location {
@@ -49,49 +102,11 @@ func (s *Identifier) Literal() string {
 }
 
 func (s *Identifier) String() string {
-	return fmt.Sprintf("[ident: %s]", s.Value)
-}
-
-type Builtin struct {
-	Name     string
-	Token    *tokenizer.Token
-	Args     []Expression
-	location helpers.Location
-}
-
-func (s *Builtin) Location() helpers.Location {
-	return s.location
-}
-
-func (s *Builtin) IsEqual(node Node) bool {
-	if node, ok := node.(*Builtin); ok {
-		return s.Name == node.Name
-	}
-	return false
-}
-
-func (s *Builtin) Kind() string {
-	return "builtin"
-}
-
-func (s *Builtin) Literal() string {
-	args := ""
-	for _, arg := range s.Args {
-		args += arg.Literal() + ", "
-	}
-	return fmt.Sprintf("%s(%s)", s.Name, args)
-}
-
-func (s *Builtin) String() string {
-	args := ""
-	for _, arg := range s.Args {
-		args += arg.String() + ", "
-	}
-	return fmt.Sprintf("[builtin: %s(%s)]", s.Name, args)
+	return fmt.Sprintf("[id: %s]", s.Value)
 }
 
 type Nil struct {
-	Token *tokenizer.Token
+	Token tokenizer.Token
 }
 
 func (s *Nil) Location() helpers.Location {
@@ -117,7 +132,7 @@ func (s *Nil) String() string {
 
 type Boolean struct {
 	Value bool
-	Token *tokenizer.Token
+	Token tokenizer.Token
 }
 
 func (s *Boolean) Location() helpers.Location {
@@ -144,8 +159,8 @@ func (s *Boolean) Literal() string {
 }
 
 type Integer struct {
-	Value int
-	Token *tokenizer.Token
+	Value int64
+	Token tokenizer.Token
 }
 
 func (s *Integer) Location() helpers.Location {
@@ -164,7 +179,7 @@ func (s *Integer) Kind() string {
 }
 
 func (s *Integer) String() string {
-	return fmt.Sprintf("[integer: %v]", s.Value)
+	return fmt.Sprintf("[int: %v]", s.Value)
 }
 
 func (s *Integer) Literal() string {
@@ -173,7 +188,7 @@ func (s *Integer) Literal() string {
 
 type Float struct {
 	Value float64
-	Token *tokenizer.Token
+	Token tokenizer.Token
 }
 
 func (s *Float) Location() helpers.Location {
@@ -201,7 +216,7 @@ func (s *Float) Literal() string {
 
 type Array struct {
 	Items []Expression
-	Token *tokenizer.Token
+	Token tokenizer.Token
 }
 
 func (s *Array) Location() helpers.Location {
@@ -245,8 +260,8 @@ func (s *Array) String() string {
 }
 
 type PrefixExpression struct {
-	Token  *tokenizer.Token
-	Op     string
+	Token  tokenizer.Token
+	Op     tokenizer.TokenKind
 	Action string
 
 	Right Expression
@@ -276,8 +291,8 @@ func (s *PrefixExpression) String() string {
 }
 
 type InfixExpression struct {
-	Token *tokenizer.Token
-	Op    string
+	Token tokenizer.Token
+	Op    tokenizer.TokenKind
 
 	Left  Expression
 	Right Expression
@@ -308,7 +323,7 @@ func (s *InfixExpression) String() string {
 
 type StringLiteral struct {
 	Value string
-	Token *tokenizer.Token
+	Token tokenizer.Token
 }
 
 func (s *StringLiteral) Location() helpers.Location {
@@ -335,9 +350,8 @@ func (s *StringLiteral) String() string {
 }
 
 type FunctionCall struct {
-	Called Expression
-	Args   []Expression
-	Token  *tokenizer.Token
+	Args  []Expression
+	Token tokenizer.Token
 }
 
 func (s *FunctionCall) Location() helpers.Location {
@@ -346,9 +360,6 @@ func (s *FunctionCall) Location() helpers.Location {
 
 func (s *FunctionCall) IsEqual(node Node) bool {
 	if node, ok := node.(*FunctionCall); ok {
-		if !s.Called.IsEqual(node.Called) {
-			return false
-		}
 		if len(s.Args) != len(node.Args) {
 			return false
 		}
@@ -367,7 +378,7 @@ func (s *FunctionCall) String() string {
 	for _, arg := range s.Args {
 		args += arg.String() + ", "
 	}
-	return fmt.Sprintf("[function: %s(%s)]", s.Called, args)
+	return fmt.Sprintf("[function: (%s)]", args)
 }
 
 func (s *FunctionCall) Kind() string {
@@ -379,22 +390,21 @@ func (s *FunctionCall) Literal() string {
 	for _, arg := range s.Args {
 		args += arg.Literal() + ", "
 	}
-	return fmt.Sprintf("%s(%s)", s.Called, args)
+	return fmt.Sprintf("(%s)", args)
 }
 
 type FieldAccess struct {
-	Accessed Expression
-	Index    Expression
-	Token    *tokenizer.Token
+	Index Expression
+	Token tokenizer.Token
 }
 
 func (s *FieldAccess) Location() helpers.Location {
-	return s.Accessed.Location().Combine(s.Index.Location())
+	return s.Token.Location.Combine(s.Index.Location())
 }
 
 func (s *FieldAccess) IsEqual(node Node) bool {
 	if node, ok := node.(*FieldAccess); ok {
-		return s.Accessed.IsEqual(node.Accessed) && s.Index.IsEqual(node.Index)
+		return s.Index.IsEqual(node.Index)
 	}
 	return false
 }
@@ -404,27 +414,36 @@ func (s *FieldAccess) Kind() string {
 }
 
 func (s *FieldAccess) Literal() string {
-	return fmt.Sprintf("%s[%s]", s.Accessed.Literal(), s.Index.Literal())
+	return fmt.Sprintf("[%s]", s.Index.Literal())
 }
 
 func (s *FieldAccess) String() string {
-	return fmt.Sprintf("[fieldAccess: %s[%s]]", s.Accessed.String(), s.Index.String())
+	return fmt.Sprintf("[fieldAccess: [%s]]", s.Index.String())
 }
 
 type Chain struct {
-	Token      *tokenizer.Token
-	Left       Expression
-	IsOptional bool
-	Right      *Identifier
+	Token tokenizer.Token
+	Parts helpers.Queue[Expression]
 }
 
 func (s *Chain) Location() helpers.Location {
-	return s.Left.Location().Combine(s.Right.Location())
+	if len(s.Parts) == 0 {
+		return s.Token.Location
+	}
+	return s.Parts[0].Location().Combine(s.Parts[len(s.Parts)-1].Location())
 }
 
 func (s *Chain) IsEqual(node Node) bool {
 	if node, ok := node.(*Chain); ok {
-		return s.Left.IsEqual(node.Left) && s.Right.IsEqual(node.Right) && s.IsOptional == node.IsOptional
+		if len(s.Parts) != len(node.Parts) {
+			return false
+		}
+		for i, part := range s.Parts {
+			if !part.IsEqual(node.Parts[i]) {
+				return false
+			}
+		}
+		return true
 	}
 	return false
 }
@@ -434,23 +453,25 @@ func (s *Chain) Kind() string {
 }
 
 func (s *Chain) Literal() string {
-	accessor := "."
-	if s.IsOptional {
-		accessor = "?."
+	stringified := ""
+	for _, part := range s.Parts {
+		stringified += part.Literal()
 	}
-	return fmt.Sprintf("%s%s%s", s.Left.Literal(), accessor, s.Right.Literal())
+
+	return stringified
 }
 
 func (s *Chain) String() string {
-	accessor := "."
-	if s.IsOptional {
-		accessor = "?."
+	stringified := ""
+	for _, part := range s.Parts {
+		stringified += part.String()
 	}
-	return fmt.Sprintf("[variable: %s%s%s]", s.Left.String(), accessor, s.Right.String())
+
+	return fmt.Sprintf("[chain: %s]", stringified)
 }
 
 type Ternary struct {
-	Token       *tokenizer.Token
+	Token       tokenizer.Token
 	Condition   Expression
 	Consequence Expression
 	Alternative Expression

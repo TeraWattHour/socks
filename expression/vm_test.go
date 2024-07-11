@@ -155,3 +155,40 @@ func TestVM_Errors(t *testing.T) {
 		}
 	}
 }
+
+type context map[string]any
+
+func TestChains(t *testing.T) {
+	sets := []struct {
+		string
+		context
+	}{
+		{"some?.value", map[string]any{"some": nil}},
+		{"some.value", map[string]any{"some": 123}},
+	}
+	for _, set := range sets {
+		file := helpers.File{"debug.txt", fmt.Sprintf("{{ %s }}", set.string)}
+		elements, err := tokenizer.Tokenize("debug.txt", fmt.Sprintf("{{ %s }}", set.string))
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+		expr, err := Parse(file, elements[0].(*tokenizer.Mustache).Tokens)
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+
+		compiler := NewCompiler(file, expr.Expr)
+		chunk, err := compiler.Compile()
+		if err != nil {
+			t.Errorf("unexpected error: %v", err)
+			return
+		}
+
+		dumpChunk(chunk)
+
+		res, err := NewVM(file, chunk).Run(set.context)
+		fmt.Println(res, err)
+	}
+}

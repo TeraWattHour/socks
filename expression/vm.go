@@ -88,40 +88,41 @@ outerLoop:
 				}
 				vm.stack.Push(value.FieldByName(index).Interface())
 			default:
-				return nil, vm.error(fmt.Sprintf("expected array, struct or map, got %T", _value), lookup.Accessed.Location())
+				panic("implement me")
+				//return nil, vm.error(fmt.Sprintf("expected array, struct or map, got %T", _value), lookup.Accessed.Location())
 			}
-		case OpBuiltin1:
-			function := builtinsOne[vm.chunk.Instructions[vm.ip+1]]
-			arg := vm.stack.Pop()
-			result := function(arg)
-
-			if general, ok := result.(error); ok {
-				return nil, vm.error(general.Error(), vm.chunk.Lookups[vm.ip].(*Builtin).Args[0].Location())
-			}
-
-			vm.stack.Push(result)
-			vm.ip++
-		case OpBuiltin2:
-			function := builtinsTwo[vm.chunk.Instructions[vm.ip+1]]
-			arg2 := vm.stack.Pop()
-			arg1 := vm.stack.Pop()
-			result := function(arg1, arg2)
-			if general, ok := result.(error); ok {
-				return nil, vm.error(general.Error(), expressionsLocation(vm.chunk.Lookups[vm.ip].(*Builtin).Args))
-			}
-			vm.stack.Push(result)
-			vm.ip++
-		case OpBuiltin3:
-			function := builtinsThree[vm.chunk.Instructions[vm.ip+1]]
-			arg3 := vm.stack.Pop()
-			arg2 := vm.stack.Pop()
-			arg1 := vm.stack.Pop()
-			result := function(arg1, arg2, arg3)
-			if general, ok := result.(error); ok {
-				return nil, vm.error(general.Error(), expressionsLocation(vm.chunk.Lookups[vm.ip].(*Builtin).Args))
-			}
-			vm.stack.Push(result)
-			vm.ip++
+		//case OpBuiltin1:
+		//	function := builtinsOne[vm.chunk.Instructions[vm.ip+1]]
+		//	arg := vm.stack.Pop()
+		//	result := function(arg)
+		//
+		//	if general, ok := result.(error); ok {
+		//		return nil, vm.error(general.Error(), vm.chunk.Lookups[vm.ip].(*Builtin).Args[0].Location())
+		//	}
+		//
+		//	vm.stack.Push(result)
+		//	vm.ip++
+		//case OpBuiltin2:
+		//	function := builtinsTwo[vm.chunk.Instructions[vm.ip+1]]
+		//	arg2 := vm.stack.Pop()
+		//	arg1 := vm.stack.Pop()
+		//	result := function(arg1, arg2)
+		//	if general, ok := result.(error); ok {
+		//		return nil, vm.error(general.Error(), expressionsLocation(vm.chunk.Lookups[vm.ip].(*Builtin).Args))
+		//	}
+		//	vm.stack.Push(result)
+		//	vm.ip++
+		//case OpBuiltin3:
+		//	function := builtinsThree[vm.chunk.Instructions[vm.ip+1]]
+		//	arg3 := vm.stack.Pop()
+		//	arg2 := vm.stack.Pop()
+		//	arg1 := vm.stack.Pop()
+		//	result := function(arg1, arg2, arg3)
+		//	if general, ok := result.(error); ok {
+		//		return nil, vm.error(general.Error(), expressionsLocation(vm.chunk.Lookups[vm.ip].(*Builtin).Args))
+		//	}
+		//	vm.stack.Push(result)
+		//	vm.ip++
 		case OpArray:
 			count := vm.chunk.Instructions[vm.ip+1]
 			items := make([]any, count)
@@ -142,7 +143,8 @@ outerLoop:
 			fn := vm.stack.Pop()
 			reflectedFunction := reflect.ValueOf(fn)
 			if !reflectedFunction.IsValid() || reflectedFunction.Kind() != reflect.Func {
-				vm.currentError = vm.error(fmt.Sprintf("expected function, got %T", fn), vm.chunk.Lookups[vm.ip-1].(*FunctionCall).Called.Location())
+				panic("implement me")
+				//vm.currentError = vm.error(fmt.Sprintf("expected function, got %T", fn), vm.chunk.Lookups[vm.ip-1].(*FunctionCall).Called.Location())
 				break
 			}
 			results := reflectedFunction.Call(args)

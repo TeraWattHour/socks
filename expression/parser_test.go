@@ -9,72 +9,120 @@ import (
 
 func TestParse(t *testing.T) {
 	tests := []struct {
-		name    string
-		expr    string
-		want    Expression
-		wantErr bool
+		name string
+		expr string
+		want Expression
 	}{
 		{
-			name: "chaining (just identifiers)",
-			expr: "a.b.c",
-			want: &Chain{
-				Left: &Chain{
-					Left:  &Identifier{Value: "a"},
-					Right: &Identifier{Value: "b"},
+			name: "arithmetics",
+			expr: "1 + 2 * 3 ** 3 * (2 + 4)",
+			want: &InfixExpression{
+				Left: &Integer{Value: 1},
+				Op:   tokenizer.TokPlus,
+				Right: &InfixExpression{
+					Left: &InfixExpression{
+						Left: &Integer{Value: 2},
+						Op:   tokenizer.TokAsterisk,
+						Right: &InfixExpression{
+							Left:  &Integer{Value: 3},
+							Op:    tokenizer.TokPower,
+							Right: &Integer{Value: 3},
+						},
+					},
+					Op: tokenizer.TokAsterisk,
+					Right: &InfixExpression{
+						Left:  &Integer{Value: 2},
+						Op:    tokenizer.TokPlus,
+						Right: &Integer{Value: 4},
+					},
 				},
-				Right: &Identifier{Value: "c"},
 			},
-			wantErr: false,
+		},
+		{
+			name: "chaining (just identifiers)",
+			expr: "a.b(1, 2, 3+4).c",
+			want: &Chain{
+				Parts: []Expression{
+					&Identifier{Value: "a"},
+					&DotAccess{Property: "b"},
+					&FunctionCall{Args: []Expression{
+						&Integer{Value: 1},
+						&Integer{Value: 2},
+						&InfixExpression{Left: &Integer{Value: 3}, Op: tokenizer.TokPlus, Right: &Integer{Value: 4}},
+					}},
+					&DotAccess{Property: "c"},
+				},
+			},
 		},
 		{
 			name: "chaining (combined with array access)",
 			expr: "a.b[1].c.d",
 			want: &Chain{
-				Left: &Chain{
-					Left: &FieldAccess{
-						Accessed: &Chain{
-							Left:  &Identifier{Value: "a"},
-							Right: &Identifier{Value: "b"},
-						},
-						Index: &Integer{Value: 1},
-					},
-					Right: &Identifier{Value: "c"},
+				Parts: []Expression{
+					&Identifier{Value: "a"},
+					&DotAccess{Property: "b"},
+					&FieldAccess{Index: &Integer{Value: 1}},
+					&DotAccess{Property: "c"},
+					&DotAccess{Property: "d"},
 				},
-				Right: &Identifier{Value: "d"},
 			},
-			wantErr: false,
 		},
 		{
 			name: "chaining (combined with method calls)",
-			expr: "a.b().c[2]",
-			want: &FieldAccess{
-				Accessed: &Chain{
-					Left: &FunctionCall{
-						Called: &Chain{
-							Left:  &Identifier{Value: "a"},
-							Right: &Identifier{Value: "b"},
-						},
+			expr: "a.b(1).c[function(23.2, abc())].d",
+			want: &Chain{
+				Parts: []Expression{
+					&Identifier{Value: "a"},
+					&DotAccess{Property: "b"},
+					&FunctionCall{Args: []Expression{&Integer{Value: 1}}},
+					&DotAccess{Property: "c"},
+					&FieldAccess{Index: &Chain{
+						Parts: []Expression{
+							&Identifier{Value: "function"},
+							&FunctionCall{Args: []Expression{&Float{Value: 23.2}, &Chain{Parts: []Expression{
+								&Identifier{Value: "abc"},
+								&FunctionCall{},
+							}}},
+							},
+						}},
 					},
-					Right: &Identifier{Value: "c"},
+					&DotAccess{Property: "d"},
 				},
-				Index: &Integer{Value: 2},
 			},
 		},
 		{
 			name: "recognize builtins",
-			expr: "functionCall().int(int(123))",
-			want: &FunctionCall{
-				Called: &Chain{
-					Left: &FunctionCall{
-						Called: &Identifier{Value: "functionCall"},
-					},
-					Right: &Identifier{Value: "int"},
+			expr: "int(int(123))",
+			want: &Chain{
+				Parts: []Expression{
+					&Identifier{Value: "int"},
+					&FunctionCall{Args: []Expression{
+						&Chain{Parts: []Expression{&Identifier{Value: "int"}, &FunctionCall{Args: []Expression{&Integer{Value: 123}}}}},
+					}},
 				},
-				Args: []Expression{
-					&Builtin{
-						Name: "int",
+			},
+		},
+		{
+			name: "array access",
+			expr: "a[1]?.(a[a], b(), \"test\"[1])",
+			want: &Chain{
+				Parts: []Expression{
+					&Identifier{Value: "a"},
+					&FieldAccess{Index: &Integer{Value: 1}},
+					&OptionalAccess{},
+					&FunctionCall{
 						Args: []Expression{
-							&Integer{Value: 123},
+							&Chain{
+								Parts: []Expression{
+									&Identifier{Value: "a"},
+									&FieldAccess{Index: &Identifier{Value: "a"}},
+								},
+							},
+							&Chain{Parts: []Expression{&Identifier{Value: "b"}, &FunctionCall{}}},
+							&Chain{Parts: []Expression{
+								&StringLiteral{Value: "test"},
+								&FieldAccess{Index: &Integer{Value: 1}},
+							}},
 						},
 					},
 				},
@@ -84,13 +132,21 @@ func TestParse(t *testing.T) {
 			name: "elvis operator",
 			expr: "a ?: b * 2 ?: c + 1",
 			want: &InfixExpression{
-				Left: &InfixExpression{Left: &Identifier{Value: "a"}, Op: tokenizer.TokElvis, Right: &InfixExpression{
-					Left:  &Identifier{Value: "b"},
-					Op:    tokenizer.TokAsterisk,
-					Right: &Integer{Value: 2},
-				}},
-				Op:    tokenizer.TokElvis,
-				Right: &InfixExpression{Left: &Identifier{Value: "c"}, Op: tokenizer.TokPlus, Right: &Integer{Value: 1}},
+				Left: &Identifier{Value: "a"},
+				Op:   tokenizer.TokElvis,
+				Right: &InfixExpression{
+					Left: &InfixExpression{
+						Left:  &Identifier{Value: "b"},
+						Op:    tokenizer.TokAsterisk,
+						Right: &Integer{Value: 2},
+					},
+					Op: tokenizer.TokElvis,
+					Right: &InfixExpression{
+						Left:  &Identifier{Value: "c"},
+						Op:    tokenizer.TokPlus,
+						Right: &Integer{Value: 1},
+					},
+				},
 			},
 		},
 		{
@@ -104,7 +160,6 @@ func TestParse(t *testing.T) {
 					Right: &Identifier{Value: "b"},
 				},
 			},
-			false,
 		},
 		{
 			"not precedence 2",
@@ -117,7 +172,15 @@ func TestParse(t *testing.T) {
 				Op:    tokenizer.TokIn,
 				Right: &Identifier{Value: "b"},
 			},
-			false,
+		},
+		{
+			"array literal",
+			"[1, 2, 3][1]",
+			&Chain{
+				Parts: []Expression{
+					&Array{Items: []Expression{&Integer{Value: 1}, &Integer{Value: 2}, &Integer{Value: 3}}},
+					&FieldAccess{Index: &Integer{Value: 1}},
+				}},
 		},
 		{
 			"ternary",
@@ -127,47 +190,82 @@ func TestParse(t *testing.T) {
 				Consequence: &InfixExpression{Left: &Identifier{Value: "b"}, Op: tokenizer.TokPower, Right: &Integer{Value: 2}},
 				Alternative: &Identifier{Value: "c"},
 			},
-			false,
 		},
 		{
 			"fallback chain",
 			"(a ?: b)?.c",
 			&Chain{
-				Left: &InfixExpression{
-					Left:  &Identifier{Value: "a"},
-					Op:    tokenizer.TokElvis,
-					Right: &Identifier{Value: "b"},
+				Parts: []Expression{
+					&InfixExpression{
+						Left:  &Identifier{Value: "a"},
+						Op:    tokenizer.TokElvis,
+						Right: &Identifier{Value: "b"},
+					},
+					&OptionalAccess{},
+					&Identifier{Value: "c"},
 				},
-				IsOptional: true,
-				Right:      &Identifier{Value: "c"},
 			},
-			false,
+		},
+		{
+			"elvis operator",
+			"false ? a ?: b == b : 123",
+			&Ternary{
+				Condition: &Boolean{Value: false},
+				Consequence: &InfixExpression{
+					Left: &Identifier{Value: "a"},
+					Op:   tokenizer.TokElvis,
+					Right: &InfixExpression{
+						Left:  &Identifier{Value: "b"},
+						Op:    tokenizer.TokEq,
+						Right: &Identifier{Value: "b"},
+					},
+				},
+				Alternative: &Integer{Value: 123},
+			},
+		},
+		{
+			"elvis and chaining",
+			"a ?: b.c",
+			&InfixExpression{
+				Left: &Identifier{Value: "a"},
+				Op:   tokenizer.TokElvis,
+				Right: &Chain{
+					Parts: []Expression{
+						&Identifier{Value: "b"},
+						&DotAccess{Property: "c"},
+					},
+				},
+			},
 		},
 		{
 			"nil comparison",
-			"a == nil",
-			&InfixExpression{
-				Left:  &Identifier{Value: "a"},
-				Op:    tokenizer.TokEq,
-				Right: &Nil{},
+			"a == nil ? false : true",
+			&Ternary{
+				Condition: &InfixExpression{
+					Left:  &Identifier{Value: "a"},
+					Op:    tokenizer.TokEq,
+					Right: &Nil{},
+				},
+				Consequence: &Boolean{Value: false},
+				Alternative: &Boolean{Value: true},
 			},
-			false,
 		},
 	}
 	for _, tt := range tests {
 		elements, err := tokenizer.Tokenize("debug.txt", fmt.Sprintf("{{ %s }}", tt.expr))
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
+			return
+		}
+
+		got, err := Parse(helpers.File{"debug.txt", fmt.Sprintf("{{ %s }}", tt.expr)}, elements[0].(*tokenizer.Mustache).Tokens)
+		if err != nil {
+			t.Errorf("unexpected error:\n%s", err)
 			continue
 		}
-		p := newParser(helpers.File{"debug.txt", fmt.Sprintf("{{ %s }}", tt.expr)}, elements[0].(*tokenizer.Mustache).Tokens)
-		got, err := p.parse()
-		if (err != nil) != tt.wantErr {
-			t.Errorf("%q. parse() error = %v, wantErr %v", tt.name, err, tt.wantErr)
-			continue
-		}
+
 		if !got.Expr.IsEqual(tt.want) {
-			t.Errorf("%q, got:\n%s\nexpected:\n%s\n", tt.name, got, tt.want)
+			t.Errorf("%q, got:\n%s\nexpected:\n%s\n", tt.name, got.Expr.Literal(), tt.want.Literal())
 		}
 	}
 }

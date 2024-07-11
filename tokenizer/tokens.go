@@ -1,49 +1,96 @@
 package tokenizer
 
+type TokenKind int
+
+func (t TokenKind) String() string {
+	if t < 0 || int(t) >= len(TokenKinds) {
+		panic("invalid token kind, malformed token table")
+	}
+
+	return TokenKinds[t]
+}
+
 const (
-	TokIdent   = "identifier"
-	TokNumeric = "numeric"
-
-	TokString = "string"
-	TokComma  = "comma"
-	TokAt     = "at"
-
-	TokLparen = "lparen"
-	TokRparen = "rparen"
-	TokLbrack = "lbrack"
-	TokRbrack = "rbrack"
-
-	TokLt  = "lt"
-	TokGt  = "gt"
-	TokEq  = "eq"
-	TokNeq = "neq"
-	TokLte = "lte"
-	TokGte = "gte"
-
-	TokBang          = "bang"
-	TokPlus          = "plus"
-	TokMinus         = "minus"
-	TokAsterisk      = "asterisk"
-	TokSlash         = "slash"
-	TokModulo        = "modulo"
-	TokPower         = "power"
-	TokColon         = "colon"
-	TokQuestion      = "question"
-	TokDot           = "dot"
-	TokOptionalChain = "optional_chain"
-	TokElvis         = "elvis"
-
-	TokIn    = "in"
-	TokTrue  = "true"
-	TokNot   = "not"
-	TokFalse = "false"
-	TokAnd   = "and"
-	TokOr    = "or"
-	TokWith  = "with"
-	TokNil   = "nil"
+	TokEmpty TokenKind = iota
+	TokEof
+	TokIdent
+	TokNumeric
+	TokString
+	TokComma
+	TokAt
+	TokLparen
+	TokRparen
+	TokLbrack
+	TokRbrack
+	TokLt
+	TokGt
+	TokEq
+	TokNeq
+	TokLte
+	TokGte
+	TokBang
+	TokPlus
+	TokMinus
+	TokAsterisk
+	TokSlash
+	TokModulo
+	TokPower
+	TokColon
+	TokQuestion
+	TokDot
+	TokOptionalChain
+	TokElvis
+	TokIn
+	TokTrue
+	TokNot
+	TokFalse
+	TokAnd
+	TokOr
+	TokWith
+	TokNil
 )
 
-var Keywords = []string{
+var TokenKinds = []string{
+	"empty",
+	"eof",
+	"identifier",
+	"numeric",
+	"string",
+	"comma",
+	"at",
+	"lparen",
+	"rparen",
+	"lbrack",
+	"rbrack",
+	"lt",
+	"gt",
+	"eq",
+	"neq",
+	"lte",
+	"gte",
+	"bang",
+	"plus",
+	"minus",
+	"asterisk",
+	"slash",
+	"modulo",
+	"power",
+	"colon",
+	"question",
+	"dot",
+	"optional_chain",
+	"elvis",
+	"in",
+	"true",
+	"not",
+	"false",
+	"and",
+	"or",
+	"with",
+	"nil",
+}
+
+var Keywords = []TokenKind{
 	TokIn,
 	TokTrue,
 	TokFalse,

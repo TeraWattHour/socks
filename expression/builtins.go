@@ -160,12 +160,6 @@ func negate(val any) any {
 		return -val
 	case float64:
 		return -val
-	case string:
-		runes := []rune(val)
-		for i, j := 0, len(runes)-1; i < j; i, j = i+1, j-1 {
-			runes[i], runes[j] = runes[j], runes[i]
-		}
-		return string(runes)
 	}
-	return fmt.Errorf("cannot negate %T", val)
+	return fmt.Errorf("can't negate %T", val)
 }

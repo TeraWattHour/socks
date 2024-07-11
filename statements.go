@@ -67,7 +67,7 @@ func (expr *Expression) Evaluate(e *evaluator, context Context) (err error) {
 
 	e.i++
 
-	return
+	return err
 }
 
 func (expr *Expression) IsClosable() bool {
