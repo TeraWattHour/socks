@@ -5,24 +5,7 @@ import (
 	"reflect"
 )
 
-var builtinTypes = map[string][]string{
-	"float32": {"Numeric", "float32"},
-	"float64": {"Numeric", "float64"},
-	"int":     {"Numeric", "int"},
-	"int8":    {"Numeric", "int8"},
-	"int16":   {"Numeric", "int16"},
-	"int32":   {"Numeric", "int32"},
-	"int64":   {"Numeric", "int64"},
-	"uint":    {"Numeric", "uint"},
-	"uint8":   {"Numeric", "uint8"},
-	"uint16":  {"Numeric", "uint16"},
-	"uint32":  {"Numeric", "uint32"},
-	"uint64":  {"Numeric", "uint64"},
-	"uintptr": {"Numeric", "uintptr"},
-	"len":     {"Countable", "len"},
-}
-
-var builtinsOne = map[string]func(any) any{
+var builtinsOne = map[string]any{
 	"float32": castFloat32,
 	"float64": castFloat64,
 	"fnt":     castInt,
@@ -37,6 +20,7 @@ var builtinsOne = map[string]func(any) any{
 	"uint64":  castUint64,
 	"uintptr": castUintptr,
 	"length":  length,
+	"range":   _range,
 }
 
 var builtinNames = reflect.ValueOf(builtinsOne).MapKeys()
@@ -53,29 +37,29 @@ func length(_val any) any {
 	return reflect.ValueOf(_val).Len()
 }
 
-//func rangeArray(_start, _end, _step any) any {
-//	start, startOk := castInt(_start).(int)
-//	end, endOk := castInt(_end).(int)
-//	step, stepOk := castInt(_step).(int)
-//	if !startOk || !endOk || !stepOk {
-//		return fmt.Errorf("call to range(%T, %T, %T) -> []int does not match the signature of rangeStep(Integer, Integer, Integer = 1) -> []int", _start, _end, _step)
-//	}
-//
-//	if step == 0 {
-//		return fmt.Errorf("step cannot be 0")
-//	}
-//	if start < end && step < 0 {
-//		return fmt.Errorf("step cannot be negative while start < end")
-//	}
-//	if start > end && step > 0 {
-//		return fmt.Errorf("step cannot be positive while start > end")
-//	}
-//	var result []int
-//	for i := start; i < end; i += step {
-//		result = append(result, i)
-//	}
-//	return result
-//}
+func _range(_start, _end, _step any) any {
+	start, startOk := castInt(_start).(int)
+	end, endOk := castInt(_end).(int)
+	step, stepOk := castInt(_step).(int)
+	if !startOk || !endOk || !stepOk {
+		return fmt.Errorf("call to range(%T, %T, %T) -> []int does not match the signature of rangeStep(Integer, Integer, Integer = 1) -> []int", _start, _end, _step)
+	}
+
+	if step == 0 {
+		return fmt.Errorf("step cannot be 0")
+	}
+	if start < end && step < 0 {
+		return fmt.Errorf("step cannot be negative while start < end")
+	}
+	if start > end && step > 0 {
+		return fmt.Errorf("step cannot be positive while start > end")
+	}
+	var result []int
+	for i := start; i < end; i += step {
+		result = append(result, i)
+	}
+	return result
+}
 
 func negate(val any) any {
 	switch val := val.(type) {

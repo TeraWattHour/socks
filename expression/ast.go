@@ -159,7 +159,7 @@ func (s *Boolean) Literal() string {
 }
 
 type Integer struct {
-	Value int64
+	Value int
 	Token tokenizer.Token
 }
 

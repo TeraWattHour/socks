@@ -14,17 +14,15 @@ type Chunk struct {
 }
 
 type Compiler struct {
-	file           helpers.File
-	expr           Expression
-	chunk          Chunk
-	optionalChains map[Expression][]int
+	file  helpers.File
+	expr  Expression
+	chunk Chunk
 }
 
 func NewCompiler(file helpers.File, expr Expression) *Compiler {
 	return &Compiler{
-		file:           file,
-		expr:           expr,
-		optionalChains: map[Expression][]int{},
+		file: file,
+		expr: expr,
 		chunk: Chunk{
 			Instructions: make([]int, 0),
 			Constants:    make([]any, 0),
@@ -34,17 +32,17 @@ func NewCompiler(file helpers.File, expr Expression) *Compiler {
 }
 
 func (c *Compiler) Compile() (Chunk, error) {
-	if err := c.compile(c.expr, c.expr); err != nil {
+	if err := c.compile(c.expr); err != nil {
 		return Chunk{}, err
 	}
 	return c.chunk, nil
 }
 
-func (c *Compiler) compile(expr Expression, scope Expression) error {
+func (c *Compiler) compile(expr Expression) error {
 	switch expr := expr.(type) {
 	case *Array:
 		for _, item := range expr.Items {
-			if err := c.compile(item, item); err != nil {
+			if err := c.compile(item); err != nil {
 				return err
 			}
 		}
@@ -76,23 +74,23 @@ func (c *Compiler) compile(expr Expression, scope Expression) error {
 		for i, part := range expr.Parts {
 			switch part := part.(type) {
 			case *FieldAccess:
-				if err := c.compile(part.Index, part.Index); err != nil {
+				if err := c.compile(part.Index); err != nil {
 					return err
 				}
-				c.emit(OpArrayAccess)
+				c.emit(OpPropertyAccess)
 				c.addLookup(part)
 			case *DotAccess:
 				c.emit(OpChain)
 				c.addLookup(part)
 				c.emit(c.createConstant(part.Property))
 			case *OptionalAccess:
-				c.emit(OpOptionalChaining)
+				c.emit(OpOptionalChain)
 				c.addLookup(part)
 				optionalIndices = append(optionalIndices, len(c.chunk.Instructions))
 				c.emit(-1)
 			case *FunctionCall:
 				for _, arg := range part.Args {
-					if err := c.compile(arg, arg); err != nil {
+					if err := c.compile(arg); err != nil {
 						return err
 					}
 				}
@@ -102,7 +100,7 @@ func (c *Compiler) compile(expr Expression, scope Expression) error {
 				c.emit(len(part.Args))
 			case *Identifier:
 				if i == 0 {
-					if err := c.compile(part, part); err != nil {
+					if err := c.compile(part); err != nil {
 						return err
 					}
 				} else {
@@ -111,40 +109,40 @@ func (c *Compiler) compile(expr Expression, scope Expression) error {
 					c.emit(c.createConstant(part.Value))
 				}
 			default:
-				if err := c.compile(part, part); err != nil {
+				if err := c.compile(part); err != nil {
 					return err
 				}
 			}
 		}
 
 		for _, index := range optionalIndices {
-			c.chunk.Instructions[index] = len(c.chunk.Instructions)
+			c.chunk.Instructions[index] = len(c.chunk.Instructions) - 1
 		}
 	case *Ternary:
-		if err := c.compile(expr.Condition, expr.Condition); err != nil {
+		if err := c.compile(expr.Condition); err != nil {
 			return err
 		}
 		c.emit(OpTernary)
 		start := len(c.chunk.Instructions)
 		c.emit(-1)
-		if err := c.compile(expr.Consequence, expr.Consequence); err != nil {
+		if err := c.compile(expr.Consequence); err != nil {
 			return err
 		}
 		c.emit(OpJmp)
 		c.emit(-1)
 		c.chunk.Instructions[start] = len(c.chunk.Instructions) - start
 		start = len(c.chunk.Instructions) - 1
-		if err := c.compile(expr.Alternative, expr.Alternative); err != nil {
+		if err := c.compile(expr.Alternative); err != nil {
 			return err
 		}
 		c.chunk.Instructions[start] = len(c.chunk.Instructions) - start
 	case *InfixExpression:
 		var err error
-		if err = c.compile(expr.Left, expr.Left); err != nil {
+		if err = c.compile(expr.Left); err != nil {
 			return err
 		}
 		if expr.Op != tokenizer.TokElvis {
-			if err = c.compile(expr.Right, expr.Right); err != nil {
+			if err = c.compile(expr.Right); err != nil {
 				return err
 			}
 		}
@@ -184,19 +182,19 @@ func (c *Compiler) compile(expr Expression, scope Expression) error {
 			c.emit(OpElvis)
 			start := len(c.chunk.Instructions)
 			c.emit(-1)
-			if err = c.compile(expr.Right, expr.Right); err != nil {
+			if err = c.compile(expr.Right); err != nil {
 				return err
 			}
 			c.chunk.Instructions[start] = len(c.chunk.Instructions) - start
 		}
 		c.addLookup(expr)
 	case *PrefixExpression:
-		if err := c.compile(expr.Right, expr.Right); err != nil {
+		if err := c.compile(expr.Right); err != nil {
 			return err
 		}
 
 		switch expr.Op {
-		case tokenizer.TokNot:
+		case tokenizer.TokNot, tokenizer.TokBang:
 			c.emit(OpNot)
 		case tokenizer.TokMinus:
 			c.emit(OpNegate)
@@ -204,21 +202,7 @@ func (c *Compiler) compile(expr Expression, scope Expression) error {
 		c.addLookup(expr)
 	}
 
-	if expr == scope {
-		c.updateChainJumps(scope)
-	}
-
 	return nil
-}
-
-func (c *Compiler) updateChainJumps(expr Expression) {
-	if c.optionalChains[expr] == nil {
-		return
-	}
-	for _, ip := range c.optionalChains[expr] {
-		c.chunk.Instructions[ip] = len(c.chunk.Instructions)
-	}
-	delete(c.optionalChains, expr)
 }
 
 func (c *Compiler) emit(op int) {

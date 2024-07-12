@@ -1,10 +1,9 @@
 package expression
 
-// BEGIN OPCODES
 const (
 	OpConstant = iota
 	OpJmp
-	OpOptionalChaining
+	OpOptionalChain
 	OpNil
 	OpEq
 	OpNeq
@@ -24,57 +23,44 @@ const (
 	OpModulo
 	OpNot
 	OpNegate
-	OpArrayAccess
+	OpPropertyAccess
 	OpChain
-	OpOptionalChain
 	OpArray
 	OpIn
 	OpGet
 	OpCall
-	OpBuiltin1
-	OpBuiltin2
-	OpBuiltin3
 	OpPop
 
 	OpCodeCount
 )
 
-// END OPCODES
-
-// BEGIN LOOKUP
 var opcodesLookup = map[int]string{
-	OpConstant:         "Constant",
-	OpOptionalChaining: "OptionalChaining",
-	OpJmp:              "Jmp",
-	OpPop:              "Pop",
-	OpEq:               "Eq",
-	OpNeq:              "Neq",
-	OpGt:               "Gt",
-	OpGte:              "Gte",
-	OpLt:               "Lt",
-	OpLte:              "Lte",
-	OpAdd:              "Add",
-	OpSubtract:         "Subtract",
-	OpMultiply:         "Multiply",
-	OpDivide:           "Divide",
-	OpPower:            "Exponent",
-	OpElvis:            "Elvis",
-	OpTernary:          "Ternary",
-	OpAnd:              "And",
-	OpOr:               "Or",
-	OpNot:              "Not",
-	OpNegate:           "Negate",
-	OpArrayAccess:      "FieldAccess",
-	OpChain:            "Chain",
-	OpOptionalChain:    "OptionalChain",
-	OpArray:            "Array",
-	OpIn:               "In",
-	OpGet:              "Get",
-	OpCall:             "Call",
-	OpBuiltin1:         "Builtin1",
-	OpBuiltin2:         "Builtin2",
-	OpBuiltin3:         "Builtin3",
-	OpNil:              "Nil",
+	OpConstant:       "Constant",
+	OpJmp:            "Jmp",
+	OpPop:            "Pop",
+	OpEq:             "Eq",
+	OpNeq:            "Neq",
+	OpGt:             "Gt",
+	OpGte:            "Gte",
+	OpLt:             "Lt",
+	OpLte:            "Lte",
+	OpAdd:            "Add",
+	OpSubtract:       "Subtract",
+	OpMultiply:       "Multiply",
+	OpDivide:         "Divide",
+	OpPower:          "Exponent",
+	OpElvis:          "Elvis",
+	OpTernary:        "Ternary",
+	OpAnd:            "And",
+	OpOr:             "Or",
+	OpNot:            "Not",
+	OpNegate:         "Negate",
+	OpChain:          "Chain",
+	OpOptionalChain:  "OptionalChain",
+	OpPropertyAccess: "PropertyAccess",
+	OpArray:          "Array",
+	OpIn:             "In",
+	OpGet:            "Get",
+	OpCall:           "Call",
+	OpNil:            "Nil",
 }
-
-// END LOOKUP

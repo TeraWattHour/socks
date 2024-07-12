@@ -11,7 +11,6 @@ type VM struct {
 	file         helpers.File
 	chunk        Chunk
 	stack        helpers.Stack[any]
-	funcs        map[string]func(any) any
 	ip           int
 	currentError error
 }
@@ -19,7 +18,6 @@ type VM struct {
 func NewVM(file helpers.File, chunk Chunk) *VM {
 	return &VM{
 		file:  file,
-		funcs: builtinsOne,
 		chunk: chunk,
 		stack: []any{},
 	}
@@ -38,12 +36,12 @@ outerLoop:
 			property := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]].(string)
 			vm.stack.Push(vm.accessProperty(object, property))
 			vm.ip++
-		case OpOptionalChaining:
+		case OpOptionalChain:
 			object := vm.stack.Pop()
 			if object == nil {
 				vm.stack.Push(nil)
 				jump := vm.chunk.Instructions[vm.ip+1]
-				vm.ip += jump
+				vm.ip = jump
 			} else {
 				vm.stack.Push(object)
 				vm.ip++
@@ -70,7 +68,7 @@ outerLoop:
 		case OpJmp:
 			jump := vm.chunk.Instructions[vm.ip+1]
 			vm.ip += jump
-		case OpArrayAccess:
+		case OpPropertyAccess:
 			_index := vm.stack.Pop()
 			_value := vm.stack.Pop()
 			value := reflect.ValueOf(_value)
@@ -134,7 +132,7 @@ outerLoop:
 			ident := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]].(string)
 			if env[ident] != nil {
 				vm.stack.Push(env[ident])
-			} else if f, ok := vm.funcs[ident]; ok {
+			} else if f, ok := builtinsOne[ident]; ok {
 				vm.stack.Push(f)
 			} else {
 				vm.stack.Push(nil)

@@ -207,6 +207,30 @@ func TestParse(t *testing.T) {
 			},
 		},
 		{
+			"elvis I",
+			"voidMember?.method() ?: 1 != 1 ?: 420",
+			&InfixExpression{
+				Left: &Chain{
+					Parts: []Expression{
+						&Identifier{Value: "voidMember"},
+						&OptionalAccess{},
+						&Identifier{Value: "method"},
+						&FunctionCall{Args: []Expression{}},
+					},
+				},
+				Op: tokenizer.TokElvis,
+				Right: &InfixExpression{
+					Left: &InfixExpression{
+						Left:  &Integer{Value: 1},
+						Op:    tokenizer.TokNeq,
+						Right: &Integer{Value: 1},
+					},
+					Op:    tokenizer.TokElvis,
+					Right: &Integer{Value: 420},
+				},
+			},
+		},
+		{
 			"elvis operator",
 			"false ? a ?: b == b : 123",
 			&Ternary{

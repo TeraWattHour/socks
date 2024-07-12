@@ -439,7 +439,7 @@ func (p *parser) numeric(token tokenizer.Token) (Expression, error) {
 		return nil, p.error("malformed integer literal", token.Location)
 	}
 
-	return &Integer{Token: token, Value: i64}, nil
+	return &Integer{Token: token, Value: int(i64)}, nil
 }
 
 func (p *parser) nextIs(kinds ...tokenizer.TokenKind) bool {
