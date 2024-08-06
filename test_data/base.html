@@ -1,6 +1,3 @@
-@extend("superbase.html")
-@define("content")
-
 <head>
     <meta charset="UTF-8">
     <meta name="viewport"
@@ -9,8 +6,11 @@
     <title>Hello from {{ Server }}</title>
 </head>
 <body>
-@slot("content") <h1>default content</h1> @endslot
-@slot("footer") <h1>default footer</h1> @endslot 
+    <v-slot name="header" />
+    <v-slot name="content">
+        <h1>default content</h1>
+    </v-slot>
+    <v-slot name="footer">
+        <h2>default footer</h2>
+    </v-slot>
 </body>
-
-@enddefine

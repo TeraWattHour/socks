@@ -3,7 +3,6 @@ package expression
 import (
 	"fmt"
 	"github.com/terawatthour/socks/internal/helpers"
-	"github.com/terawatthour/socks/tokenizer"
 	"strings"
 )
 
@@ -25,7 +24,7 @@ type Expression interface {
 }
 
 type DotAccess struct {
-	Token    tokenizer.Token
+	Token    Token
 	Property string
 }
 
@@ -53,7 +52,7 @@ func (s *DotAccess) String() string {
 }
 
 type OptionalAccess struct {
-	Token tokenizer.Token
+	Token Token
 }
 
 func (s *OptionalAccess) Location() helpers.Location {
@@ -79,7 +78,7 @@ func (s *OptionalAccess) String() string {
 
 type Identifier struct {
 	Value string
-	Token tokenizer.Token
+	Token Token
 }
 
 func (s *Identifier) Location() helpers.Location {
@@ -106,7 +105,7 @@ func (s *Identifier) String() string {
 }
 
 type Nil struct {
-	Token tokenizer.Token
+	Token Token
 }
 
 func (s *Nil) Location() helpers.Location {
@@ -132,7 +131,7 @@ func (s *Nil) String() string {
 
 type Boolean struct {
 	Value bool
-	Token tokenizer.Token
+	Token Token
 }
 
 func (s *Boolean) Location() helpers.Location {
@@ -160,7 +159,7 @@ func (s *Boolean) Literal() string {
 
 type Integer struct {
 	Value int
-	Token tokenizer.Token
+	Token Token
 }
 
 func (s *Integer) Location() helpers.Location {
@@ -188,7 +187,7 @@ func (s *Integer) Literal() string {
 
 type Float struct {
 	Value float64
-	Token tokenizer.Token
+	Token Token
 }
 
 func (s *Float) Location() helpers.Location {
@@ -216,7 +215,7 @@ func (s *Float) Literal() string {
 
 type Array struct {
 	Items []Expression
-	Token tokenizer.Token
+	Token Token
 }
 
 func (s *Array) Location() helpers.Location {
@@ -260,8 +259,8 @@ func (s *Array) String() string {
 }
 
 type PrefixExpression struct {
-	Token  tokenizer.Token
-	Op     tokenizer.TokenKind
+	Token  Token
+	Op     TokenKind
 	Action string
 
 	Right Expression
@@ -291,8 +290,8 @@ func (s *PrefixExpression) String() string {
 }
 
 type InfixExpression struct {
-	Token tokenizer.Token
-	Op    tokenizer.TokenKind
+	Token Token
+	Op    TokenKind
 
 	Left  Expression
 	Right Expression
@@ -323,7 +322,7 @@ func (s *InfixExpression) String() string {
 
 type StringLiteral struct {
 	Value string
-	Token tokenizer.Token
+	Token Token
 }
 
 func (s *StringLiteral) Location() helpers.Location {
@@ -351,8 +350,8 @@ func (s *StringLiteral) String() string {
 
 type FunctionCall struct {
 	Args       []Expression
-	Token      tokenizer.Token
-	closeToken tokenizer.Token
+	Token      Token
+	closeToken Token
 }
 
 func (s *FunctionCall) Location() helpers.Location {
@@ -396,8 +395,8 @@ func (s *FunctionCall) Literal() string {
 
 type FieldAccess struct {
 	Index      Expression
-	Token      tokenizer.Token
-	closeToken tokenizer.Token
+	Token      Token
+	closeToken Token
 }
 
 func (s *FieldAccess) Location() helpers.Location {
@@ -424,7 +423,7 @@ func (s *FieldAccess) String() string {
 }
 
 type Chain struct {
-	Token tokenizer.Token
+	Token Token
 	Parts helpers.Queue[Expression]
 }
 
@@ -473,7 +472,7 @@ func (s *Chain) String() string {
 }
 
 type Ternary struct {
-	Token       tokenizer.Token
+	Token       Token
 	Condition   Expression
 	Consequence Expression
 	Alternative Expression

@@ -1,11 +1,9 @@
-package socks
+package runtime
 
 import (
 	"bytes"
 	"github.com/terawatthour/socks/internal/helpers"
 	"testing"
-
-	"github.com/terawatthour/socks/tokenizer"
 )
 
 func TestLoopsAndIfs(t *testing.T) {

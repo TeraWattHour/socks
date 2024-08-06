@@ -3,16 +3,18 @@ package socks
 import (
 	"bytes"
 	"fmt"
+	"github.com/terawatthour/socks/runtime"
 	"io"
 	"maps"
+	"strings"
 )
 
 type Socks interface {
 	ExecuteToString(template string, context map[string]interface{}) (string, error)
 	Execute(w io.Writer, template string, context map[string]interface{}) error
 
-	LoadTemplates(pattern string, removePrefix ...string) error
-	LoadTemplateFromString(filename string, content string)
+	LoadTemplates(glob string) error
+	LoadTemplateFromString(filename string, reader io.Reader)
 	Compile(staticContext map[string]interface{}) error
 
 	AddGlobal(key string, value interface{})
@@ -48,53 +50,63 @@ func NewSocks(options ...*Options) Socks {
 	}
 }
 
-func (s *socks) LoadTemplates(pattern string, removePrefix ...string) error {
-	if len(removePrefix) > 1 {
-		panic("expected one or zero removePrefix, got more than one")
-	}
-	var toRemove string
-	if len(removePrefix) == 1 {
-		toRemove = removePrefix[0]
-	}
-	return s.fs.loadTemplates(pattern, toRemove)
+func (s *socks) LoadTemplates(glob string) error {
+	return s.fs.loadTemplates(glob)
 }
 
-func (s *socks) LoadTemplateFromString(filename string, content string) {
-	s.fs.loadTemplateFromString(filename, content)
+func (s *socks) LoadTemplateFromString(filename string, reader io.Reader) {
+	s.fs.loadTemplate(filename, reader)
 }
 
-func (s *socks) Compile(staticContext map[string]interface{}) error {
+func (s *socks) Compile(staticContext runtime.Context) error {
 	maps.Copy(s.globals, staticContext)
 	return s.fs.preprocessTemplates(staticContext)
 }
 
-func (s *socks) ExecuteToString(template string, context map[string]interface{}) (string, error) {
-	eval, ok := s.fs.templates[template]
-	if !ok {
-		return "", fmt.Errorf("template `%s` not found", template)
+func (s *socks) ExecuteToString(template string, context runtime.Context) (string, error) {
+	eval, err := s.resolveTemplate(template)
+	if err != nil {
+		return "", err
 	}
 
 	result := bytes.NewBufferString("")
 	maps.Copy(s.globals, context)
-	err := eval.evaluate(result, s.globals)
-	if err != nil {
+	if err := eval.Evaluate(result, s.globals); err != nil {
 		return "", err
 	}
 	return result.String(), nil
 }
 
-func (s *socks) Execute(w io.Writer, template string, context map[string]any) error {
-	eval, ok := s.fs.templates[template]
-	if !ok {
-		return fmt.Errorf("template `%s` not found", template)
-	}
-
-	maps.Copy(s.globals, context)
-	err := eval.evaluate(w, s.globals)
+func (s *socks) Execute(w io.Writer, template string, context runtime.Context) error {
+	eval, err := s.resolveTemplate(template)
 	if err != nil {
 		return err
 	}
-	return nil
+
+	maps.Copy(s.globals, context)
+	return eval.Evaluate(w, s.globals)
+}
+
+func (s *socks) resolveTemplate(template string) (*runtime.Evaluator, error) {
+	if eval, ok := s.fs.templates[template]; ok {
+		return eval, nil
+	}
+
+	var matching *runtime.Evaluator
+	for key, eval := range s.fs.templates {
+		if key == template || strings.HasSuffix(key, "/"+template) {
+			if matching != nil {
+				return nil, fmt.Errorf(`reference "%s" is ambiguous as it matches multiple templates`, template)
+			}
+			matching = eval
+		}
+	}
+
+	if matching != nil {
+		return matching, nil
+	}
+
+	return nil, fmt.Errorf("template `%s` not found", template)
 }
 
 func (s *socks) AddGlobal(key string, value any) {

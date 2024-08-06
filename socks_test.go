@@ -12,17 +12,18 @@ func TestBasicEvaluation(t *testing.T) {
 		},
 	})
 
-	if err := s.LoadTemplates("test_data/**/*.html", "test_data/"); err != nil {
+	if err := s.LoadTemplates("test_data/**/*.html"); err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}
-	if err := s.LoadTemplates("test_data/*.html", "test_data/"); err != nil {
+
+	if err := s.LoadTemplates("test_data/*.html"); err != nil {
 		t.Errorf("Expected no error, got %s", err)
 	}
 
 	if err := s.Compile(map[string]any{
 		"Server": "Socks",
 	}); err != nil {
-		fmt.Println(err)
+		t.Errorf("unexpected error %s", err)
 		return
 	}
 
@@ -43,6 +44,7 @@ func TestBasicEvaluation(t *testing.T) {
 				}
 			},
 		},
+		"countries": []string{"UK", "DE", "FR"},
 		"resolveLanguage": func(abbreviation string) string {
 			switch abbreviation {
 			case "en":

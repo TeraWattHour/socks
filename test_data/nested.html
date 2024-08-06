@@ -1,27 +1,12 @@
-@extend("base.html")
+<v-component name="base.html">
+    <v-component name="templates/header.html" :slot="header" />
 
-@define("content")
-    @template("templates/header.html")
-        @define("title") {{ Server }} @enddefine
-    @endtemplate
+    <v-component name="templates/header.html" :slot="content">
+        <p :slot="title">{{ "{{" + Server + "}}" }}</p>
+    </v-component>
 
-    @if(0 == 1)
-    <p>0 is equal to 1</p>
-    @else
-    <p>0 is definitely not equal to 1</p>
-    @endif
-
-    {{ [1,2,3][1] }}
-
-    <p>Hello from the {{ first[1](23)(123)[0] }} server</p>
-
-    @for(phrase in Phrases with i)
-    <div>
-        <p>Phrase `{{ phrase.Content }}` is in {{ resolveLanguage(phrase.Language) }}</p>
-        @if(i > 0)
-        <p>Previous {{ i }}: {{ Phrases[i-1].Content }}</p>
-        @endif
-    </div>
-    @endfor
-@enddefine
+    <footer :slot="footer">
+        This is the new footer
+    </footer>
+</v-component>
 

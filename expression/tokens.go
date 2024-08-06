@@ -1,4 +1,4 @@
-package tokenizer
+package expression
 
 type TokenKind int
 
@@ -99,20 +99,4 @@ var Keywords = []TokenKind{
 	TokNot,
 	TokNil,
 	TokWith,
-}
-
-var Instructions = []string{
-	"for",
-	"if",
-	"elif",
-	"else",
-	"define",
-	"extend",
-	"slot",
-	"template",
-	"endif",
-	"endfor",
-	"enddefine",
-	"endtemplate",
-	"endslot",
 }

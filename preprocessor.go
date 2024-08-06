@@ -2,235 +2,160 @@ package socks
 
 import (
 	"fmt"
-	"github.com/terawatthour/socks/internal/helpers"
-	"github.com/terawatthour/socks/tokenizer"
+	"github.com/terawatthour/socks/html"
+	"github.com/terawatthour/socks/runtime"
+	"io"
+	"path/filepath"
 	"slices"
+	"strings"
 )
 
 type Preprocessor struct {
-	files         map[string]string
-	nativeMap     map[string]string
-	processed     map[string]string
-	staticContext map[string]any
+	files                 map[string][]runtime.Statement
+	preprocessed          map[string][]runtime.Statement
+	preprocessedWithSlots map[string][]runtime.Statement
+
+	staticContext runtime.Context
 	sanitizer     func(string) string
 }
 
-type filePreprocessor struct {
-	preprocessor *Preprocessor
-	filename     string
-	programs     []Statement
-	result       []Statement
-	i            int
-}
-
-func New(files map[string]string, nativeMap map[string]string, staticContext map[string]interface{}, sanitizer func(string) string) *Preprocessor {
-	return &Preprocessor{
-		files:         files,
-		staticContext: staticContext,
-		sanitizer:     sanitizer,
-		nativeMap:     nativeMap,
-	}
-}
-
-func (p *Preprocessor) Preprocess(filename string, keepSlots bool) ([]Statement, error) {
-	filePreprocessor := &filePreprocessor{
-		preprocessor: p,
-		filename:     filename,
-		result:       make([]Statement, 0),
-		programs:     make([]Statement, 0),
-		i:            0,
-	}
-	return filePreprocessor.preprocess(keepSlots)
-}
-
-func (fp *filePreprocessor) preprocess(keepSlots bool) (res []Statement, err error) {
-	content, ok := fp.preprocessor.files[fp.filename]
-	if !ok {
-		return nil, fmt.Errorf("template `%s` not found", fp.filename)
-	}
-
-	nativeName := fp.preprocessor.nativeMap[fp.filename]
-
-	elements, err := tokenizer.Tokenize(nativeName, content)
-	if err != nil {
-		return nil, err
-	}
-
-	fp.programs, err = Parse(helpers.File{Name: nativeName, Content: content}, elements)
-	if err != nil {
-		return nil, err
-	}
-
-	var extends string
-
-	fp.i = 0
-	for fp.i < len(fp.programs) {
-		program := fp.programs[fp.i]
-
-		switch program.Kind() {
-		case "extend":
-			extends = program.(*ExtendStatement).Template
-			fp.i++
-		case "template":
-			if err := fp.evaluateTemplateStatement(); err != nil {
-				return nil, err
-			}
-		case "end":
-			end := program.(*EndStatement)
-			fp.i++
-			if !keepSlots && end.ClosedStatement.Kind() == "slot" {
-				continue
-			}
-			fp.result = append(fp.result, program)
-		case "slot":
-			if !keepSlots {
-				fp.i++
-				continue
-			}
-			fallthrough
-		default:
-			fp.result = append(fp.result, program)
-			fp.i++
-		}
-	}
-
-	if extends != "" {
-		if err := fp.extendTemplate(extends); err != nil {
+func Preprocess(files map[string]io.Reader, staticContext runtime.Context, sanitizer func(string) string) (preprocessed map[string][]runtime.Statement, err error) {
+	parsedFiles := make(map[string][]runtime.Statement)
+	for filename := range files {
+		if parsedFiles[filename], err = html.Parse(files[filename]); err != nil {
 			return nil, err
 		}
 	}
 
-	var evaluationResult helpers.Queue[Statement]
-	staticEvaluator := newStaticEvaluator(helpers.File{nativeName, content}, &evaluationResult, fp.result, fp.preprocessor.sanitizer)
-
-	if err := staticEvaluator.evaluate(nil, fp.preprocessor.staticContext); err != nil {
-		fp.foldText()
-		return fp.result, nil
+	p := &Preprocessor{
+		files:                 parsedFiles,
+		preprocessed:          make(map[string][]runtime.Statement),
+		preprocessedWithSlots: make(map[string][]runtime.Statement),
+		staticContext:         staticContext,
+		sanitizer:             sanitizer,
 	}
-
-	fp.result = evaluationResult
-	fp.foldText()
-
-	return fp.result, nil
-}
-
-func (fp *filePreprocessor) foldText() {
-	for i := 1; i < len(fp.result); i++ {
-		if fp.result[i].Kind() == "text" && fp.result[i-1].Kind() == "text" {
-			textLeft := fp.result[i-1].(*Text)
-			textRight := fp.result[i].(*Text)
-			textLeft.Content += textRight.Content
-			fp.result = append(fp.result[:i], fp.result[i+1:]...)
-			i--
+	for filename := range files {
+		if err = p.preprocess(filename, false); err != nil {
+			return nil, err
 		}
 	}
+
+	return p.preprocessed, nil
 }
 
-func (fp *filePreprocessor) evaluateTemplateStatement() error {
-	templateStatement := fp.programs[fp.i].(*TemplateStatement)
-	templateName := templateStatement.Template
+func (p *Preprocessor) preprocess(filename string, keepSlots bool, cycle ...string) error {
+	if slices.Contains(cycle, filename) {
+		return fmt.Errorf("cyclic import detected: %v", strings.Join(append(cycle, filename), "->"))
+	}
 
-	resolvedPath := helpers.ResolvePath(fp.filename, templateName)
+	// if file was already preprocessed in selected mode, return it immediately
+	if _, ok := p.preprocessedFile(filename, keepSlots); ok {
+		return nil
+	}
 
-	includedPrograms, err := fp.preprocessor.Preprocess(resolvedPath, true)
+	output, err := p.preprocessBlock(filename, p.files[filename], keepSlots, cycle...)
 	if err != nil {
 		return err
 	}
 
-	fp.i++
+	output = foldTexts(output)
 
-	defines := map[string][]Statement{}
-	for ; fp.program() != templateStatement.EndStatement; fp.i++ {
-		defineStatement, ok := fp.program().(*DefineStatement)
-		if !ok || defineStatement.Parent != templateStatement {
-			continue
-		}
-		fp.i++
-		for ; fp.program() != defineStatement.EndStatement; fp.i++ {
-			defines[defineStatement.Name] = append(defines[defineStatement.Name], fp.program())
-		}
-	}
-
-	fp.i++
-
-	for i := 0; i < len(includedPrograms); i++ {
-		includedProgram := includedPrograms[i]
-		slotStatement, ok := includedProgram.(*SlotStatement)
-		if !ok || slices.Contains(fp.result, slotStatement.Parent) {
-			fp.result = append(fp.result, includedProgram)
-			continue
-		}
-
-		definedPrograms := defines[slotStatement.Name]
-
-		i++
-		for includedPrograms[i] != slotStatement.EndStatement {
-			if definedPrograms == nil {
-				fp.result = append(fp.result, includedPrograms[i])
-			}
-			i++
-		}
-
-		if definedPrograms != nil {
-			fp.result = append(fp.result, definedPrograms...)
-		}
+	if keepSlots {
+		p.preprocessedWithSlots[filename] = output
+	} else {
+		p.preprocessed[filename] = output
 	}
 
 	return nil
 }
 
-func (fp *filePreprocessor) extendTemplate(parentTemplate string) error {
-	resolvedPath := helpers.ResolvePath(fp.filename, parentTemplate)
+func (p *Preprocessor) preprocessBlock(filename string, block []runtime.Statement, keepSlots bool, cycle ...string) (output []runtime.Statement, err error) {
+	for _, program := range block {
+		switch program := program.(type) {
+		case *runtime.Component:
+			componentPath := filepath.Join(filename, "..", program.Name)
 
-	parentPrograms, err := fp.preprocessor.Preprocess(resolvedPath, true)
-	if err != nil {
-		return err
-	}
+			if _, ok := p.files[componentPath]; !ok {
+				return nil, fmt.Errorf("component `%s` not found", program.Name)
+			}
 
-	merged := make([]Statement, 0)
+			if err := p.preprocess(componentPath, true, append(cycle, filename)...); err != nil {
+				return nil, err
+			}
 
-	for i := 0; i < len(parentPrograms); i++ {
-		// find all parent's slots that can be filled by the child template
-		slotStatement, ok := parentPrograms[i].(*SlotStatement)
-		if !ok || slices.Contains(merged, slotStatement.Parent) {
-			merged = append(merged, parentPrograms[i])
-			continue
-		}
+			for k, pr := range program.Defines {
+				program.Defines[k], err = p.preprocessBlock(filename, pr, true, cycle...)
+				if err != nil {
+					return nil, err
+				}
+			}
 
-		i++
-		defineFound := false
-
-		// swap the contents of the slot with the contents of the define statement
-		for j := 0; j < len(fp.result); j++ {
-			defineStatement, ok := fp.result[j].(*DefineStatement)
-			if !ok || defineStatement.Name != slotStatement.Name || slices.Contains(merged, defineStatement.Parent) {
+			output = append(output, replaceSlots(p.preprocessedWithSlots[componentPath], program.Defines)...)
+		default:
+			if slot, ok := program.(*runtime.Slot); ok && !keepSlots {
+				block, err := p.preprocessBlock(filename, slot.Children, false, cycle...)
+				if err != nil {
+					return nil, err
+				}
+				output = append(output, block...)
 				continue
 			}
-
-			defineFound = true
-
-			j++
-			for fp.result[j] != defineStatement.EndStatement {
-				merged = append(merged, fp.result[j])
-				j++
-			}
-
-			break
-		}
-
-		for parentPrograms[i] != slotStatement.EndStatement {
-			if !defineFound {
-				merged = append(merged, parentPrograms[i])
-			}
-			i++
+			output = append(output, program)
 		}
 	}
 
-	fp.result = merged
-
-	return nil
+	return output, nil
 }
 
-func (fp *filePreprocessor) program() Statement {
-	return fp.programs[fp.i]
+func (p *Preprocessor) preprocessedFile(filename string, keepSlots bool) ([]runtime.Statement, bool) {
+	if keepSlots {
+		if preprocessed, ok := p.preprocessedWithSlots[filename]; ok {
+			return preprocessed, true
+		}
+	} else {
+		if preprocessed, ok := p.preprocessed[filename]; ok {
+			return preprocessed, true
+		}
+	}
+
+	return nil, false
+}
+
+func replaceSlots(component []runtime.Statement, defines map[string][]runtime.Statement) []runtime.Statement {
+	var result []runtime.Statement
+	for _, program := range component {
+		switch program := program.(type) {
+		case *runtime.Slot:
+			if definedPrograms, ok := defines[program.Name]; ok {
+				result = append(result, definedPrograms...)
+				continue
+			}
+			result = append(result, program.Children...)
+		default:
+			result = append(result, program)
+		}
+	}
+
+	return result
+}
+
+func foldTexts(statements []runtime.Statement) []runtime.Statement {
+	var result []runtime.Statement
+	for i, statement := range statements {
+		if i == 0 {
+			result = append(result, statement)
+			continue
+		}
+
+		if text, ok := statement.(*runtime.Text); ok {
+			if lastText, ok := result[len(result)-1].(*runtime.Text); ok {
+				result[len(result)-1] = &runtime.Text{Content: lastText.Content + text.Content}
+				continue
+			}
+		}
+
+		result = append(result, statement)
+	}
+
+	return result
 }

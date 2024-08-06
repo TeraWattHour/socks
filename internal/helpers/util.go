@@ -54,3 +54,9 @@ func ResolvePath(from string, referenced string) string {
 	}
 	return filepath.Join(filepath.Dir(from), referenced)
 }
+
+func ApplyVariable(ctx map[string]any, key string, value any) {
+	if ctx != nil && key != "" {
+		ctx[key] = value
+	}
+}

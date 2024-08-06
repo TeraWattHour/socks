@@ -3,29 +3,28 @@ package socks
 import (
 	"fmt"
 	"github.com/terawatthour/socks/internal/helpers"
+	"github.com/terawatthour/socks/runtime"
+	"io"
 	"os"
 	"path/filepath"
-	"strings"
 )
 
 type fileSystem struct {
 	options       *Options
-	files         map[string]string
-	nativeMap     map[string]string
-	templates     map[string]*evaluator
-	staticContext map[string]interface{}
+	files         map[string]io.Reader
+	templates     map[string]*runtime.Evaluator
+	staticContext map[string]any
 }
 
 func newFileSystem(options *Options) *fileSystem {
 	return &fileSystem{
 		options:   options,
-		files:     make(map[string]string),
-		templates: make(map[string]*evaluator),
-		nativeMap: make(map[string]string),
+		files:     make(map[string]io.Reader),
+		templates: make(map[string]*runtime.Evaluator),
 	}
 }
 
-func (fs *fileSystem) loadTemplates(pattern string, removePrefix string) error {
+func (fs *fileSystem) loadTemplates(pattern string) error {
 	entryNames, err := filepath.Glob(pattern)
 	if err != nil {
 		return err
@@ -43,32 +42,29 @@ func (fs *fileSystem) loadTemplates(pattern string, removePrefix string) error {
 			continue
 		}
 
-		by, err := os.ReadFile(entryName)
+		file, err := os.OpenFile(entryName, os.O_RDONLY, 0)
 		if err != nil {
 			return err
 		}
 
-		trimmed := strings.TrimLeft(strings.TrimPrefix(entryName, removePrefix), "/")
-		fs.nativeMap[trimmed] = entryName
-		fs.files[trimmed] = string(by)
+		fs.files[entryName] = file
 	}
 
 	return nil
 }
 
-func (fs *fileSystem) loadTemplateFromString(filename string, content string) {
+func (fs *fileSystem) loadTemplate(filename string, content io.Reader) {
 	fs.files[filename] = content
-	fs.nativeMap[filename] = filename
 }
 
 func (fs *fileSystem) preprocessTemplates(staticContext map[string]interface{}) error {
-	proc := New(fs.files, fs.nativeMap, staticContext, fs.options.Sanitizer)
-	for fileName, fileContent := range fs.files {
-		if content, err := proc.Preprocess(fileName, false); err != nil {
-			return err
-		} else {
-			fs.templates[fileName] = newEvaluator(helpers.File{fileName, fileContent}, content, fs.options.Sanitizer)
-		}
+	preprocessed, err := Preprocess(fs.files, fs.staticContext, fs.options.Sanitizer)
+	if err != nil {
+		return err
+	}
+
+	for fileName, programs := range preprocessed {
+		fs.templates[fileName] = runtime.NewEvaluator(helpers.File{Name: fileName}, programs, fs.options.Sanitizer)
 	}
 
 	return nil

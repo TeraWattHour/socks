@@ -8,22 +8,24 @@ import (
 )
 
 type VM struct {
-	file         helpers.File
 	chunk        Chunk
 	stack        helpers.Stack[any]
 	ip           int
 	currentError error
 }
 
-func NewVM(file helpers.File, chunk Chunk) *VM {
+func NewVM(chunk Chunk) *VM {
 	return &VM{
-		file:  file,
 		chunk: chunk,
 		stack: []any{},
 	}
 }
 
 func (vm *VM) Run(env map[string]any) (any, error) {
+	if vm == nil {
+		return nil, nil
+	}
+
 outerLoop:
 	for vm.ip = 0; vm.ip < len(vm.chunk.Instructions); vm.ip++ {
 		vm.currentError = nil
@@ -268,7 +270,7 @@ func (vm *VM) accessProperty(base any, property string) any {
 }
 
 func (vm *VM) error(message string, location helpers.Location) error {
-	return errors2.New(message, vm.file.Name, vm.file.Content, location, location.FromOther())
+	return errors2.New(message, location, location.FromOther())
 }
 
 func reflectedSliceToInterfaceSlice(vs []reflect.Value) []interface{} {

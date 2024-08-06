@@ -1,24 +1,17 @@
-package tokenizer
+package expression
 
 import (
 	"fmt"
 	errors2 "github.com/terawatthour/socks/errors"
 	"github.com/terawatthour/socks/internal/helpers"
-	"math"
 	"slices"
 	"strings"
 	"unicode"
 )
 
 type _tokenizer struct {
-	filename    string
-	rawTemplate string
-	template    []rune
-	cursor      int
-
-	elements []Element
-
-	lastClosing int
+	template []rune
+	cursor   int
 
 	line   int
 	column int
@@ -39,155 +32,28 @@ func (t Token) String() string {
 	return TokenKinds[t.Kind]
 }
 
-func Tokenize(filename string, template string) ([]Element, error) {
+func Tokenize(template string) ([]Token, error) {
 	t := &_tokenizer{
-		filename:    filename,
-		rawTemplate: template,
-		template:    []rune(template),
-		elements:    make([]Element, 0),
-		cursor:      -1,
-		line:        1,
-		column:      0,
+		template: []rune(template),
+		cursor:   -1,
+		line:     1,
+		column:   0,
 	}
+
+	t.forward()
 
 	return t.tokenize()
 }
 
-func (t *_tokenizer) tokenize() ([]Element, error) {
-	t.forward()
-
-	for t.rune() != 0 {
-		// escaping character
-		if t.rune() == '\\' {
-			t.forward()
-			t.forward()
-
-			continue
-		}
-
-		// comment block, ignore it
-		if t.rune() == '{' && t.nextRune() == '#' {
-			t.grabText(t.cursor)
-
-			t.forward()
-			t.forward()
-
-			for t.rune() != '#' && t.nextRune() != '}' {
-				if t.nextRune() == 0 {
-					if t.rune() != 0 {
-						t.forward()
-					}
-					return nil, t.error("unexpected EOF, unclosed comment", t.location())
-				}
-
-				t.forward()
-			}
-
-			t.forward()
-			t.forward()
-
-			t.lastClosing = t.cursor
-		} else if t.rune() == '{' && (t.nextRune() == '{' || t.nextRune() == '!') {
-			location := t.location()
-			t.grabText(t.cursor)
-
-			sanitize := t.nextRune() != '!'
-
-			t.forward()
-			t.forward()
-
-			tokens, err := t.tokenizeExpression(true)
-			if err != nil {
-				return nil, err
-			}
-
-			closing := t.location()
-			closingSymbol := fmt.Sprintf("%c%c", t.rune(), t.nextRune())
-			t.forward()
-			t.forward()
-
-			if sanitize && closingSymbol != "}}" {
-				return nil, t.error("expected `}}` to close mustache", closing)
-			} else if !sanitize && closingSymbol != "!}" {
-				return nil, t.error("expected `!}` to close mustache", closing)
-			}
-
-			if len(tokens) == 0 {
-				return nil, t.error("empty statement", location)
-			}
-
-			t.elements = append(t.elements, &Mustache{
-				Sanitize: sanitize,
-				Tokens:   tokens,
-				Location: location.SetLength(t.cursor - location.Cursor),
-			})
-
-			t.lastClosing = t.cursor
-		} else if t.rune() == '@' && isAsciiLetter(t.nextRune()) {
-			location := t.location()
-			start := t.cursor
-
-			// skip @
-			t.forward()
-			for isAsciiLetter(t.rune()) {
-				t.forward()
-			}
-			instruction := string(t.template[start+1 : t.cursor])
-
-			if !slices.Contains(Instructions, instruction) {
-				continue
-			}
-			t.grabText(start)
-
-			var tokens []Token
-
-			// for those statements that require some arguments
-			if !strings.HasPrefix(instruction, "end") && instruction != "else" {
-				for t.rune() != '(' && t.rune() != 0 {
-					t.forward()
-				}
-				if t.rune() == 0 {
-					return nil, t.error("unexpected EOF, expected `(` after statement", location)
-				}
-
-				if t.rune() == '(' {
-					t.forward()
-					var err error
-					tokens, err = t.tokenizeExpression(false)
-					if err != nil {
-						return nil, err
-					}
-					t.forward()
-
-					if len(tokens) == 0 {
-						return nil, t.error("empty statement", location)
-					}
-				}
-			}
-
-			t.elements = append(t.elements, &Statement{
-				Instruction: instruction,
-				Tokens:      tokens,
-				Location:    location.SetLength(t.cursor - location.Cursor),
-			})
-
-			t.lastClosing = t.cursor
-		} else {
-			t.forward()
-		}
-	}
-
-	t.grabText(len(t.template))
-
-	return t.elements, nil
-}
-
-func (t *_tokenizer) tokenizeExpression(mustache bool) ([]Token, error) {
+func (t *_tokenizer) tokenize() ([]Token, error) {
 	parens := helpers.Stack[rune]{}
 	tokens := make([]Token, 0)
 
 	for t.rune() != 0 {
 		t.skipWhitespace()
+		if t.rune() == 0 {
+			break
+		}
 
 		pushNext := true
 		token := Token{Start: t.cursor, Length: 1, Literal: string(t.rune()), Location: t.location()}
@@ -260,8 +126,6 @@ func (t *_tokenizer) tokenizeExpression(mustache bool) ([]Token, error) {
 				token.Kind = TokNeq
 				token.Literal = "!="
 				t.forward()
-			} else if mustache && t.nextRune() == '}' {
-				return tokens, nil
 			} else {
 				token.Kind = TokBang
 			}
@@ -286,13 +150,7 @@ func (t *_tokenizer) tokenizeExpression(mustache bool) ([]Token, error) {
 			parens.Push('(')
 		case ')':
 			token.Kind = TokRparen
-			if parens.IsEmpty() {
-				if mustache {
-					return nil, t.error("unexpected `)`", t.location())
-				} else {
-					return tokens, nil
-				}
-			} else if parens.Pop() != '(' {
+			if parens.Pop() != '(' {
 				return nil, t.error("unexpected `)`, as it closes `[`", t.location())
 			}
 		case '&':
@@ -341,8 +199,6 @@ func (t *_tokenizer) tokenizeExpression(mustache bool) ([]Token, error) {
 					token.Literal = literal
 				}
 				pushNext = false
-			} else if t.rune() == 0 {
-				return nil, t.error("unexpected EOF", t.location())
 			} else {
 				return nil, t.error(fmt.Sprintf("unexpected token: `%c`", t.rune()), t.location())
 			}
@@ -411,13 +267,6 @@ func (t *_tokenizer) numeric() (token Token, err error) {
 	}
 
 	return
-}
-
-func (t *_tokenizer) grabText(cursor int) {
-	bounded := int(math.Min(float64(cursor), float64(len(t.template))))
-	if t.lastClosing < bounded && t.lastClosing-bounded != 0 {
-		t.elements = append(t.elements, Text(t.template[t.lastClosing:bounded]))
-	}
 }
 
 func (t *_tokenizer) location() helpers.Location {
@@ -494,5 +343,5 @@ func (t *_tokenizer) isValidVariableStart() bool {
 }
 
 func (t *_tokenizer) error(message string, start helpers.Location) error {
-	return errors2.New(message, t.filename, t.rawTemplate, start, t.location())
+	return errors2.New(message, start, t.location())
 }

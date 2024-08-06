@@ -1,27 +1,33 @@
 package socks
 
 import (
+	"bytes"
+	"fmt"
+	"github.com/terawatthour/socks/internal/helpers"
+	"github.com/terawatthour/socks/runtime"
+	"io"
 	"testing"
 )
 
 func TestPreprocessor(t *testing.T) {
-	embedded := `<h1>@slot("title")Fallback@endslot card</h1>`
-	parent := `@extend("superparent.html") @define("content") <head><title>@slot("title")Fallback title@endslot </title></head> @slot("content") fallback content @endslot @enddefine`
-	child := `@extend("parent.html") @define("content") @if(get == "good") @for(val in values) @template("embedded.html") @define("title") Home page @enddefine @endtemplate @endfor @if(something>10) @for(i in range(1, 4))<p>{{ i }}</p>@endfor @endif @endif @enddefine`
-	superparent := `<html> aaaaa @slot("content") xd @endslot </html>`
-	result, err := New(map[string]string{"parent.html": parent, "child.html": child, "embedded.html": embedded, "superparent.html": superparent}, map[string]string{
-		"parent.html":      "parent.html",
-		"child.html":       "child.html",
-		"embedded.html":    "embedded.html",
-		"superparent.html": "superparent.html",
-	}, map[string]any{
-		"values": []string{"one", "two", "three"},
-		"Menus":  []string{"home", "about", "contact"},
-	}, nil).Preprocess("child.html", false)
+	layout := `<html><head><title>Abc</title></head><body><v-slot name="content"><v-component name="clock.html"></v-component></v-slot></body></html>`
+	index := `<v-component name="layout.html">
+	<div :slot="content">
+		<h1>Welcome on our page!</h1>
+		<v-component name="clock.html"></v-component>
+	</div>
+</v-component>`
+	clock := `<v-component name="flex.html"><button :slot="content" class="py-2 px-4 font-medium">Fetch time</button></v-component>`
+	flex := `<div style="display: flex; justify-content: center; align-items: center;"><v-slot name="content"></v-slot></div>`
+
+	preprocessed, err := Preprocess(map[string]io.Reader{"layout.html": bytes.NewBufferString(layout), "index.html": bytes.NewBufferString(index), "clock.html": bytes.NewBufferString(clock), "flex.html": bytes.NewBufferString(flex)}, nil, nil)
 	if err != nil {
 		t.Errorf("unexpected error: %s", err)
 		return
 	}
 
-	dumpStatements("TestPreprocessor", result)
+	output := bytes.NewBufferString("")
+	fmt.Println(runtime.NewEvaluator(helpers.File{Name: "index.html"}, preprocessed["index.html"], nil).Evaluate(output, nil))
+
+	fmt.Println(output.String())
 }

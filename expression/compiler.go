@@ -3,7 +3,6 @@ package expression
 import (
 	"github.com/terawatthour/socks/errors"
 	"github.com/terawatthour/socks/internal/helpers"
-	"github.com/terawatthour/socks/tokenizer"
 	"slices"
 )
 
@@ -14,14 +13,12 @@ type Chunk struct {
 }
 
 type Compiler struct {
-	file  helpers.File
 	expr  Expression
 	chunk Chunk
 }
 
-func NewCompiler(file helpers.File, expr Expression) *Compiler {
+func NewCompiler(expr Expression) *Compiler {
 	return &Compiler{
-		file: file,
 		expr: expr,
 		chunk: Chunk{
 			Instructions: make([]int, 0),
@@ -141,44 +138,44 @@ func (c *Compiler) compile(expr Expression) error {
 		if err = c.compile(expr.Left); err != nil {
 			return err
 		}
-		if expr.Op != tokenizer.TokElvis {
+		if expr.Op != TokElvis {
 			if err = c.compile(expr.Right); err != nil {
 				return err
 			}
 		}
 
 		switch expr.Op {
-		case tokenizer.TokAnd:
+		case TokAnd:
 			c.emit(OpAnd)
-		case tokenizer.TokOr:
+		case TokOr:
 			c.emit(OpOr)
-		case tokenizer.TokEq:
+		case TokEq:
 			c.emit(OpEq)
-		case tokenizer.TokNeq:
+		case TokNeq:
 			c.emit(OpNeq)
-		case tokenizer.TokLt:
+		case TokLt:
 			c.emit(OpLt)
-		case tokenizer.TokLte:
+		case TokLte:
 			c.emit(OpLte)
-		case tokenizer.TokGt:
+		case TokGt:
 			c.emit(OpGt)
-		case tokenizer.TokGte:
+		case TokGte:
 			c.emit(OpGte)
-		case tokenizer.TokPlus:
+		case TokPlus:
 			c.emit(OpAdd)
-		case tokenizer.TokMinus:
+		case TokMinus:
 			c.emit(OpSubtract)
-		case tokenizer.TokAsterisk:
+		case TokAsterisk:
 			c.emit(OpMultiply)
-		case tokenizer.TokSlash:
+		case TokSlash:
 			c.emit(OpDivide)
-		case tokenizer.TokIn:
+		case TokIn:
 			c.emit(OpIn)
-		case tokenizer.TokPower:
+		case TokPower:
 			c.emit(OpPower)
-		case tokenizer.TokModulo:
+		case TokModulo:
 			c.emit(OpModulo)
-		case tokenizer.TokElvis:
+		case TokElvis:
 			c.emit(OpElvis)
 			start := len(c.chunk.Instructions)
 			c.emit(-1)
@@ -194,9 +191,9 @@ func (c *Compiler) compile(expr Expression) error {
 		}
 
 		switch expr.Op {
-		case tokenizer.TokNot, tokenizer.TokBang:
+		case TokNot, TokBang:
 			c.emit(OpNot)
-		case tokenizer.TokMinus:
+		case TokMinus:
 			c.emit(OpNegate)
 		}
 		c.addLookup(expr)
@@ -233,5 +230,5 @@ func (c *Compiler) addLookup(expression Expression) {
 }
 
 func (c *Compiler) error(message string, location helpers.Location) error {
-	return errors.New(message, c.file.Name, c.file.Content, location, location.FromOther())
+	return errors.New(message, location, location.FromOther())
 }

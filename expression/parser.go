@@ -4,7 +4,6 @@ import (
 	"fmt"
 	errors2 "github.com/terawatthour/socks/errors"
 	"github.com/terawatthour/socks/internal/helpers"
-	"github.com/terawatthour/socks/tokenizer"
 	"reflect"
 	"slices"
 	"strconv"
@@ -12,18 +11,16 @@ import (
 )
 
 type parser struct {
-	file          helpers.File
-	previousToken tokenizer.Token
-	currentToken  tokenizer.Token
-	nextToken     tokenizer.Token
-	tokens        []tokenizer.Token
+	previousToken Token
+	currentToken  Token
+	nextToken     Token
+	tokens        []Token
 	cursor        int
 	dependencies  []string
 }
 
-func Parse(file helpers.File, tokens []tokenizer.Token) (*WrappedExpression, error) {
+func Parse(tokens []Token) (*WrappedExpression, error) {
 	parser := &parser{
-		file:         file,
 		cursor:       -1,
 		tokens:       tokens,
 		dependencies: make([]string, 0),
@@ -39,7 +36,7 @@ func (p *parser) parse() (*WrappedExpression, error) {
 		return nil, err
 	}
 
-	if p.nextToken.Kind != tokenizer.TokEmpty {
+	if p.nextToken.Kind != TokEmpty {
 		return nil, p.error(
 			fmt.Sprintf("unexpected %s", p.nextToken.Kind),
 			p.nextToken.Location,
@@ -64,14 +61,14 @@ func (p *parser) ternary() (Expression, error) {
 
 	token := p.currentToken
 
-	if p.currentIs(tokenizer.TokQuestion) {
+	if p.currentIs(TokQuestion) {
 		p.advance()
 		trueExpr, err := p.expression()
 		if err != nil {
 			return nil, err
 		}
 
-		if !p.currentIs(tokenizer.TokColon) {
+		if !p.currentIs(TokColon) {
 			return nil, p.error(fmt.Sprintf("unexpected %s", p.currentToken.Kind), p.currentToken.Location)
 		}
 
@@ -100,7 +97,7 @@ func (p *parser) elvis() (Expression, error) {
 
 	token := p.currentToken
 
-	if p.currentIs(tokenizer.TokElvis) {
+	if p.currentIs(TokElvis) {
 		p.advance()
 		defaultExpr, err := p.elvis()
 		if err != nil {
@@ -124,7 +121,7 @@ func (p *parser) comparison() (Expression, error) {
 		return nil, err
 	}
 
-	for p.currentIs(tokenizer.TokLt, tokenizer.TokGt, tokenizer.TokLte, tokenizer.TokGte, tokenizer.TokIn) {
+	for p.currentIs(TokLt, TokGt, TokLte, TokGte, TokIn) {
 		op := p.advance()
 		right, err := p.term()
 		if err != nil {
@@ -148,7 +145,7 @@ func (p *parser) equality() (Expression, error) {
 		return nil, err
 	}
 
-	for p.currentIs(tokenizer.TokEq, tokenizer.TokNeq) {
+	for p.currentIs(TokEq, TokNeq) {
 		op := p.advance()
 		right, err := p.comparison()
 		if err != nil {
@@ -172,7 +169,7 @@ func (p *parser) term() (Expression, error) {
 		return nil, err
 	}
 
-	for p.currentIs(tokenizer.TokPlus, tokenizer.TokMinus) {
+	for p.currentIs(TokPlus, TokMinus) {
 		op := p.advance()
 		right, err := p.factor()
 		if err != nil {
@@ -196,7 +193,7 @@ func (p *parser) factor() (Expression, error) {
 		return nil, err
 	}
 
-	for p.currentIs(tokenizer.TokAsterisk, tokenizer.TokSlash, tokenizer.TokModulo) {
+	for p.currentIs(TokAsterisk, TokSlash, TokModulo) {
 		op := p.advance()
 		right, err := p.power()
 		if err != nil {
@@ -220,7 +217,7 @@ func (p *parser) power() (Expression, error) {
 		return nil, err
 	}
 
-	for p.currentIs(tokenizer.TokPower) {
+	for p.currentIs(TokPower) {
 		op := p.advance()
 		right, err := p.unary()
 		if err != nil {
@@ -239,7 +236,7 @@ func (p *parser) power() (Expression, error) {
 }
 
 func (p *parser) unary() (Expression, error) {
-	if p.currentIs(tokenizer.TokMinus, tokenizer.TokBang, tokenizer.TokNot) {
+	if p.currentIs(TokMinus, TokBang, TokNot) {
 		op := p.advance()
 		right, err := p.unary()
 		if err != nil {
@@ -260,33 +257,33 @@ func (p *parser) primary() (Expression, error) {
 	token := p.advance()
 
 	switch token.Kind {
-	case tokenizer.TokFalse:
+	case TokFalse:
 		return &Boolean{Token: token, Value: false}, nil
-	case tokenizer.TokTrue:
+	case TokTrue:
 		return &Boolean{Token: token, Value: true}, nil
-	case tokenizer.TokNil:
+	case TokNil:
 		return &Nil{Token: token}, nil
-	case tokenizer.TokNumeric:
+	case TokNumeric:
 		return p.numeric(token)
-	case tokenizer.TokString:
+	case TokString:
 		return p.string(token)
-	case tokenizer.TokIdent:
+	case TokIdent:
 		return p.identifier(token)
-	case tokenizer.TokLbrack:
+	case TokLbrack:
 		return p.array()
-	case tokenizer.TokLparen:
+	case TokLparen:
 		expr, err := p.expression()
 		if err != nil {
 			return nil, err
 		}
 
-		if !p.currentIs(tokenizer.TokRparen) {
+		if !p.currentIs(TokRparen) {
 			return nil, p.error("expected `)`", p.currentToken.Location)
 		}
 
 		p.advance()
 
-		if p.currentIs(tokenizer.TokLbrack, tokenizer.TokLparen, tokenizer.TokDot, tokenizer.TokOptionalChain) {
+		if p.currentIs(TokLbrack, TokLparen, TokDot, TokOptionalChain) {
 			return p.chain(expr)
 		}
 
@@ -302,36 +299,36 @@ func (p *parser) chain(left Expression) (Expression, error) {
 		Parts: []Expression{left},
 	}
 
-	for p.currentIs(tokenizer.TokDot, tokenizer.TokOptionalChain, tokenizer.TokLparen, tokenizer.TokLbrack) {
+	for p.currentIs(TokDot, TokOptionalChain, TokLparen, TokLbrack) {
 		token := p.currentToken
 		switch token.Kind {
-		case tokenizer.TokDot:
-			if !p.expectNext(tokenizer.TokIdent) {
+		case TokDot:
+			if !p.expectNext(TokIdent) {
 				return nil, p.error(fmt.Sprintf("unexpected %s, expected identifier", p.nextToken.Kind), p.nextToken.Location)
 			}
 
 			expr.Parts.Push(&DotAccess{Token: p.currentToken, Property: p.currentToken.Literal})
-		case tokenizer.TokOptionalChain:
+		case TokOptionalChain:
 			expr.Parts.Push(&OptionalAccess{Token: p.currentToken})
 
-			if !p.nextIs(tokenizer.TokIdent, tokenizer.TokLparen, tokenizer.TokLbrack) {
+			if !p.nextIs(TokIdent, TokLparen, TokLbrack) {
 				return nil, p.error(fmt.Sprintf("unexpected %s, expected identifier, method call, or array access", p.nextToken.Kind), p.nextToken.Location)
 			}
 
-			if p.expectNext(tokenizer.TokIdent) {
+			if p.expectNext(TokIdent) {
 				expr.Parts.Push(&Identifier{Token: p.currentToken, Value: p.currentToken.Literal})
 			}
-		case tokenizer.TokLparen:
+		case TokLparen:
 			p.advance()
 
-			args, err := p.list(tokenizer.TokRparen, ")")
+			args, err := p.list(TokRparen, ")")
 			if err != nil {
 				return nil, err
 			}
-			assert(p.currentToken.Kind == tokenizer.TokRparen, "p.currentToken after p.list must always be the end literal")
+			assert(p.currentToken.Kind == TokRparen, "p.currentToken after p.list must always be the end literal")
 
 			expr.Parts.Push(&FunctionCall{Token: token, Args: args, closeToken: p.currentToken})
-		case tokenizer.TokLbrack:
+		case TokLbrack:
 			p.advance()
 
 			index, err := p.expression()
@@ -339,7 +336,7 @@ func (p *parser) chain(left Expression) (Expression, error) {
 				return nil, err
 			}
 
-			if !p.currentIs(tokenizer.TokRbrack) {
+			if !p.currentIs(TokRbrack) {
 				return nil, p.error("expected `]`", p.currentToken.Location)
 			}
 
@@ -357,13 +354,13 @@ func (p *parser) chain(left Expression) (Expression, error) {
 func (p *parser) array() (Expression, error) {
 	var err error
 	array := &Array{Token: p.currentToken}
-	array.Items, err = p.list(tokenizer.TokRbrack, "]")
+	array.Items, err = p.list(TokRbrack, "]")
 	if err != nil {
 		return nil, err
 	}
-	assert(p.currentToken.Kind == tokenizer.TokRbrack, "p.currentToken after p.list must always be the end literal")
+	assert(p.currentToken.Kind == TokRbrack, "p.currentToken after p.list must always be the end literal")
 
-	if p.nextIs(tokenizer.TokLbrack) {
+	if p.nextIs(TokLbrack) {
 		p.advance()
 		return p.chain(array)
 	}
@@ -371,7 +368,7 @@ func (p *parser) array() (Expression, error) {
 	return array, err
 }
 
-func (p *parser) list(end tokenizer.TokenKind, endLiteral string) ([]Expression, error) {
+func (p *parser) list(end TokenKind, endLiteral string) ([]Expression, error) {
 	list := make([]Expression, 0)
 	if p.currentIs(end) {
 		return list, nil
@@ -383,7 +380,7 @@ func (p *parser) list(end tokenizer.TokenKind, endLiteral string) ([]Expression,
 	}
 	list = append(list, listElement)
 
-	for p.currentIs(tokenizer.TokComma) {
+	for p.currentIs(TokComma) {
 		p.advance()
 		listElement, err = p.expression()
 		if err != nil {
@@ -399,7 +396,7 @@ func (p *parser) list(end tokenizer.TokenKind, endLiteral string) ([]Expression,
 	return list, nil
 }
 
-func (p *parser) identifier(token tokenizer.Token) (Expression, error) {
+func (p *parser) identifier(token Token) (Expression, error) {
 	if !slices.ContainsFunc(builtinNames, func(value reflect.Value) bool {
 		return value.String() == token.Literal
 	}) {
@@ -408,24 +405,24 @@ func (p *parser) identifier(token tokenizer.Token) (Expression, error) {
 
 	ident := &Identifier{Token: token, Value: token.Literal}
 
-	if p.currentIs(tokenizer.TokLparen, tokenizer.TokLbrack, tokenizer.TokDot, tokenizer.TokOptionalChain) {
+	if p.currentIs(TokLparen, TokLbrack, TokDot, TokOptionalChain) {
 		return p.chain(ident)
 	}
 
 	return ident, nil
 }
 
-func (p *parser) string(token tokenizer.Token) (Expression, error) {
+func (p *parser) string(token Token) (Expression, error) {
 	str := &StringLiteral{Token: token, Value: token.Literal}
 
-	if p.currentIs(tokenizer.TokLbrack) {
+	if p.currentIs(TokLbrack) {
 		return p.chain(str)
 	}
 
 	return str, nil
 }
 
-func (p *parser) numeric(token tokenizer.Token) (Expression, error) {
+func (p *parser) numeric(token Token) (Expression, error) {
 	if strings.Contains(token.Literal, ".") {
 		f64, err := strconv.ParseFloat(token.Literal, 64)
 		if err != nil {
@@ -442,7 +439,7 @@ func (p *parser) numeric(token tokenizer.Token) (Expression, error) {
 	return &Integer{Token: token, Value: int(i64)}, nil
 }
 
-func (p *parser) nextIs(kinds ...tokenizer.TokenKind) bool {
+func (p *parser) nextIs(kinds ...TokenKind) bool {
 	for _, kind := range kinds {
 		if kind == p.nextToken.Kind {
 			return true
@@ -451,7 +448,7 @@ func (p *parser) nextIs(kinds ...tokenizer.TokenKind) bool {
 	return false
 }
 
-func (p *parser) currentIs(kinds ...tokenizer.TokenKind) bool {
+func (p *parser) currentIs(kinds ...TokenKind) bool {
 	for _, kind := range kinds {
 		if kind == p.currentToken.Kind {
 			return true
@@ -460,7 +457,7 @@ func (p *parser) currentIs(kinds ...tokenizer.TokenKind) bool {
 	return false
 }
 
-func (p *parser) expectNext(kind tokenizer.TokenKind) bool {
+func (p *parser) expectNext(kind TokenKind) bool {
 	if p.nextToken.Kind == kind {
 		p.advance()
 		return true
@@ -468,20 +465,20 @@ func (p *parser) expectNext(kind tokenizer.TokenKind) bool {
 	return false
 }
 
-func (p *parser) advance() tokenizer.Token {
+func (p *parser) advance() Token {
 	p.previousToken = p.currentToken
 
 	p.cursor++
 	if p.cursor >= len(p.tokens) {
-		p.currentToken = tokenizer.Token{}
-		p.nextToken = tokenizer.Token{}
+		p.currentToken = Token{}
+		p.nextToken = Token{}
 		return p.previousToken
 	}
 
 	p.currentToken = p.tokens[p.cursor]
 
 	if p.cursor+1 >= len(p.tokens) {
-		p.nextToken = tokenizer.Token{}
+		p.nextToken = Token{}
 	} else {
 		p.nextToken = p.tokens[p.cursor+1]
 	}
@@ -490,5 +487,5 @@ func (p *parser) advance() tokenizer.Token {
 }
 
 func (p *parser) error(message string, location helpers.Location) error {
-	return errors2.New(message, p.file.Name, p.file.Content, location, location.FromOther())
+	return errors2.New(message, location, location.FromOther())
 }
