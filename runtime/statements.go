@@ -5,7 +5,6 @@ import (
 	"github.com/terawatthour/socks/expression"
 	"github.com/terawatthour/socks/internal/helpers"
 	"maps"
-	"reflect"
 )
 
 type Context = map[string]any
@@ -22,8 +21,7 @@ type Evaluable interface {
 }
 
 type Text struct {
-	Content   string
-	IsComment bool
+	Content string
 }
 
 func (t *Text) Kind() string {
@@ -53,8 +51,7 @@ func (a *Attribute) Evaluate(e *Evaluator, context Context) error {
 		return err
 	}
 
-	_, err = e.writer.Write([]byte(fmt.Sprintf(`%s="%s"`, a.Name, res)))
-	return err
+	return e.write(fmt.Sprintf(`%s="%s" `, a.Name, res))
 }
 
 func (a *Attribute) Location() helpers.Location {
@@ -75,18 +72,7 @@ func (expr *Expression) Evaluate(e *Evaluator, context Context) (err error) {
 		return err
 	}
 
-	stringified := fmt.Sprintf("%v", result)
-	//if e.sanitizer != nil && expr.tag.Sanitize {
-	//	stringified = e.sanitizer(stringified)
-	//}
-
-	if e.staticMode {
-		e.staticOutput.Push(&Text{Content: stringified})
-	} else {
-		_, err = e.writer.Write([]byte(stringified))
-	}
-
-	return err
+	return e.write(fmt.Sprintf("%v", result))
 }
 
 func (expr *Expression) Dependencies() []string {
@@ -120,10 +106,6 @@ func (st *IfStatement) Dependencies() []string {
 
 func (st *IfStatement) Location() helpers.Location {
 	return st.location
-}
-
-func (st *IfStatement) String() string {
-	return fmt.Sprintf("%-8s", "IF")
 }
 
 func (st *IfStatement) Kind() string {
@@ -188,13 +170,6 @@ func (st *ForStatement) Location() helpers.Location {
 	return st.location
 }
 
-func (st *ForStatement) String() string {
-	if st.KeyName != "" {
-		return fmt.Sprintf("%-8s: %s, %s in [%p]", "FOR", st.KeyName, st.ValueName, st)
-	}
-	return fmt.Sprintf("%-8s: %s in [%p]", "FOR", st.ValueName, st)
-}
-
 func (st *ForStatement) Kind() string {
 	return "for"
 }
@@ -206,7 +181,7 @@ func (st *ForStatement) Evaluate(e *Evaluator, context Context) error {
 	}
 
 	if !helpers.IsIterable(obj) {
-		return e.error(fmt.Sprintf("expected <slice | array | map>, got <%st>", reflect.ValueOf(obj).Kind()), st.location)
+		return e.error(fmt.Sprintf("expected <slice | array | map>, got <%T>", obj), st.location)
 	}
 
 	channel := make(chan helpers.KeyValuePair)

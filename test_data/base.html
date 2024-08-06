@@ -1,16 +1,18 @@
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport"
-          content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
-    <meta http-equiv="X-UA-Compatible" content="ie=edge">
-    <title>Hello from {{ Server }}</title>
-</head>
-<body>
-    <v-slot name="header" />
-    <v-slot name="content">
-        <h1>default content</h1>
-    </v-slot>
-    <v-slot name="footer">
-        <h2>default footer</h2>
-    </v-slot>
-</body>
+<v-component name="superbase.html">
+    <head :slot="head">
+        <meta charset="UTF-8">
+        <meta name="viewport"
+              content="width=device-width, user-scalable=no, initial-scale=1.0, maximum-scale=1.0, minimum-scale=1.0">
+        <meta http-equiv="X-UA-Compatible" content="ie=edge">
+        <title>Hello from {{ Server }}</title>
+    </head>
+    <body :slot="body">
+        <v-slot name="header" />
+        <v-slot name="content">
+            <h1>default content</h1>
+        </v-slot>
+        <v-slot name="footer">
+            <h2>default footer</h2>
+        </v-slot>
+    </body>
+</v-component>

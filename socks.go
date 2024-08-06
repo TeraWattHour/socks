@@ -3,37 +3,25 @@ package socks
 import (
 	"bytes"
 	"fmt"
+	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/runtime"
 	"io"
 	"maps"
 	"strings"
 )
 
-type Socks interface {
-	ExecuteToString(template string, context map[string]interface{}) (string, error)
-	Execute(w io.Writer, template string, context map[string]interface{}) error
-
-	LoadTemplates(glob string) error
-	LoadTemplateFromString(filename string, reader io.Reader)
-	Compile(staticContext map[string]interface{}) error
-
-	AddGlobal(key string, value interface{})
-	AddGlobals(value map[string]interface{})
-	GetGlobals() map[string]interface{}
-	ClearGlobals()
-}
-
-type socks struct {
-	fs      *fileSystem
-	globals map[string]interface{}
-	options *Options
+type Socks struct {
+	fs       *fileSystem
+	globals  map[string]any
+	options  *Options
+	compiled bool
 }
 
 type Options struct {
 	Sanitizer func(string) string
 }
 
-func NewSocks(options ...*Options) Socks {
+func New(options ...*Options) *Socks {
 	if len(options) > 1 {
 		panic("expected one or no options, got more than one")
 	}
@@ -41,53 +29,65 @@ func NewSocks(options ...*Options) Socks {
 	if len(options) == 1 {
 		opts = options[0]
 	}
-	fs := newFileSystem(opts)
 
-	return &socks{
-		fs:      fs,
-		globals: make(map[string]interface{}),
+	return &Socks{
+		fs:      newFileSystem(opts),
+		globals: make(map[string]any),
 		options: opts,
 	}
 }
 
-func (s *socks) LoadTemplates(glob string) error {
-	return s.fs.loadTemplates(glob)
+func (s *Socks) LoadTemplates(glob ...string) error {
+	s.compiled = false
+	if err := s.fs.loadTemplates(glob...); err != nil {
+		return err
+	}
+
+	return nil
 }
 
-func (s *socks) LoadTemplateFromString(filename string, reader io.Reader) {
+func (s *Socks) LoadTemplate(filename string, reader io.ReadCloser) {
+	s.compiled = false
 	s.fs.loadTemplate(filename, reader)
 }
 
-func (s *socks) Compile(staticContext runtime.Context) error {
+func (s *Socks) Compile(staticContext map[string]any) error {
 	maps.Copy(s.globals, staticContext)
-	return s.fs.preprocessTemplates(staticContext)
+	if err := s.fs.preprocessTemplates(staticContext); err != nil {
+		return err
+	}
+
+	s.compiled = true
+	return nil
 }
 
-func (s *socks) ExecuteToString(template string, context runtime.Context) (string, error) {
+func (s *Socks) ExecuteToString(template string, context map[string]any) (string, error) {
 	eval, err := s.resolveTemplate(template)
 	if err != nil {
 		return "", err
 	}
 
 	result := bytes.NewBufferString("")
-	maps.Copy(s.globals, context)
-	if err := eval.Evaluate(result, s.globals); err != nil {
+	if err := eval.Evaluate(result, helpers.Combine(s.globals, context)); err != nil {
 		return "", err
 	}
 	return result.String(), nil
 }
 
-func (s *socks) Execute(w io.Writer, template string, context runtime.Context) error {
+func (s *Socks) Execute(w io.Writer, template string, context map[string]any) error {
 	eval, err := s.resolveTemplate(template)
 	if err != nil {
 		return err
 	}
 
-	maps.Copy(s.globals, context)
-	return eval.Evaluate(w, s.globals)
+	return eval.Evaluate(w, helpers.Combine(s.globals, context))
 }
 
-func (s *socks) resolveTemplate(template string) (*runtime.Evaluator, error) {
+func (s *Socks) resolveTemplate(template string) (*runtime.Evaluator, error) {
+	if !s.compiled {
+		return nil, fmt.Errorf("templates not compiled")
+	}
+
 	if eval, ok := s.fs.templates[template]; ok {
 		return eval, nil
 	}
@@ -109,18 +109,18 @@ func (s *socks) resolveTemplate(template string) (*runtime.Evaluator, error) {
 	return nil, fmt.Errorf("template `%s` not found", template)
 }
 
-func (s *socks) AddGlobal(key string, value any) {
+func (s *Socks) AddGlobal(key string, value any) {
 	s.globals[key] = value
 }
 
-func (s *socks) AddGlobals(value map[string]any) {
+func (s *Socks) AddGlobals(value map[string]any) {
 	maps.Copy(s.globals, value)
 }
 
-func (s *socks) GetGlobals() map[string]any {
+func (s *Socks) GetGlobals() map[string]any {
 	return s.globals
 }
 
-func (s *socks) ClearGlobals() {
+func (s *Socks) ClearGlobals() {
 	clear(s.globals)
 }

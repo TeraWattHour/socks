@@ -68,6 +68,21 @@ func (e *Evaluator) evaluateProgram(program Statement, context Context) error {
 	return prog.Evaluate(e, context)
 }
 
+func (e *Evaluator) write(data any) error {
+	if !e.staticMode {
+		_, err := fmt.Fprint(e.writer, data)
+		return err
+	}
+
+	if text, ok := data.(string); ok {
+		e.staticOutput.Push(&Text{Content: text})
+	} else {
+		e.staticOutput.Push(data.(Statement))
+	}
+
+	return nil
+}
+
 func (e *Evaluator) error(message string, location helpers.Location) error {
 	return errors.New(message, location, location.FromOther())
 }

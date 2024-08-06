@@ -6,7 +6,7 @@ import (
 )
 
 func TestBasicEvaluation(t *testing.T) {
-	s := NewSocks(&Options{
+	s := New(&Options{
 		Sanitizer: func(s string) string {
 			return s
 		},

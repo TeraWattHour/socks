@@ -36,31 +36,32 @@ func TestNumbers(t *testing.T) {
 	for i, e := range expected {
 		el := tokens[i]
 		if el.Kind != e.Kind || el.Literal != e.Literal {
-			t.Errorf("(%d) expected %v, got %v", i, e, el)
+			t.Errorf("token %d: expected %v, got %v", i, e, el)
 			return
 		}
 	}
 }
 
-//func TestMalformedNumbers(t *testing.T) {
-//	cases := []string{
-//		"2.3.4",
-//		"0b112",
-//		"0x2G_",
-//		"0x_2",
-//		"0o2_",
-//		"0._1123",
-//		"0923456789",
-//		"0x99.23",
-//	}
-//	for i, c := range cases {
-//		_, err := Tokenize("xd", fmt.Sprintf("{{ %s }}", c))
-//		if err == nil {
-//			t.Errorf("(%d) expected error, got nil", i)
-//			return
-//		}
-//	}
-//}
+func TestMalformedNumbers(t *testing.T) {
+	cases := []string{
+		"2.3.4",
+		"0b112",
+		"0x2G_",
+		"0x_2",
+		"0o2_",
+		"0._1123",
+		"0923456789",
+		"0x99.23",
+	}
+	for i, c := range cases {
+		_, err := Tokenize(c)
+		if err == nil {
+			t.Errorf("(%d) expected error, got nil", i)
+			return
+		}
+	}
+}
+
 //
 //func TestErrorReporting(t *testing.T) {
 //	sets := []struct {

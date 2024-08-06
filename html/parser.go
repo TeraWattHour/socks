@@ -25,7 +25,7 @@ func parseBlock(block []Node) ([]runtime.Statement, error) {
 		switch t := e.(type) {
 		case *Text:
 			if t.IsComment {
-				output = append(output, &runtime.Text{Content: t.Content, IsComment: true})
+				output = append(output, &runtime.Text{t.Content})
 				continue
 			}
 
@@ -146,7 +146,7 @@ func parseBlock(block []Node) ([]runtime.Statement, error) {
 						}
 						component.Defines[c.Name] = c.Children
 					default:
-						if t, ok := c.(*runtime.Text); ok && (strings.TrimSpace(t.Content) == "" || t.IsComment) {
+						if t, ok := c.(*runtime.Text); ok && (strings.TrimSpace(t.Content) == "" || (strings.HasPrefix(t.Content, "<!--") && strings.HasSuffix(t.Content, "-->"))) {
 							continue
 						}
 						return nil, fmt.Errorf("unexpected element in component, only slots are allowed")
@@ -231,7 +231,7 @@ func isEmptyText(node runtime.Statement) bool {
 }
 
 func placeElse(s *[]runtime.Statement) *runtime.IfStatement {
-	if len(*s) == 0 {
+	if s == nil || len(*s) == 0 {
 		return nil
 	}
 
@@ -262,7 +262,7 @@ var voidAttributes = []string{
 }
 
 func renderStartTag(tag *Tag, output *[]runtime.Statement) (err error) {
-	*output = append(*output, &runtime.Text{fmt.Sprintf("<%s ", tag.Name), false})
+	*output = append(*output, &runtime.Text{fmt.Sprintf("<%s ", tag.Name)})
 	for key, value := range tag.Attributes {
 		if strings.HasPrefix(key, ":") && !strings.HasPrefix(key, "::") {
 			if slices.Contains(voidAttributes, key) {
@@ -279,7 +279,7 @@ func renderStartTag(tag *Tag, output *[]runtime.Statement) (err error) {
 			if strings.HasPrefix(key, "::") {
 				key = key[1:]
 			}
-			*output = append(*output, &runtime.Text{fmt.Sprintf(`%s="%s" `, key, value), false})
+			*output = append(*output, &runtime.Text{fmt.Sprintf(`%s="%s" `, key, value)})
 		}
 	}
 
@@ -288,7 +288,7 @@ func renderStartTag(tag *Tag, output *[]runtime.Statement) (err error) {
 		closingBracket = "/>"
 	}
 
-	*output = append(*output, &runtime.Text{closingBracket, false})
+	*output = append(*output, &runtime.Text{closingBracket})
 
 	return nil
 }

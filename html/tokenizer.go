@@ -11,7 +11,6 @@ import (
 
 type Node interface {
 	Kind() string
-	String() string
 }
 
 type Tag struct {
@@ -19,33 +18,18 @@ type Tag struct {
 	IsSelfClosing bool
 	Attributes    map[string]string
 	Children      []Node
+	Location      helpers.Location
 }
 
 func (t *Tag) Kind() string {
 	return "tag"
 }
 
-func (t *Tag) String() string {
-	var attrs []string
-	for k, v := range t.Attributes {
-		attrs = append(attrs, fmt.Sprintf("%s=\"%s\"", k, v))
-	}
-	ret := fmt.Sprintf("<%s %s>", t.Name, strings.Join(attrs, " "))
-	if slices.Contains(voidElements, t.Name) {
-		return ret
-	}
-
-	for _, c := range t.Children {
-		ret += c.String()
-	}
-
-	return ret + fmt.Sprintf("</%s>", t.Name)
-}
-
 type Text struct {
 	IsRaw     bool
 	IsComment bool
 	Content   string
+	Location  helpers.Location
 }
 
 func (t *Text) Kind() string {
@@ -66,7 +50,7 @@ type Tokenizer struct {
 	lastLocation helpers.Location
 }
 
-type HTMLToken struct {
+type Token struct {
 	html.Token
 	Location    helpers.Location
 	EndLocation helpers.Location
@@ -87,8 +71,8 @@ func (t *Tokenizer) Next() html.TokenType {
 	return tokenType
 }
 
-func (t *Tokenizer) Token() HTMLToken {
-	return HTMLToken{t.Tokenizer.Token(), t.lastLocation, t.location}
+func (t *Tokenizer) Token() Token {
+	return Token{t.Tokenizer.Token(), t.lastLocation, t.location}
 }
 
 func (t *Tokenizer) CurrentLine() int {
@@ -148,14 +132,15 @@ func (t *Tokenizer) tokenize() (Node, error) {
 		return nil, t.Err()
 	case html.TextToken:
 		if len(t.unclosedTags) > 0 && childTextNodesAreLiteral(t.unclosedTags[len(t.unclosedTags)-1]) {
-			return &Text{Content: token.Data, IsRaw: true}, nil
+			return &Text{Content: token.Data, IsRaw: true, Location: t.location}, nil
 		} else {
-			return &Text{Content: token.Data, IsRaw: false}, nil
+			return &Text{Content: token.Data, IsRaw: false, Location: t.location}, nil
 		}
 	case html.StartTagToken:
 		tag := &Tag{
 			Name:       token.Data,
 			Attributes: make(map[string]string),
+			Location:   t.location,
 		}
 
 		for _, a := range token.Attr {
@@ -193,6 +178,7 @@ func (t *Tokenizer) tokenize() (Node, error) {
 			Name:          token.Data,
 			IsSelfClosing: true,
 			Attributes:    make(map[string]string),
+			Location:      t.location,
 		}
 
 		for _, a := range token.Attr {
@@ -204,7 +190,7 @@ func (t *Tokenizer) tokenize() (Node, error) {
 
 		return tag, nil
 	case html.CommentToken:
-		return &Text{IsRaw: true, IsComment: true, Content: fmt.Sprintf("<!--%s-->", escapeComment(token.Data))}, nil
+		return &Text{IsRaw: true, IsComment: true, Content: fmt.Sprintf("<!--%s-->", escapeComment(token.Data)), Location: t.location}, nil
 	case html.DoctypeToken:
 		content := fmt.Sprintf("<!DOCTYPE %s", escape(token.Data))
 
@@ -232,7 +218,7 @@ func (t *Tokenizer) tokenize() (Node, error) {
 
 		content += ">"
 
-		return &Text{IsRaw: true, Content: content}, nil
+		return &Text{IsRaw: true, Content: content, Location: t.location}, nil
 	}
 
 	return nil, nil

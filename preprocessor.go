@@ -19,10 +19,12 @@ type Preprocessor struct {
 	sanitizer     func(string) string
 }
 
+// Preprocess reads and preprocesses all files from the provided map. It takes ownership of the files and closes them.
 func Preprocess(files map[string]io.Reader, staticContext runtime.Context, sanitizer func(string) string) (preprocessed map[string][]runtime.Statement, err error) {
 	parsedFiles := make(map[string][]runtime.Statement)
-	for filename := range files {
-		if parsedFiles[filename], err = html.Parse(files[filename]); err != nil {
+
+	for filename, file := range files {
+		if parsedFiles[filename], err = html.Parse(file); err != nil {
 			return nil, err
 		}
 	}

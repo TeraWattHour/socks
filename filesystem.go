@@ -10,55 +10,23 @@ import (
 )
 
 type fileSystem struct {
-	options       *Options
-	files         map[string]io.Reader
-	templates     map[string]*runtime.Evaluator
-	staticContext map[string]any
+	options     *Options
+	templates   map[string]*runtime.Evaluator
+	files       map[string]io.Reader
+	fileHandles map[string]*os.File
 }
 
 func newFileSystem(options *Options) *fileSystem {
 	return &fileSystem{
-		options:   options,
-		files:     make(map[string]io.Reader),
-		templates: make(map[string]*runtime.Evaluator),
+		options:     options,
+		templates:   make(map[string]*runtime.Evaluator),
+		files:       make(map[string]io.Reader),
+		fileHandles: make(map[string]*os.File),
 	}
 }
 
-func (fs *fileSystem) loadTemplates(pattern string) error {
-	entryNames, err := filepath.Glob(pattern)
-	if err != nil {
-		return err
-	}
-	if len(entryNames) == 0 {
-		return fmt.Errorf("no files found")
-	}
-
-	for _, entryName := range entryNames {
-		st, err := os.Stat(entryName)
-		if err != nil {
-			return err
-		}
-		if st.IsDir() {
-			continue
-		}
-
-		file, err := os.OpenFile(entryName, os.O_RDONLY, 0)
-		if err != nil {
-			return err
-		}
-
-		fs.files[entryName] = file
-	}
-
-	return nil
-}
-
-func (fs *fileSystem) loadTemplate(filename string, content io.Reader) {
-	fs.files[filename] = content
-}
-
-func (fs *fileSystem) preprocessTemplates(staticContext map[string]interface{}) error {
-	preprocessed, err := Preprocess(fs.files, fs.staticContext, fs.options.Sanitizer)
+func (fs *fileSystem) preprocessTemplates(ctx runtime.Context) error {
+	preprocessed, err := Preprocess(fs.files, ctx, fs.options.Sanitizer)
 	if err != nil {
 		return err
 	}
@@ -67,5 +35,53 @@ func (fs *fileSystem) preprocessTemplates(staticContext map[string]interface{}) 
 		fs.templates[fileName] = runtime.NewEvaluator(helpers.File{Name: fileName}, programs, fs.options.Sanitizer)
 	}
 
+	for _, file := range fs.fileHandles {
+		_ = file.Close()
+	}
+	fs.files = make(map[string]io.Reader)
+	fs.fileHandles = make(map[string]*os.File)
+
 	return nil
+}
+
+// loadTemplates opens all files matching the provided globs.
+func (fs *fileSystem) loadTemplates(globs ...string) error {
+	for _, glob := range globs {
+		matchedFiles, err := filepath.Glob(glob)
+		if err != nil {
+			return err
+		}
+
+		if len(matchedFiles) == 0 {
+			return fmt.Errorf("no files found")
+		}
+
+		for _, filePath := range matchedFiles {
+			if _, ok := fs.files[filePath]; ok {
+				continue
+			}
+
+			st, err := os.Stat(filePath)
+			if err != nil {
+				return err
+			}
+			if st.IsDir() {
+				continue
+			}
+
+			file, err := os.OpenFile(filePath, os.O_RDONLY, 0)
+			if err != nil {
+				return err
+			}
+
+			fs.fileHandles[filePath] = file
+			fs.files[filePath] = file
+		}
+	}
+
+	return nil
+}
+
+func (fs *fileSystem) loadTemplate(filename string, content io.ReadCloser) {
+	fs.files[filename] = content
 }
