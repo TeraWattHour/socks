@@ -52,8 +52,7 @@ func (s *Socks) LoadTemplate(filename string, reader io.ReadCloser) {
 }
 
 func (s *Socks) Compile(staticContext map[string]any) error {
-	maps.Copy(s.globals, staticContext)
-	if err := s.fs.preprocessTemplates(staticContext); err != nil {
+	if err := s.fs.preprocessTemplates(helpers.Combine(s.globals, staticContext)); err != nil {
 		return err
 	}
 

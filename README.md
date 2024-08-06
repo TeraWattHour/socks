@@ -37,7 +37,7 @@ import (
 )
 
 func main() {
-    s := socks.NewSocks(&socks.Options{
+    s := socks.New(&socks.Options{
         Sanitizer: func(s string) string {
             // Sanitize your output here, everything that
             // goes through the {{ ... }} tag is going to be sanitized 
@@ -84,85 +84,53 @@ It will be sanitized if a sanitizer function is provided.
 {{ Users[0].CreatedAt.Format("2006-01-02") }}
 ```
 
-### Unescaped expression
-Value of this expression will be printed to the template without any sanitization.
-```html
-{! client.scripts !}
-```
-
 ### Preprocessor statements
-- `@extend`, `@slot` and `@define` are used for extending templates.
 ```html
 <!--base.html-->
 <html>
     <head>
-        <title>{! title !}</title>
+        <title>{{ title }}</title>
     </head>
     <body>
-        @slot("content")
-        <h2>404 – Content not found</h2>
-        @endslot
+        <v-slot name="content">
+            <h2>404 – Content not found</h2>
+        </v-slot>
     </body>
 </html>
 ```
 ```html
-@extend("base.html") <!-- extends the base.html template -->
-
-@define("content")
-    <!-- defines a block named content, 
-         if omitted – template will fallback to default slot value 
-         -->
-    <h1>Hello World</h1>
-@enddefine
+<v-component name="base.html">
+    <div :slot="content">
+        <h1>Hello World</h1>
+    </div>
+</v-component>
 ```
 - `@template`, `@slot` and `@define` are used for including templates.
 ```html
 <!--header.html-->
 <header>
-    @slot("content") Fallback content @endslot
+    <v-slot name="content">Fallback content</v-slot>
 </header>
 ```
 ```html
-@template("header.html")
-    @define("content")
-        <!-- defines a block named content, 
-             if omitted – template will fallback to default slot value 
-             -->
+<v-component name="header.html">
+    <div :slot="content">
         <h1>Hello World</h1>
-    @enddefine
-@endtemplate
+    </div>
+</v-component>
 ```
 
-### Comment
-Comment tag, the content of this tag will be ignored.
-```html
-{# This is a comment #}
-<!-- this is an HTML comment and it won't be removed -->
-```
-
-### For statement
+### Loops
 
 ```html
-@for(user in Users)
-<p>{{ user.ID }} – {{ user.Name }}</p>
-@endfor
+<p :for="user in Users">{{ user.ID }} – {{ user.Name }}</p>
 
-@for(user in Users with i)
-<p>{{ i }}: {{ user.Name }}</p>
-@endfor
+<p :for="user, i in Users">{{ i }}: {{ user.Name }}</p>
 ```
 
-### If statement
+### Conditional statements
 ```html
-@if(len(Users) == 1)
-<p>{{ Users[0].Name }}</p>
-@elif(len(Users) > 1)
-<p>{{ Users[0].Name }} and {{ len(Users)-1 }} more...</p>
-@else
-<p>No users in the database</p>
-@endif
+<p :if="len(Users) == 1">{{ Users[0].Name }}</p>
+<p :elif="len(Users) > 1">{{ Users[0].Name }} and {{ len(Users)-1 }} more...</p>
+<p :else>No users</p>
 ```
-
-## Roadmap
-- [ ] Runtime error handling
-- [ ] Inline functions like `map`, `filter`, `reduce`, etc.
