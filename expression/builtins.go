@@ -21,6 +21,7 @@ var builtinsOne = map[string]any{
 	"uintptr": castUintptr,
 	"length":  length,
 	"range":   _range,
+	"raw":     raw,
 }
 
 var builtinNames = reflect.ValueOf(builtinsOne).MapKeys()
@@ -35,6 +36,18 @@ func length(_val any) any {
 		return len(val)
 	}
 	return reflect.ValueOf(_val).Len()
+}
+
+type Raw struct {
+	Value any
+}
+
+func (r Raw) String() string {
+	return fmt.Sprint(r.Value)
+}
+
+func raw(_val any) Raw {
+	return Raw{_val}
 }
 
 func _range(_start, _end, _step any) any {

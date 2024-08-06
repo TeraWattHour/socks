@@ -34,7 +34,7 @@ func TestBasicEvaluation(t *testing.T) {
 		Language string
 	}
 
-	res, err := s.ExecuteToString("nested.html", map[string]interface{}{
+	res, err := s.ExecuteToString("templates/header.html", map[string]interface{}{
 		"Phrases": []Phrase{{Content: "Hello", Language: "en"}, {Content: "Hallo", Language: "de"}},
 		"first": []any{
 			"first",

@@ -72,7 +72,14 @@ func (expr *Expression) Evaluate(e *Evaluator, context Context) (err error) {
 		return err
 	}
 
-	return e.write(fmt.Sprintf("%v", result))
+	stringified := fmt.Sprintf("%v", result)
+	if e.sanitizer != nil {
+		if _, ok := result.(expression.Raw); !ok {
+			stringified = e.sanitizer(fmt.Sprintf("%v", result))
+		}
+	}
+
+	return e.write(stringified)
 }
 
 func (expr *Expression) Dependencies() []string {

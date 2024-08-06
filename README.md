@@ -84,6 +84,12 @@ It will be sanitized if a sanitizer function is provided.
 {{ Users[0].CreatedAt.Format("2006-01-02") }}
 ```
 
+### Unescaped expression
+Value of this expression will be printed to the template without any sanitization.
+```html
+{{ raw(client.scripts) }}
+```
+
 ### Preprocessor statements
 ```html
 <!--base.html-->
