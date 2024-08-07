@@ -3,7 +3,7 @@ package expression
 const (
 	OpConstant = iota
 	OpJmp
-	OpOptionalChain
+
 	OpNil
 	OpEq
 	OpNeq
@@ -18,8 +18,11 @@ const (
 	OpPower
 	OpAnd
 	OpOr
-	OpElvis
+
+	OpOptionalChain // OpOptionalChain | <<JUMP_BY_IF_NIL>>
+	OpElvis         // OpElvis | <<JUMP_BY_IF_NOT_NIL>>
 	OpTernary
+
 	OpModulo
 	OpNot
 	OpNegate
@@ -27,40 +30,9 @@ const (
 	OpChain
 	OpArray
 	OpIn
+
+	// OpGet | <<LITERAL_CONST_ID>>
 	OpGet
 	OpCall
 	OpPop
-
-	OpCodeCount
 )
-
-var opcodesLookup = map[int]string{
-	OpConstant:       "Constant",
-	OpJmp:            "Jmp",
-	OpPop:            "Pop",
-	OpEq:             "Eq",
-	OpNeq:            "Neq",
-	OpGt:             "Gt",
-	OpGte:            "Gte",
-	OpLt:             "Lt",
-	OpLte:            "Lte",
-	OpAdd:            "Add",
-	OpSubtract:       "Subtract",
-	OpMultiply:       "Multiply",
-	OpDivide:         "Divide",
-	OpPower:          "Exponent",
-	OpElvis:          "Elvis",
-	OpTernary:        "Ternary",
-	OpAnd:            "And",
-	OpOr:             "Or",
-	OpNot:            "Not",
-	OpNegate:         "Negate",
-	OpChain:          "Chain",
-	OpOptionalChain:  "OptionalChain",
-	OpPropertyAccess: "PropertyAccess",
-	OpArray:          "Array",
-	OpIn:             "In",
-	OpGet:            "Get",
-	OpCall:           "Call",
-	OpNil:            "Nil",
-}

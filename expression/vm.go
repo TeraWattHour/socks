@@ -8,16 +8,16 @@ import (
 )
 
 type VM struct {
-	chunk        Chunk
+	program      Program
 	stack        helpers.Stack[any]
 	ip           int
 	currentError error
 }
 
-func NewVM(chunk Chunk) *VM {
+func NewVM(program Program) *VM {
 	return &VM{
-		chunk: chunk,
-		stack: []any{},
+		program: program,
+		stack:   []any{},
 	}
 }
 
@@ -27,23 +27,21 @@ func (vm *VM) Run(env map[string]any) (any, error) {
 	}
 
 outerLoop:
-	for vm.ip = 0; vm.ip < len(vm.chunk.Instructions); vm.ip++ {
+	for vm.ip = 0; vm.ip < len(vm.program.Instructions); vm.ip++ {
 		vm.currentError = nil
-		switch vm.chunk.Instructions[vm.ip] {
+		switch vm.program.Instructions[vm.ip] {
 		case OpChain:
 			object := vm.stack.Pop()
 			if object == nil {
-				return nil, vm.error("can't access properties of <nil>", vm.chunk.Lookups[vm.ip].Location())
+				return nil, vm.error("can't access properties of <nil>", vm.program.Lookups[vm.ip].Location())
 			}
-			property := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]].(string)
+			property := vm.program.Constants[vm.takeNext()].(string)
 			vm.stack.Push(vm.accessProperty(object, property))
-			vm.ip++
 		case OpOptionalChain:
 			object := vm.stack.Pop()
 			if object == nil {
 				vm.stack.Push(nil)
-				jump := vm.chunk.Instructions[vm.ip+1]
-				vm.ip = jump
+				vm.ip += vm.nextInstruction()
 			} else {
 				vm.stack.Push(object)
 				vm.ip++
@@ -52,8 +50,7 @@ outerLoop:
 			left := vm.stack.Pop()
 			if left != nil {
 				vm.stack.Push(left)
-				jumpAhead := vm.chunk.Instructions[vm.ip+1]
-				vm.ip += jumpAhead
+				vm.ip += vm.nextInstruction()
 			} else {
 				vm.ip++
 			}
@@ -62,19 +59,17 @@ outerLoop:
 			if CastToBool(condition) {
 				vm.ip++
 			} else {
-				jumpToFalse := vm.chunk.Instructions[vm.ip+1]
-				vm.ip += jumpToFalse
+				vm.ip += vm.nextInstruction()
 			}
 		case OpPop:
 			vm.stack.Pop()
 		case OpJmp:
-			jump := vm.chunk.Instructions[vm.ip+1]
-			vm.ip += jump
+			vm.ip += vm.nextInstruction()
 		case OpPropertyAccess:
 			_index := vm.stack.Pop()
 			_value := vm.stack.Pop()
 			value := reflect.ValueOf(_value)
-			lookup := vm.chunk.Lookups[vm.ip].(*FieldAccess)
+			lookup := vm.program.Lookups[vm.ip].(*FieldAccess)
 			switch value.Kind() {
 			case reflect.Array, reflect.Slice:
 				result := castInt(_index)
@@ -94,7 +89,7 @@ outerLoop:
 				return nil, vm.error(fmt.Sprintf("forbidden access of properties of %T", _value), lookup.Location())
 			}
 		case OpArray:
-			count := vm.chunk.Instructions[vm.ip+1]
+			count := vm.program.Instructions[vm.ip+1]
 			items := make([]any, count)
 			for j := 0; j < count; j++ {
 				items[count-j-1] = vm.stack.Pop()
@@ -103,8 +98,7 @@ outerLoop:
 			vm.ip++
 
 		case OpCall:
-			argumentCount := vm.chunk.Instructions[vm.ip+1]
-			vm.ip++
+			argumentCount := vm.takeNext()
 
 			args := make([]reflect.Value, argumentCount)
 			for j := argumentCount - 1; j >= 0; j-- {
@@ -114,7 +108,7 @@ outerLoop:
 			fn := vm.stack.Pop()
 			reflectedFunction := reflect.ValueOf(fn)
 			if !reflectedFunction.IsValid() || reflectedFunction.Kind() != reflect.Func {
-				vm.currentError = vm.error(fmt.Sprintf("can't call %T", fn), vm.chunk.Lookups[vm.ip-1].(*FunctionCall).Location())
+				vm.currentError = vm.error(fmt.Sprintf("can't call %T", fn), vm.program.Lookups[vm.ip-1].(*FunctionCall).Location())
 				break
 			}
 			results := reflectedFunction.Call(args)
@@ -122,8 +116,7 @@ outerLoop:
 				result := results[0].Interface()
 				switch result := result.(type) {
 				case *castError:
-					vm.currentError = vm.error(result.Error(), vm.chunk.Lookups[vm.ip-1].(*FunctionCall).Location())
-					break
+					vm.currentError = vm.error(result.Error(), vm.program.Lookups[vm.ip-1].(*FunctionCall).Location())
 				default:
 					vm.stack.Push(result)
 				}
@@ -131,7 +124,7 @@ outerLoop:
 				vm.stack.Push(reflectedSliceToInterfaceSlice(results))
 			}
 		case OpGet:
-			ident := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]].(string)
+			ident := vm.program.Constants[vm.takeNext()].(string)
 			if env[ident] != nil {
 				vm.stack.Push(env[ident])
 			} else if f, ok := builtinsOne[ident]; ok {
@@ -139,12 +132,8 @@ outerLoop:
 			} else {
 				vm.stack.Push(nil)
 			}
-
-			vm.ip++
 		case OpConstant:
-			constant := vm.chunk.Constants[vm.chunk.Instructions[vm.ip+1]]
-			vm.ip++
-			vm.stack.Push(constant)
+			vm.stack.Push(vm.program.Constants[vm.takeNext()])
 		case OpIn:
 			right := vm.stack.Pop()
 			left := vm.stack.Pop()
@@ -200,10 +189,11 @@ outerLoop:
 		if vm.currentError != nil {
 			return nil, vm.currentError
 		}
+
 	}
 
 	if len(vm.stack) == 0 {
-		return nil, vm.error("expression does not return a value", vm.chunk.Lookups[0].Location())
+		return nil, vm.error("expression does not return a value", vm.program.Lookups[0].Location())
 	}
 
 	if len(vm.stack) != 1 {
@@ -218,7 +208,7 @@ func (vm *VM) executeInfixExpression(fn func(any, any) any) {
 	left := vm.stack.Pop()
 	res := fn(left, right)
 	if general, ok := res.(error); ok {
-		vm.currentError = vm.error(general.Error(), vm.chunk.Lookups[vm.ip].Location())
+		vm.currentError = vm.error(general.Error(), vm.program.Lookups[vm.ip].Location())
 		return
 	}
 	vm.stack.Push(res)
@@ -267,6 +257,15 @@ func (vm *VM) accessProperty(base any, property string) any {
 	}
 
 	return reflected.Interface()
+}
+
+func (vm *VM) takeNext() int {
+	vm.ip++
+	return vm.program.Instructions[vm.ip]
+}
+
+func (vm *VM) nextInstruction() int {
+	return vm.program.Instructions[vm.ip+1]
 }
 
 func (vm *VM) error(message string, location helpers.Location) error {

@@ -20,12 +20,12 @@ package expression
 //		}
 //
 //		compiler := NewCompiler(file, expr.Expr)
-//		chunk, err := compiler.Compile()
+//		program, err := compiler.Compile()
 //		if err != nil {
 //			t.Errorf("unexpected error: %v", err)
 //			return
 //		}
 //
-//		dumpChunk(chunk)
+//		dumpChunk(program)
 //	})
 //}

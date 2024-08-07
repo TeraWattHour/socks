@@ -6,7 +6,7 @@ import (
 	"slices"
 )
 
-type Chunk struct {
+type Program struct {
 	Instructions []int
 	Constants    []any
 	Lookups      []Expression
@@ -14,13 +14,13 @@ type Chunk struct {
 
 type Compiler struct {
 	expr  Expression
-	chunk Chunk
+	chunk Program
 }
 
 func NewCompiler(expr Expression) *Compiler {
 	return &Compiler{
 		expr: expr,
-		chunk: Chunk{
+		chunk: Program{
 			Instructions: make([]int, 0),
 			Constants:    make([]any, 0),
 			Lookups:      make([]Expression, 0),
@@ -28,9 +28,9 @@ func NewCompiler(expr Expression) *Compiler {
 	}
 }
 
-func (c *Compiler) Compile() (Chunk, error) {
+func (c *Compiler) Compile() (Program, error) {
 	if err := c.compile(c.expr); err != nil {
-		return Chunk{}, err
+		return Program{}, err
 	}
 	return c.chunk, nil
 }
@@ -113,7 +113,7 @@ func (c *Compiler) compile(expr Expression) error {
 		}
 
 		for _, index := range optionalIndices {
-			c.chunk.Instructions[index] = len(c.chunk.Instructions) - 1
+			c.chunk.Instructions[index] = len(c.chunk.Instructions) - index
 		}
 	case *Ternary:
 		if err := c.compile(expr.Condition); err != nil {
