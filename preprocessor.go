@@ -3,6 +3,7 @@ package socks
 import (
 	"fmt"
 	"github.com/terawatthour/socks/html"
+	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/runtime"
 	"io"
 	"path/filepath"
@@ -15,8 +16,8 @@ type Preprocessor struct {
 	preprocessed          map[string][]runtime.Statement
 	preprocessedWithSlots map[string][]runtime.Statement
 
-	staticContext runtime.Context
-	sanitizer     func(string) string
+	ctx       runtime.Context
+	sanitizer func(string) string
 }
 
 // Preprocess reads and preprocesses all files from the provided map. It takes ownership of the files and closes them.
@@ -33,7 +34,7 @@ func Preprocess(files map[string]io.Reader, staticContext runtime.Context, sanit
 		files:                 parsedFiles,
 		preprocessed:          make(map[string][]runtime.Statement),
 		preprocessedWithSlots: make(map[string][]runtime.Statement),
-		staticContext:         staticContext,
+		ctx:                   staticContext,
 		sanitizer:             sanitizer,
 	}
 	for filename := range files {
@@ -60,7 +61,14 @@ func (p *Preprocessor) preprocess(filename string, keepSlots bool, cycle ...stri
 		return err
 	}
 
-	output = foldTexts(output)
+	var precompiled helpers.Queue[runtime.Statement]
+	if err := runtime.NewStaticEvaluator(helpers.File{Name: filename}, &precompiled, output, p.sanitizer).Evaluate(nil, p.ctx); err != nil {
+		return err
+	} else if precompiled == nil {
+		return fmt.Errorf("error precompiling template")
+	}
+
+	output = foldTexts(precompiled)
 
 	if keepSlots {
 		p.preprocessedWithSlots[filename] = output

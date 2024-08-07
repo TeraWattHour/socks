@@ -31,13 +31,14 @@ func (fs *fileSystem) preprocessTemplates(ctx runtime.Context) error {
 		return err
 	}
 
-	for fileName, programs := range preprocessed {
-		fs.templates[fileName] = runtime.NewEvaluator(helpers.File{Name: fileName}, programs, fs.options.Sanitizer)
+	for path, programs := range preprocessed {
+		fs.templates[path] = runtime.NewEvaluator(helpers.File{Name: path}, programs, fs.options.Sanitizer)
 	}
 
 	for _, file := range fs.fileHandles {
 		_ = file.Close()
 	}
+
 	fs.files = make(map[string]io.Reader)
 	fs.fileHandles = make(map[string]*os.File)
 
@@ -56,12 +57,12 @@ func (fs *fileSystem) loadTemplates(globs ...string) error {
 			return fmt.Errorf("no files found")
 		}
 
-		for _, filePath := range matchedFiles {
-			if _, ok := fs.files[filePath]; ok {
+		for _, path := range matchedFiles {
+			if _, ok := fs.files[path]; ok {
 				continue
 			}
 
-			st, err := os.Stat(filePath)
+			st, err := os.Stat(path)
 			if err != nil {
 				return err
 			}
@@ -69,13 +70,13 @@ func (fs *fileSystem) loadTemplates(globs ...string) error {
 				continue
 			}
 
-			file, err := os.OpenFile(filePath, os.O_RDONLY, 0)
+			file, err := os.OpenFile(path, os.O_RDONLY, 0)
 			if err != nil {
 				return err
 			}
 
-			fs.fileHandles[filePath] = file
-			fs.files[filePath] = file
+			fs.fileHandles[path] = file
+			fs.files[path] = file
 		}
 	}
 

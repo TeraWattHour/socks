@@ -35,6 +35,7 @@ func (t *Text) Location() helpers.Location {
 type Attribute struct {
 	Name  string
 	Value *expression.VM
+	Deps  helpers.Set[string]
 }
 
 func (a *Attribute) Kind() string {
@@ -63,7 +64,7 @@ func (a *Attribute) Location() helpers.Location {
 type Expression struct {
 	Program *expression.VM
 	//tag          *tokenizer.Mustache
-	dependencies []string
+	Deps []string
 }
 
 func (expr *Expression) Evaluate(e *Evaluator, context Context) (err error) {
@@ -83,7 +84,7 @@ func (expr *Expression) Evaluate(e *Evaluator, context Context) (err error) {
 }
 
 func (expr *Expression) Dependencies() []string {
-	return expr.dependencies
+	return expr.Deps
 }
 
 func (expr *Expression) Location() helpers.Location {
@@ -98,9 +99,9 @@ func (expr *Expression) Kind() string {
 // ---------------------- If Statement ----------------------
 
 type IfStatement struct {
-	Program      *expression.VM
-	location     helpers.Location
-	dependencies []string
+	Program  *expression.VM
+	location helpers.Location
+	Deps     helpers.Set[string]
 
 	Consequence  []Statement
 	Alternatives []*ElifBranch
@@ -108,7 +109,7 @@ type IfStatement struct {
 }
 
 func (st *IfStatement) Dependencies() []string {
-	return st.dependencies
+	return st.Deps
 }
 
 func (st *IfStatement) Location() helpers.Location {
@@ -161,16 +162,16 @@ type ElifBranch struct {
 // ---------------------- For Statement ----------------------
 
 type ForStatement struct {
-	Iterable     *expression.VM
-	KeyName      string
-	ValueName    string
-	location     helpers.Location
-	Body         []Statement
-	dependencies []string
+	Iterable  *expression.VM
+	KeyName   string
+	ValueName string
+	location  helpers.Location
+	Body      []Statement
+	Deps      helpers.Set[string]
 }
 
 func (st *ForStatement) Dependencies() []string {
-	return st.dependencies
+	return st.Deps
 }
 
 func (st *ForStatement) Location() helpers.Location {

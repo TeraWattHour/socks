@@ -49,12 +49,9 @@ func (t *_tokenizer) tokenize() ([]Token, error) {
 	parens := helpers.Stack[rune]{}
 	tokens := make([]Token, 0)
 
-	for t.rune() != 0 {
-		t.skipWhitespace()
-		if t.rune() == 0 {
-			break
-		}
+	t.skipWhitespace()
 
+	for t.rune() != 0 {
 		pushNext := true
 		token := Token{Start: t.cursor, Length: 1, Literal: string(t.rune()), Location: t.location()}
 
@@ -210,8 +207,9 @@ func (t *_tokenizer) tokenize() ([]Token, error) {
 			t.forward()
 		}
 		token.Location.Length = token.Length
-
 		tokens = append(tokens, token)
+
+		t.skipWhitespace()
 	}
 
 	return tokens, nil

@@ -40,16 +40,16 @@ func parseBlock(block []Node) ([]runtime.Statement, error) {
 
 			// conditions are always evaluated first
 			if value, ok := t.Attributes[":if"]; ok {
-				vm, err := expression.Create(value)
+				vm, deps, err := expression.Create(value)
 				if err != nil {
 					return nil, err
 				}
 
-				_if := &runtime.IfStatement{Program: vm}
+				_if := &runtime.IfStatement{Program: vm, Deps: deps}
 				*outlet = append(*outlet, _if)
 				outlet = &_if.Consequence
 			} else if value, ok := t.Attributes[":elif"]; ok {
-				vm, err := expression.Create(value)
+				vm, deps, err := expression.Create(value)
 				if err != nil {
 					return nil, err
 				}
@@ -57,6 +57,7 @@ func parseBlock(block []Node) ([]runtime.Statement, error) {
 				if _if == nil {
 					return nil, fmt.Errorf("unexpected `:elif` outside if statement")
 				}
+				_if.Deps.Combine(deps)
 				_elif := &runtime.ElifBranch{Condition: vm}
 				_if.Alternatives = append(_if.Alternatives, _elif)
 				outlet = &_elif.Consequence
@@ -84,12 +85,12 @@ func parseBlock(block []Node) ([]runtime.Statement, error) {
 					return nil, fmt.Errorf("invalid `:for` syntax")
 				}
 
-				vm, err := expression.Create(groupMap["iterable"])
+				vm, deps, err := expression.Create(groupMap["iterable"])
 				if err != nil {
 					return nil, err
 				}
 
-				_for := &runtime.ForStatement{Iterable: vm, ValueName: groupMap["value"], KeyName: groupMap["key"]}
+				_for := &runtime.ForStatement{Iterable: vm, ValueName: groupMap["value"], KeyName: groupMap["key"], Deps: deps}
 				*outlet = append(*outlet, _for)
 				outlet = &_for.Body
 			}
@@ -146,8 +147,11 @@ func parseBlock(block []Node) ([]runtime.Statement, error) {
 						}
 						component.Defines[c.Name] = c.Children
 					default:
-						if t, ok := c.(*runtime.Text); ok && (strings.TrimSpace(t.Content) == "" || (strings.HasPrefix(t.Content, "<!--") && strings.HasSuffix(t.Content, "-->"))) {
-							continue
+						if t, ok := c.(*runtime.Text); ok {
+							trimmed := strings.TrimSpace(t.Content)
+							if trimmed == "" || (strings.HasPrefix(trimmed, "<!--") && strings.HasSuffix(trimmed, "-->")) {
+								continue
+							}
 						}
 						return nil, fmt.Errorf("unexpected element in component, only slots are allowed")
 					}
@@ -204,12 +208,12 @@ outer:
 				}
 
 				if i < len(text.Content)-1 && text.Content[i] == '}' && text.Content[i+1] == '}' {
-					vm, err := expression.Create(text.Content[start:i])
+					vm, deps, err := expression.Create(text.Content[start:i])
 					if err != nil {
 						return nil, err
 					}
 
-					output = append(output, &runtime.Expression{Program: vm})
+					output = append(output, &runtime.Expression{Program: vm, Deps: deps})
 					lastClosed = i + 2
 					continue outer
 				}
@@ -269,12 +273,12 @@ func renderStartTag(tag *Tag, output *[]runtime.Statement) (err error) {
 				continue
 			}
 
-			vm, err := expression.Create(value)
+			vm, deps, err := expression.Create(value)
 			if err != nil {
 				return err
 			}
 
-			*output = append(*output, &runtime.Attribute{key[1:], vm})
+			*output = append(*output, &runtime.Attribute{key[1:], vm, deps})
 		} else {
 			if strings.HasPrefix(key, "::") {
 				key = key[1:]

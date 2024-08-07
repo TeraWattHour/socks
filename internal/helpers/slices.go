@@ -2,6 +2,7 @@ package helpers
 
 import (
 	"reflect"
+	"slices"
 )
 
 type Key any
@@ -98,4 +99,28 @@ func (q *Queue[T]) Pop() T {
 	v := (*q)[0]
 	*q = (*q)[1:]
 	return v
+}
+
+type Set[T comparable] []T
+
+func (s *Set[T]) Add(v T) {
+	if !s.Contains(v) {
+		*s = append(*s, v)
+	}
+}
+
+func (s *Set[T]) Remove(v T) {
+	*s = slices.DeleteFunc(*s, func(t T) bool {
+		return t == v
+	})
+}
+
+func (s *Set[T]) Contains(v T) bool {
+	return slices.Contains(*s, v)
+}
+
+func (s *Set[T]) Combine(other Set[T]) {
+	for _, v := range other {
+		s.Add(v)
+	}
 }

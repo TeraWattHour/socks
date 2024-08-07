@@ -11,7 +11,7 @@
             </span>
 
             <a :for="country in countries" :href="'/' + country">
-                {{ country }}
+                {{ raw(country) }}
             </a>
 
             <div class="flex flex-row items-center space-x-5 justify-end">
