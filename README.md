@@ -111,7 +111,6 @@ Value of this expression will be printed to the template without any sanitizatio
     </div>
 </v-component>
 ```
-- `@template`, `@slot` and `@define` are used for including templates.
 ```html
 <!--header.html-->
 <header>
