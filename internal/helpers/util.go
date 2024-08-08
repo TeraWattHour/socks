@@ -4,16 +4,11 @@ import (
 	"path/filepath"
 )
 
-type File struct {
-	Name    string
-	Content string
-}
-
 // Location represents a location in a file. Line starts at 1, Column - at 0.
 type Location struct {
+	File   string
 	Line   int
 	Column int
-	Cursor int
 	Length int
 }
 
@@ -22,27 +17,17 @@ func (l Location) SetLength(length int) Location {
 	return l
 }
 
-func (l Location) Combine(other Location) Location {
-	l.Length = other.Cursor + other.Length - l.Cursor
-	return l
-}
-
-func (l Location) FromOther() Location {
-	l.Column += l.Length
-	l.Cursor += l.Length
-	l.Length = 1
-	return l
-}
-
-func (l Location) MoveBy(amount int) Location {
-	l.Cursor += amount
-	l.Column += amount
+func (l Location) WithBase(base Location) Location {
+	if base.Line == l.Line {
+		l.Column += base.Column
+		return l
+	}
+	l.Line += base.Line
 	return l
 }
 
 func (l Location) PointAfter() Location {
 	l.Column += l.Length
-	l.Cursor += l.Length
 	l.Length = 1
 	return l
 }

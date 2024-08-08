@@ -197,7 +197,7 @@ outerLoop:
 	}
 
 	if len(vm.stack) != 1 {
-		return nil, fmt.Errorf("expression returns multiple values")
+		return nil, vm.error("expression returns multiple values", vm.program.Lookups[0].Location())
 	}
 
 	return vm.stack.Pop(), nil
@@ -269,7 +269,7 @@ func (vm *VM) nextInstruction() int {
 }
 
 func (vm *VM) error(message string, location helpers.Location) error {
-	return errors2.New(message, location, location.FromOther())
+	return errors2.New(message, location)
 }
 
 func reflectedSliceToInterfaceSlice(vs []reflect.Value) []interface{} {

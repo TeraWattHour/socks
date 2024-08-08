@@ -1,7 +1,9 @@
 package expression
 
-func Create(source string) (*VM, []string, error) {
-	tokens, err := Tokenize(source)
+import "github.com/terawatthour/socks/internal/helpers"
+
+func Create(source string, blockLocation helpers.Location) (*VM, []string, error) {
+	tokens, err := Tokenize(source, blockLocation)
 	if err != nil {
 		return nil, nil, err
 	}
@@ -11,10 +13,10 @@ func Create(source string) (*VM, []string, error) {
 		return nil, nil, err
 	}
 
-	chunk, err := NewCompiler(ast.Expr).Compile()
+	program, err := NewCompiler(ast.Expr).Compile()
 	if err != nil {
 		return nil, nil, err
 	}
 
-	return NewVM(chunk), ast.Dependencies, nil
+	return NewVM(program), ast.Dependencies, nil
 }

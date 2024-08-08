@@ -1,12 +1,13 @@
 package expression
 
 import (
+	"github.com/terawatthour/socks/internal/helpers"
 	"testing"
 )
 
 func TestNumbers(t *testing.T) {
 	template := `2 + 4.123 + 0b11 + 0x123ABC + 0o1234567 + .2 + 0o62 * 076`
-	tokens, err := Tokenize(template)
+	tokens, err := Tokenize(template, helpers.Location{Line: 1, Column: 1})
 	if err != nil {
 		t.Errorf("unexpected error: %v", err)
 		return
@@ -54,7 +55,7 @@ func TestMalformedNumbers(t *testing.T) {
 		"0x99.23",
 	}
 	for i, c := range cases {
-		_, err := Tokenize(c)
+		_, err := Tokenize(c, helpers.Location{Line: 1, Column: 1})
 		if err == nil {
 			t.Errorf("(%d) expected error, got nil", i)
 			return

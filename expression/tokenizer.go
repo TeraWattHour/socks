@@ -10,6 +10,8 @@ import (
 )
 
 type _tokenizer struct {
+	blockLocation helpers.Location
+
 	template []rune
 	cursor   int
 
@@ -32,12 +34,13 @@ func (t Token) String() string {
 	return TokenKinds[t.Kind]
 }
 
-func Tokenize(template string) ([]Token, error) {
+func Tokenize(template string, blockLocation helpers.Location) ([]Token, error) {
 	t := &_tokenizer{
-		template: []rune(template),
-		cursor:   -1,
-		line:     1,
-		column:   0,
+		template:      []rune(template),
+		cursor:        -1,
+		line:          1,
+		column:        0,
+		blockLocation: blockLocation,
 	}
 
 	t.forward()
@@ -268,7 +271,7 @@ func (t *_tokenizer) numeric() (token Token, err error) {
 }
 
 func (t *_tokenizer) location() helpers.Location {
-	return helpers.Location{t.line, t.column, t.cursor, 1}
+	return helpers.Location{t.blockLocation.File, t.line, t.column, 1}.WithBase(t.blockLocation)
 }
 
 func (t *_tokenizer) skipWhitespace() {
@@ -332,14 +335,10 @@ func isLetter(r rune) bool {
 	return r == '_' || unicode.IsLetter(r)
 }
 
-func isAsciiLetter(r rune) bool {
-	return r >= 'a' && r <= 'z' || r >= 'A' && r <= 'Z'
-}
-
 func (t *_tokenizer) isValidVariableStart() bool {
 	return isLetter(t.rune())
 }
 
-func (t *_tokenizer) error(message string, start helpers.Location) error {
-	return errors2.New(message, start, t.location())
+func (t *_tokenizer) error(message string, location helpers.Location) error {
+	return errors2.New(message, location)
 }

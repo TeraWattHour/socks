@@ -487,5 +487,5 @@ func (p *parser) advance() Token {
 }
 
 func (p *parser) error(message string, location helpers.Location) error {
-	return errors2.New(message, location, location.FromOther())
+	return errors2.New(message, location)
 }

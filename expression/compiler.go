@@ -2,7 +2,6 @@ package expression
 
 import (
 	"github.com/terawatthour/socks/errors"
-	"github.com/terawatthour/socks/internal/helpers"
 	"slices"
 )
 
@@ -229,6 +228,6 @@ func (c *Compiler) addLookup(expression Expression) {
 	c.chunk.Lookups[atIndex] = expression
 }
 
-func (c *Compiler) error(message string, location helpers.Location) error {
-	return errors.New(message, location, location.FromOther())
+func (c *Compiler) error(message string, token Token) error {
+	return errors.New(message, token.Location)
 }

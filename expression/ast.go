@@ -298,7 +298,7 @@ type InfixExpression struct {
 }
 
 func (s *InfixExpression) Location() helpers.Location {
-	return s.Left.Location().Combine(s.Right.Location())
+	return s.Token.Location
 }
 
 func (s *InfixExpression) IsEqual(node Node) bool {
@@ -355,7 +355,7 @@ type FunctionCall struct {
 }
 
 func (s *FunctionCall) Location() helpers.Location {
-	return s.Token.Location.Combine(s.closeToken.Location)
+	return s.Token.Location
 }
 
 func (s *FunctionCall) IsEqual(node Node) bool {
@@ -400,7 +400,7 @@ type FieldAccess struct {
 }
 
 func (s *FieldAccess) Location() helpers.Location {
-	return s.Token.Location.Combine(s.closeToken.Location)
+	return s.Token.Location
 }
 
 func (s *FieldAccess) IsEqual(node Node) bool {
@@ -428,10 +428,7 @@ type Chain struct {
 }
 
 func (s *Chain) Location() helpers.Location {
-	if len(s.Parts) == 0 {
-		return s.Token.Location
-	}
-	return s.Parts[0].Location().Combine(s.Parts[len(s.Parts)-1].Location())
+	return s.Token.Location
 }
 
 func (s *Chain) IsEqual(node Node) bool {
@@ -499,11 +496,4 @@ func (s *Ternary) Literal() string {
 
 func (s *Ternary) String() string {
 	return fmt.Sprintf("[ternary: %s ? %s : %s]", s.Condition.String(), s.Consequence.String(), s.Alternative.String())
-}
-
-func expressionsLocation(exprs []Expression) helpers.Location {
-	if len(exprs) == 0 {
-		return helpers.Location{}
-	}
-	return exprs[0].Location().Combine(exprs[len(exprs)-1].Location())
 }

@@ -27,39 +27,38 @@ func TestVM_Run(t *testing.T) {
 	sets := []struct {
 		expr   string
 		expect any
-	}{{
-		"ordinals[nil ?: 1]",
-		"2nd",
-	}, {
-		"voidMember?.method() ?: 1 != 1 ?: 420",
-		false,
-	}, {
-		"voidMember?.property",
-		nil,
-	}, {
-		"2 ** 3 / 4",
-		2,
-	}, {
-		`not "str" in [false]`,
-		true,
-	}, {
-		`base.structure.Method(123.4) + base.structure.ReceiverMethod() + someInt.Method()`,
-		`the ratio is 123.4 non-pointer method value of SomeInt is 123`,
-	}, {
-		`sprintf("%.2f", 12 ? 12. + 123. ** 2.5 : 0.123)`,
-		"167800.73",
-	}, {
-		"float64(2) / float64(4)",
-		0.5,
-	}, {
-		"range(1, 2, 1)[0]",
-		1,
-	}}
+	}{
+		{
+			"ordinals[nil ?: 1]",
+			"2nd",
+		}, {
+			"voidMember?.method() ?: 1 != 1 ?: 420",
+			false,
+		}, {
+			"voidMember?.property",
+			nil,
+		}, {
+			"2 ** 3 / 4",
+			2,
+		}, {
+			`not "str" in [false]`,
+			true,
+		}, {
+			`base.structure.Method(123.4) + base.structure.ReceiverMethod() + someInt.Method()`,
+			`the ratio is 123.4 non-pointer method value of SomeInt is 123`,
+		}, {
+			`sprintf("%.2f", 12 ? 12. + 123. ** 2.5 : 0.123)`,
+			"167800.73",
+		}, {
+			"float64(2) / float64(4)",
+			0.5,
+		}, {
+			"range(1, 2, 1)[0]",
+			1,
+		}}
 
 	for i, set := range sets {
-		file := helpers.File{"debug.txt", set.expr}
-
-		elements, err := Tokenize(file.Content)
+		elements, err := Tokenize(set.expr, helpers.Location{Line: 1, Column: 1})
 		if err != nil {
 			t.Errorf("unexpected error: %v", err)
 			return
