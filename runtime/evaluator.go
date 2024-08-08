@@ -11,7 +11,6 @@ import (
 type Evaluator struct {
 	programs []Statement
 
-	file         helpers.File
 	staticOutput *helpers.Queue[Statement]
 	writer       io.Writer
 	staticMode   bool
@@ -19,12 +18,12 @@ type Evaluator struct {
 	sanitizer    func(string) string
 }
 
-func NewEvaluator(file helpers.File, programs []Statement, sanitizer func(string) string) *Evaluator {
-	return &Evaluator{programs: programs, file: file, sanitizer: sanitizer}
+func NewEvaluator(programs []Statement, sanitizer func(string) string) *Evaluator {
+	return &Evaluator{programs: programs, sanitizer: sanitizer}
 }
 
-func NewStaticEvaluator(file helpers.File, output *helpers.Queue[Statement], programs []Statement, sanitizer func(string) string) *Evaluator {
-	return &Evaluator{staticOutput: output, file: file, programs: programs, staticMode: true, sanitizer: sanitizer}
+func NewStaticEvaluator(output *helpers.Queue[Statement], programs []Statement, sanitizer func(string) string) *Evaluator {
+	return &Evaluator{staticOutput: output, programs: programs, staticMode: true, sanitizer: sanitizer}
 }
 
 func (e *Evaluator) Evaluate(writer io.Writer, context Context) error {
@@ -41,24 +40,15 @@ func (e *Evaluator) Evaluate(writer io.Writer, context Context) error {
 }
 
 func (e *Evaluator) evaluateProgram(program Statement, context Context) error {
-	switch program := program.(type) {
-	case *Text:
-		if e.staticMode {
-			e.staticOutput.Push(program)
-		} else {
-			if _, err := e.writer.Write([]byte(program.Content)); err != nil {
-				return err
-			}
-		}
-
-		return nil
+	if text, ok := program.(*Text); ok {
+		return e.write(text.Content)
 	}
 
 	// Evaluable programs (If, For, Expression) can be evaluated both at compile time and at runtime.
 	// Any other program kind is left for the runtime evaluation but is expected to be evaluated
 	// in its block, e.g. elif statement may not be evaluated on its own but only together with the if statement.
 	prog, ok := program.(Evaluable)
-	if !ok && e.staticMode || (e.staticMode && !helpers.Subset(prog.Dependencies(), availableInContext(context))) {
+	if !ok && e.staticMode || (e.staticMode && !helpers.IsSubset(prog.Dependencies(), availableInContext(context))) {
 		e.staticOutput.Push(program)
 		return nil
 	} else if !ok {
@@ -84,7 +74,7 @@ func (e *Evaluator) write(data any) error {
 }
 
 func (e *Evaluator) error(message string, location helpers.Location) error {
-	return errors.New(message, location, location.FromOther())
+	return errors.New(message, location)
 }
 
 func availableInContext(context map[string]any) []string {

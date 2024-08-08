@@ -62,7 +62,7 @@ func (p *Preprocessor) preprocess(filename string, keepSlots bool, cycle ...stri
 	}
 
 	var precompiled helpers.Queue[runtime.Statement]
-	if err := runtime.NewStaticEvaluator(helpers.File{Name: filename}, &precompiled, output, p.sanitizer).Evaluate(nil, p.ctx); err != nil {
+	if err := runtime.NewStaticEvaluator(&precompiled, output, p.sanitizer).Evaluate(nil, p.ctx); err != nil {
 		return err
 	} else if precompiled == nil {
 		return fmt.Errorf("error precompiling template")

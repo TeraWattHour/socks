@@ -3,7 +3,6 @@ package socks
 import (
 	"bytes"
 	"fmt"
-	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/runtime"
 	"io"
 	"testing"
@@ -27,7 +26,7 @@ func TestPreprocessor(t *testing.T) {
 	}
 
 	output := bytes.NewBufferString("")
-	fmt.Println(runtime.NewEvaluator(helpers.File{Name: "index.html"}, preprocessed["index.html"], nil).Evaluate(output, nil))
+	fmt.Println(runtime.NewEvaluator(preprocessed["index.html"], nil).Evaluate(output, nil))
 
 	fmt.Println(output.String())
 }

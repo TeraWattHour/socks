@@ -40,7 +40,7 @@ func parseBlock(block []Node) ([]runtime.Statement, error) {
 
 			// conditions are always evaluated first
 			if value, ok := t.Attributes[":if"]; ok {
-				vm, deps, err := expression.Create(value)
+				vm, deps, err := expression.Create(value, t.Location)
 				if err != nil {
 					return nil, err
 				}
@@ -49,7 +49,7 @@ func parseBlock(block []Node) ([]runtime.Statement, error) {
 				*outlet = append(*outlet, _if)
 				outlet = &_if.Consequence
 			} else if value, ok := t.Attributes[":elif"]; ok {
-				vm, deps, err := expression.Create(value)
+				vm, deps, err := expression.Create(value, t.Location)
 				if err != nil {
 					return nil, err
 				}
@@ -85,7 +85,7 @@ func parseBlock(block []Node) ([]runtime.Statement, error) {
 					return nil, fmt.Errorf("invalid `:for` syntax")
 				}
 
-				vm, deps, err := expression.Create(groupMap["iterable"])
+				vm, deps, err := expression.Create(groupMap["iterable"], t.Location)
 				if err != nil {
 					return nil, err
 				}
@@ -208,7 +208,7 @@ outer:
 				}
 
 				if i < len(text.Content)-1 && text.Content[i] == '}' && text.Content[i+1] == '}' {
-					vm, deps, err := expression.Create(text.Content[start:i])
+					vm, deps, err := expression.Create(text.Content[start:i], text.Location)
 					if err != nil {
 						return nil, err
 					}
@@ -273,7 +273,7 @@ func renderStartTag(tag *Tag, output *[]runtime.Statement) (err error) {
 				continue
 			}
 
-			vm, deps, err := expression.Create(value)
+			vm, deps, err := expression.Create(value, tag.Location)
 			if err != nil {
 				return err
 			}

@@ -38,8 +38,8 @@ func IsIterable(obj any) bool {
 	return value.Kind() == reflect.Slice || value.Kind() == reflect.Array || value.Kind() == reflect.Map
 }
 
-// Subset checks whether _a_ is a subset of _B_
-func Subset[T comparable](a, B []T) bool {
+// IsSubset checks whether _a_ is a subset of _B_
+func IsSubset[T comparable](a, B []T) bool {
 	if len(a) > len(B) {
 		return false
 	}

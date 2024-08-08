@@ -2,7 +2,6 @@ package socks
 
 import (
 	"fmt"
-	"github.com/terawatthour/socks/internal/helpers"
 	"github.com/terawatthour/socks/runtime"
 	"io"
 	"os"
@@ -32,7 +31,7 @@ func (fs *fileSystem) preprocessTemplates(ctx runtime.Context) error {
 	}
 
 	for path, programs := range preprocessed {
-		fs.templates[path] = runtime.NewEvaluator(helpers.File{Name: path}, programs, fs.options.Sanitizer)
+		fs.templates[path] = runtime.NewEvaluator(programs, fs.options.Sanitizer)
 	}
 
 	for _, file := range fs.fileHandles {
