@@ -271,7 +271,7 @@ func (t *_tokenizer) numeric() (token Token, err error) {
 }
 
 func (t *_tokenizer) location() helpers.Location {
-	return helpers.Location{t.blockLocation.File, t.line, t.column, 1}.WithBase(t.blockLocation)
+	return helpers.Location{t.blockLocation.File, t.line, t.column, 1}
 }
 
 func (t *_tokenizer) skipWhitespace() {
